@@ -56,6 +56,8 @@ pub struct GoogleLink {
     pub last_row_count: i64,
     /// Where the tab's names and data are, when the person said; else they're found on each read.
     pub layout: Option<FileLayout>,
+    /// `app`: the sheet was made from this table by Save a link file, and is written from here (the table is not read from it).
+    pub origin: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -73,11 +75,14 @@ pub struct GoogleLinkInput {
     /// Where the tab's names and data are, when the person said (none: found on each read).
     #[serde(default)]
     pub layout: Option<FileLayout>,
+    /// `app`: the sheet is made and kept by this app from the table (see `GoogleLink::origin`).
+    #[serde(default)]
+    pub origin: Option<String>,
 }
 
 const SELECT: &str = "SELECT l.link_id, l.sheet_id, s.mac_id, m.mac_name, s.title,
         l.spreadsheet_id, l.spreadsheet_title, l.tab_title, l.header_map,
-        l.last_synced_at, l.last_row_count, l.layout
+        l.last_synced_at, l.last_row_count, l.layout, l.origin
     FROM google_links l
     JOIN sheets s ON s.sheet_id = l.sheet_id
     JOIN macs m ON m.mac_id = s.mac_id";
@@ -101,6 +106,7 @@ fn link_from_row(row: &rusqlite::Row) -> rusqlite::Result<GoogleLink> {
             .get::<_, Option<String>>(11)?
             .and_then(|text| serde_json::from_str::<FileLayout>(&text).ok())
             .filter(FileLayout::is_valid),
+        origin: row.get(12)?,
     })
 }
 
@@ -159,8 +165,8 @@ pub fn save(conn: &Connection, input: &GoogleLinkInput) -> CmdResult<GoogleLink>
     }
     conn.execute(
         "INSERT INTO google_links (sheet_id, spreadsheet_id, spreadsheet_title, tab_title, header_map,
-                                   last_synced_at, last_row_count, layout)
-         VALUES (?1, ?2, ?3, ?4, ?5, CASE WHEN ?6 IS NULL THEN NULL ELSE datetime('now') END, COALESCE(?6, 0), ?7)
+                                   last_synced_at, last_row_count, layout, origin)
+         VALUES (?1, ?2, ?3, ?4, ?5, CASE WHEN ?6 IS NULL THEN NULL ELSE datetime('now') END, COALESCE(?6, 0), ?7, ?8)
          ON CONFLICT(sheet_id) DO UPDATE SET
              spreadsheet_id = excluded.spreadsheet_id,
              spreadsheet_title = excluded.spreadsheet_title,
@@ -168,7 +174,8 @@ pub fn save(conn: &Connection, input: &GoogleLinkInput) -> CmdResult<GoogleLink>
              header_map = excluded.header_map,
              last_synced_at = excluded.last_synced_at,
              last_row_count = excluded.last_row_count,
-             layout = excluded.layout",
+             layout = excluded.layout,
+             origin = excluded.origin",
         params![
             input.sheet_id,
             input.spreadsheet_id,
@@ -176,7 +183,8 @@ pub fn save(conn: &Connection, input: &GoogleLinkInput) -> CmdResult<GoogleLink>
             input.tab_title,
             header_map,
             input.row_count,
-            layout
+            layout,
+            input.origin
         ],
     )
     .map_err(err)?;
@@ -305,6 +313,7 @@ mod tests {
             header_map,
             row_count,
             layout: None,
+            origin: None,
         }
     }
 
@@ -414,5 +423,17 @@ mod tests {
         )
         .unwrap();
         assert_eq!(link_of(&conn, nursery).unwrap().layout, None);
+    }
+
+    #[test]
+    fn a_link_made_by_the_app_says_so_until_the_person_points_it_elsewhere() {
+        let conn = database();
+        let sheet = table(&conn, "MAC-001", "Zones");
+        let mut made = input(sheet, "Zones", Some(3));
+        made.origin = Some("app".into());
+        assert_eq!(save(&conn, &made).unwrap().origin.as_deref(), Some("app"));
+        // Pointed at another tab by hand, it is an ordinary link again.
+        let by_hand = input(sheet, "Other", None);
+        assert_eq!(save(&conn, &by_hand).unwrap().origin, None);
     }
 }

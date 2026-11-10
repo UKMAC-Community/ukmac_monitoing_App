@@ -203,6 +203,8 @@ export interface GoogleStatus {
   hasSecret: boolean;
   email: string | null;
   name: string | null;
+  /** This sign-in may make the Google Sheet a saved MAC file's tables are kept in; false: sign in again to allow it. */
+  canCreate?: boolean;
 }
 
 /** A Google Sheet (or an Excel file kept in Drive) in the user's Drive. */
@@ -231,6 +233,8 @@ export interface GoogleLink {
   lastRowCount: number;
   /** Where the tab's column names and data are, when the person said; null: found on each read. */
   layout: FileLayout | null;
+  /** `app`: the sheet was made from this table by Save a link file and is written from here, so the table is never read from it. */
+  origin?: string | null;
 }
 
 export interface GoogleLinkInput {
@@ -243,6 +247,8 @@ export interface GoogleLinkInput {
   rowCount?: number;
   /** Where the tab's column names and data are, when the person said (none: found on each read). */
   layout?: FileLayout | null;
+  /** `app`: the sheet is made and kept by this app from the table (see GoogleLink). */
+  origin?: string | null;
 }
 
 // ------------------------------------------------------------- dashboards

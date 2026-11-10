@@ -187,6 +187,13 @@ export class Api {
   saveGoogleLink(input: GoogleLinkInput) {
     return invoke<GoogleLink>('save_google_link', { input });
   }
+  /** Makes a Google Sheet from this workbook (`existing`: replaces the content of the sheet made before). */
+  googleUploadWorkbook(bytes: ArrayBuffer | Uint8Array, name: string, existing?: string | null) {
+    const body = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    return invoke<DriveFile>('google_upload_workbook', body, {
+      headers: { name: encodeURIComponent(name), file: encodeURIComponent(existing ?? '') },
+    });
+  }
   googleLinkSynced(sheetId: number, rowCount: number, headerMap: Record<string, string>) {
     return invoke<GoogleLink>('google_link_synced', { sheetId, rowCount, headerMap });
   }

@@ -3,11 +3,12 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { WorkbookFormulas } from '../formula/sheet-formulas';
 import type { FileLayout } from '../excel/file-layout';
 import { readExcelSheets, tableFromSheet, type ExcelSheetData } from '../excel/sheet-from-excel';
+import { buildSyncWorkbook } from '../excel/sync-workbook';
 import { cellsFor, headerMapOf, matchHeaders, newColumns } from '../google/sheet-sync';
 import { parseLinkSource, todayIso } from '../sheet/columns';
 import { Api, errorText } from './api';
 import { MacList } from './mac-list';
-import type { DriveFile, GoogleLink, GoogleStatus, SheetWithRows } from './models';
+import type { DriveFile, GoogleLink, GoogleStatus, SheetWithRows, Workbook } from './models';
 import { PowerBi } from './powerbi';
 import { Toasts } from './toast';
 import { WorkbookStore } from './workbook-store';
@@ -238,6 +239,9 @@ export class Google {
   async sync(sheetId: number): Promise<SyncOutcome> {
     const link = this.linkOf(sheetId);
     if (!link) throw new Error("This table isn't linked to a Google Sheet.");
+    if (link.origin === 'app') {
+      throw new Error('This table is written to its Google Sheet each time you Save a link file, so it is not read back from it. Edit it here and save the file again.');
+    }
     if (this.isSyncing(sheetId)) throw new Error('This table is being read already.');
     this.syncing.update((set) => new Set(set).add(sheetId));
     try {
@@ -291,6 +295,46 @@ export class Google {
     void this.macList.refresh();
     this.powerBi.changed();
     return { rows: rows.length, added, problems, truncated: !!data.truncated };
+  }
+
+  /**
+   * What a saved file brings along through Google: the Zones table (it draws the Zone Map), when no Google Sheet holds it yet, or
+   * when this app already keeps it in the sheet it made (`existing`, which is written again, not made again). No other table is
+   * put in Google by Save.
+   */
+  keepable(book: Workbook): { tables: SheetWithRows[]; existing: string | null } {
+    const links = this.links().filter((link) => link.macId === book.mac.macId);
+    const mine = links.find((link) => link.origin === 'app');
+    const tables = book.sheets.filter((sheet) => {
+      if (sheet.templateKey !== 'zones') return false;
+      const link = links.find((item) => item.sheetId === sheet.sheetId);
+      return link ? link.origin === 'app' : sheet.rows.length > 0;
+    });
+    return { tables, existing: mine?.spreadsheetId ?? null };
+  }
+
+  /**
+   * Puts those tables into one Google Sheet in the signed-in person's Drive (made the first time, replaced after, so
+   * whoever it is shared with keeps their access) and links each table to its tab, marked as written from here.
+   */
+  async keepInGoogle(book: Workbook): Promise<DriveFile> {
+    const { tables, existing } = this.keepable(book);
+    if (!tables.length) throw new Error('No table needs a Google Sheet.');
+    const { bytes, tabs } = await buildSyncWorkbook(tables);
+    const file = await this.guard(() => this.api.googleUploadWorkbook(bytes, `UKMAC – ${book.mac.macName}`, existing));
+    for (const tab of tabs) {
+      await this.api.saveGoogleLink({
+        sheetId: tab.sheetId,
+        spreadsheetId: file.id,
+        spreadsheetTitle: file.name,
+        tabTitle: tab.tab,
+        headerMap: tab.headerMap,
+        rowCount: tab.rows,
+        origin: 'app',
+      });
+    }
+    await this.refreshLinks();
+    return file;
   }
 
   /** `sync`, with its result told to the user. */

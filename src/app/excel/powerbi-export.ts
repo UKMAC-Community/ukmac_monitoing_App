@@ -35,7 +35,7 @@ function asDate(iso: string): Date {
   return new Date(`${iso}T00:00:00.000Z`);
 }
 
-function typed(column: Column, value: FormulaScalar | string | undefined): Typed {
+export function typed(column: Column, value: FormulaScalar | string | undefined): Typed {
   if (value === undefined || value === null || value === '' || isFormulaError(value)) return null;
   if (typeof value === 'number' || typeof value === 'boolean') return value;
   const text = String(value);
@@ -72,7 +72,7 @@ function kindOf(column: Column): 'date' | 'number' | 'other' {
 }
 
 /** A worksheet's name: ≤31 characters, none of []:*?/\, not used yet. */
-function sheetName(title: string, used: Set<string>) {
+export function sheetName(title: string, used: Set<string>) {
   const base = title.replace(/[[\]:*?/\\]/g, '-').slice(0, 31).trim() || 'Table';
   let name = base;
   for (let n = 2; used.has(name.toLowerCase()); n += 1) {

@@ -5,7 +5,7 @@ import { Icon } from '../components/icon';
 import { MacDialog } from '../components/mac-dialog';
 import { UpdateButton } from '../components/update-button';
 import { Api, errorText } from '../core/api';
-import { Google } from '../core/google';
+import { Google, sheetUrl } from '../core/google';
 import { MacList } from '../core/mac-list';
 import type { ImportedMac, Mac } from '../core/models';
 import { Toasts } from '../core/toast';
@@ -242,6 +242,8 @@ export class HomePage {
   /** The MAC's tables and their Google links in one `.ukmac` file: no rows, so the file can't leak the farm's data. */
   async saveToFile(mac: Mac) {
     this.menu$.set(null);
+    // The tables a file can't carry (rows nobody has in Google yet) go into a Google Sheet first, if the person says so.
+    if (!(await this.keepInGoogle(mac))) return;
     const stamp = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
     const name = mac.macName.replace(/[\\/:*?"<>|]+/g, ' ').trim() || mac.macCode;
     const path = await this.api.pickSavePath(`${name} ${stamp}.ukmac`, 'UKMAC MAC file', ['ukmac']);
@@ -265,6 +267,67 @@ export class HomePage {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /**
+   * Before a MAC is saved to a file: asks whether to put the tables that are not in Google (the zones, for one) into a Google
+   * Sheet, made in the signed-in account's Drive and linked, so they come with the file for those who may open that sheet.
+   * Returns false to stop the save.
+   */
+  private async keepInGoogle(mac: Mac): Promise<boolean> {
+    try {
+      const book = await this.api.getWorkbook(mac.macId);
+      await this.google.refreshLinks();
+      const { tables, existing } = this.google.keepable(book);
+      if (!tables.length) return true;
+      const list = tables.map((table) => `${table.rows.length} row${table.rows.length === 1 ? '' : 's'} in ${table.title}`).join(', ');
+      const answer = await this.api.choose(
+        existing
+          ? `The Zone Map (${list}) is kept in the Google Sheet “UKMAC – ${mac.macName}”.\n\nUpdate it with the zones as they are now? Anything changed in that Google Sheet itself is replaced.`
+          : `The Zone Map (${list}) isn't in a Google Sheet, so a saved file can't bring the map to another computer.\n\n` +
+              `Make a Google Sheet “UKMAC – ${mac.macName}” in your Google Drive with the Zones table only, and link the table to it? Only you can open it until you share it; ` +
+              `the accounts you share it with can see the zones. No other table is put in Google.\n\nSave without it: the file is saved and the map arrives empty.`,
+        'Keep the Zone Map in Google',
+        existing ? 'Update it' : 'Make the sheet',
+        'Save without it',
+      );
+      if (answer === null) return false;
+      if (answer === 'no') return true;
+      if (!(await this.allowCreatingFiles())) return false;
+      const file = await this.google.keepInGoogle(book);
+      this.toasts.show(
+        `The Zone Map (${list}) is in the Google Sheet “${file.name}”. Share it with the people who should open this MAC.`,
+        'ok',
+        { label: 'Open to share', run: () => void this.api.openLink(sheetUrl(file.id)) },
+        16000,
+      );
+      return true;
+    } catch (error) {
+      this.toasts.error(errorText(error));
+      return false;
+    }
+  }
+
+  /** Making the sheet needs one more permission from Google; a sign-in from before has not got it, so sign in again (as the same account). */
+  private async allowCreatingFiles(): Promise<boolean> {
+    if (this.google.status()?.canCreate) return true;
+    const who = this.google.status()?.email ?? null;
+    const answer = await this.api.choose(
+      'To make the Google Sheet, Google has to let this app create files. Sign in again and tick the box that allows it.',
+      'One more permission',
+      'Sign in again',
+      'Not now',
+    );
+    if (answer !== 'yes' || !(await this.google.signIn())) return false;
+    if ((this.google.status()?.email ?? null) !== who) {
+      this.toasts.error(`You signed in as a different Google account${who ? ` than ${who}` : ''}, so nothing was made. Sign in again with the same account.`);
+      return false;
+    }
+    if (!this.google.status()?.canCreate) {
+      this.toasts.error("Google did not allow creating files. Sign in again and tick that box, or add the scope .../auth/drive.file to the app's consent screen in Google Cloud.");
+      return false;
+    }
+    return true;
   }
 
   /**

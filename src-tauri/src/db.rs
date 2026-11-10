@@ -104,6 +104,11 @@ const MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX ix_mac_access_email ON mac_access(email);
     "#,
+    // 6: who a table's Google link comes from: null, a Google Sheet it is read from; 'app', the sheet this app made
+    // from the table when a MAC file was saved, which this computer writes (never reads).
+    r#"
+    ALTER TABLE google_links ADD COLUMN origin TEXT;
+    "#,
 ];
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
