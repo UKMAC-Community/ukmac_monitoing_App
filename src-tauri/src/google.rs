@@ -33,10 +33,7 @@ use uuid::Uuid;
 type CmdResult<T> = Result<T, String>;
 
 const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.readonly";
-/// Creating and updating the sheets this app makes (and only those): the zones' Google Sheet that a saved MAC file points at.
-const FILE_SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
-const SCOPE: &str = "openid email profile https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file";
-const NEEDS_FILE_SCOPE: &str = "To keep this MAC's tables in a Google Sheet, sign in with Google again and allow creating files (the box for the files this app makes). If Google's page doesn't show it, add the scope .../auth/drive.file to the app's consent screen in Google Cloud.";
+const SCOPE: &str = "openid email profile https://www.googleapis.com/auth/drive.readonly";
 const SHEET_MIME: &str = "application/vnd.google-apps.spreadsheet";
 const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 /// The biggest workbook taken (the same as an Excel file picked from disk).
@@ -87,9 +84,6 @@ struct Stored {
     expires_at: i64,
     email: String,
     name: String,
-    /// What Google let this sign-in do (its `scope`): old files have none, which means read-only.
-    #[serde(default)]
-    scope: String,
 }
 
 /// Where Google's pages and APIs are (the real ones, but a test points them at a stand-in).
@@ -100,8 +94,6 @@ pub struct Urls {
     pub revoke: String,
     pub userinfo: String,
     pub drive: String,
-    /// Drive's upload address (a sheet made or replaced from an Excel file).
-    pub upload: String,
     pub docs: String,
 }
 
@@ -113,7 +105,6 @@ impl Urls {
             revoke: "https://oauth2.googleapis.com/revoke".into(),
             userinfo: "https://openidconnect.googleapis.com/v1/userinfo".into(),
             drive: "https://www.googleapis.com/drive/v3".into(),
-            upload: "https://www.googleapis.com/upload/drive/v3".into(),
             docs: "https://docs.google.com/spreadsheets/d".into(),
         }
     }
@@ -154,8 +145,6 @@ pub struct GoogleStatus {
     has_secret: bool,
     email: Option<String>,
     name: Option<String>,
-    /// This sign-in may make the sheet a saved MAC file's zones live in (else: sign in again).
-    can_create: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -250,7 +239,6 @@ impl GoogleState {
             has_secret: !s.client_secret.is_empty(),
             email: non_empty(&s.email),
             name: non_empty(&s.name),
-            can_create: s.scope.contains(FILE_SCOPE),
         }
     }
 
@@ -437,7 +425,6 @@ struct Granted {
     expires_at: i64,
     email: String,
     name: String,
-    scope: String,
 }
 
 fn escape(text: &str) -> String {
@@ -617,8 +604,7 @@ async fn sign_in(
     if access_token.is_empty() {
         return Err("Google gave no access. Try signing in again.".into());
     }
-    let scope = reply.scope.clone().unwrap_or_default();
-    if !scope.contains(DRIVE_SCOPE) {
+    if !reply.scope.unwrap_or_default().contains(DRIVE_SCOPE) {
         return Err("Tick \"See and download all your Google Drive files\" on Google's page, so the sheets can be read. Then sign in again.".into());
     }
     if refresh_token.is_empty() {
@@ -641,7 +627,6 @@ async fn sign_in(
         refresh_token,
         email: text("email"),
         name: text("name"),
-        scope,
     })
 }
 
@@ -736,7 +721,6 @@ pub async fn google_sign_in(
     next.expires_at = granted.expires_at;
     next.email = granted.email;
     next.name = granted.name;
-    next.scope = granted.scope;
     state.keep(next)?;
     // The browser is in front: bring the app back.
     if let Some(window) = app.get_webview_window("main") {
@@ -991,72 +975,6 @@ impl GoogleState {
     }
 }
 
-impl GoogleState {
-    /// Makes a Google Sheet from an Excel workbook (`existing`: the sheet this app made before, whose whole content is replaced, so
-    /// whoever it is shared with keeps their access). Needs the `drive.file` permission, which only reaches sheets this app made.
-    async fn upload_sheet(&self, name: &str, existing: Option<&str>, bytes: Vec<u8>) -> CmdResult<DriveFile> {
-        if !self.stored().scope.contains(FILE_SCOPE) {
-            return Err(NEEDS_FILE_SCOPE.into());
-        }
-        if bytes.len() > MAX_BYTES {
-            return Err("That workbook is over 15 MB, more than a Google Sheet made here can take.".into());
-        }
-        const FIELDS: &str = "id,name,mimeType,modifiedTime,owners(displayName)";
-        let boundary = format!("ukmac-{}", Uuid::new_v4().simple());
-        let (url, content_type, body) = match existing {
-            Some(id) => (
-                format!(
-                    "{}/files/{id}?uploadType=media&supportsAllDrives=true&fields={FIELDS}",
-                    self.urls.upload
-                ),
-                XLSX_MIME.to_string(),
-                bytes,
-            ),
-            None => {
-                let meta = serde_json::json!({"name": name, "mimeType": SHEET_MIME}).to_string();
-                let mut body = format!(
-                    "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n--{boundary}\r\nContent-Type: {XLSX_MIME}\r\n\r\n"
-                )
-                .into_bytes();
-                body.extend_from_slice(&bytes);
-                body.extend_from_slice(format!("\r\n--{boundary}--").as_bytes());
-                (
-                    format!(
-                        "{}/files?uploadType=multipart&supportsAllDrives=true&fields={FIELDS}",
-                        self.urls.upload
-                    ),
-                    format!("multipart/related; boundary={boundary}"),
-                    body,
-                )
-            }
-        };
-        let mut forced = false;
-        loop {
-            let token = self.access_token(forced).await?;
-            let request = if existing.is_some() { self.http.patch(&url) } else { self.http.post(&url) };
-            let response = request
-                .bearer_auth(&token)
-                .header(reqwest::header::CONTENT_TYPE, content_type.as_str())
-                .body(body.clone())
-                .send()
-                .await
-                .map_err(net)?;
-            if response.status() == StatusCode::UNAUTHORIZED && !forced {
-                forced = true;
-                continue;
-            }
-            if response.status() == StatusCode::FORBIDDEN {
-                return Err(format!("{} {NEEDS_FILE_SCOPE}", api_error(response).await));
-            }
-            if !response.status().is_success() {
-                return Err(api_error(response).await);
-            }
-            let body: Value = response.json().await.map_err(net)?;
-            return drive_file(&body).ok_or_else(|| "Google's answer about the new sheet couldn't be read.".to_string());
-        }
-    }
-}
-
 fn drive_file(value: &Value) -> Option<DriveFile> {
     Some(DriveFile {
         id: value["id"].as_str()?.to_string(),
@@ -1083,31 +1001,6 @@ pub async fn google_list_spreadsheets(
 pub async fn google_file_info(state: State<'_, GoogleState>, file: String) -> CmdResult<DriveFile> {
     let id = file_id(&file)?;
     state.file_info(&id).await
-}
-
-/// Makes (or, with a `file` header, replaces the content of) a Google Sheet from the Excel workbook sent as the body; its
-/// `name` and `file` headers are percent-encoded.
-#[tauri::command]
-pub async fn google_upload_workbook(
-    request: tauri::ipc::Request<'_>,
-    state: State<'_, GoogleState>,
-) -> CmdResult<DriveFile> {
-    let header = |name: &str| {
-        request
-            .headers()
-            .get(name)
-            .and_then(|value| value.to_str().ok())
-            .map(crate::commands::percent_decode)
-    };
-    let name = header("name").filter(|text| !text.trim().is_empty()).ok_or("The sheet needs a name")?;
-    let existing = match header("file").filter(|text| !text.trim().is_empty()) {
-        Some(text) => Some(file_id(&text)?),
-        None => None,
-    };
-    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
-        return Err("Nothing to upload".into());
-    };
-    state.upload_sheet(name.trim(), existing.as_deref(), bytes.to_vec()).await
 }
 
 /// A sheet as an Excel workbook, from its link or id.
@@ -1232,7 +1125,6 @@ mod tests {
             revoke: format!("{base}/revoke"),
             userinfo: format!("{base}/userinfo"),
             drive: format!("{base}/drive/v3"),
-            upload: format!("{base}/upload/drive/v3"),
             docs: format!("{base}/docs"),
         }
     }
@@ -1379,7 +1271,7 @@ mod tests {
                         200,
                         serde_json::json!({
                             "access_token": "at-1", "refresh_token": "rt-1", "expires_in": 3599,
-                            "scope": format!("openid {DRIVE_SCOPE} {FILE_SCOPE}"),
+                            "scope": format!("openid {DRIVE_SCOPE}"),
                         }),
                     );
                 }
@@ -1859,46 +1751,5 @@ mod tests {
         assert!(!status.signed_in && !status.configured && !status.has_secret);
         assert_eq!(status.client_id, "");
         assert!(state.access_token(false).await.is_err());
-    }
-
-    #[tokio::test]
-    async fn makes_a_sheet_from_a_workbook_and_replaces_its_content_later() {
-        let (base, seen) = stand_in(|asked| {
-            if asked.method == "POST" && asked.target.starts_with("/upload/drive/v3/files?") {
-                json(200, serde_json::json!({"id": "new1", "name": "UKMAC – Pursat", "mimeType": SHEET_MIME}))
-            } else if asked.method == "PATCH" && asked.target.starts_with("/upload/drive/v3/files/new1?") {
-                json(200, serde_json::json!({"id": "new1", "name": "UKMAC – Pursat", "mimeType": SHEET_MIME}))
-            } else {
-                json(404, serde_json::json!({}))
-            }
-        })
-        .await;
-        let state = signed_in(&base);
-        // A sign-in from before this permission existed can only read.
-        let denied = state.upload_sheet("UKMAC – Pursat", None, b"PK-1".to_vec()).await.unwrap_err();
-        assert!(denied.contains("sign in with Google again"));
-        let mut next = state.stored();
-        next.scope = format!("openid {DRIVE_SCOPE} {FILE_SCOPE}");
-        state.keep(next).unwrap();
-        assert!(state.status().can_create);
-
-        let made = state.upload_sheet("UKMAC – Pursat", None, b"PK-workbook-1".to_vec()).await.unwrap();
-        assert_eq!((made.id.as_str(), made.mime_type.as_str()), ("new1", SHEET_MIME));
-        let again = state.upload_sheet("ignored", Some("new1"), b"PK-workbook-2".to_vec()).await.unwrap();
-        assert_eq!(again.id, "new1");
-
-        let seen = seen.lock().unwrap();
-        let first = &seen[0];
-        assert!(first.headers["content-type"].starts_with("multipart/related; boundary="));
-        assert_eq!(first.headers["authorization"], "Bearer at-1");
-        // Metadata first, naming the file and asking Google to turn it into a sheet, then the workbook itself.
-        assert!(first.body.contains("\"mimeType\":\"application/vnd.google-apps.spreadsheet\""));
-        assert!(first.body.contains("UKMAC – Pursat"));
-        assert!(first.body.contains(&format!("Content-Type: {XLSX_MIME}\r\n\r\nPK-workbook-1")));
-        // The second call writes the new content over the same sheet, as the workbook alone.
-        let second = &seen[1];
-        assert_eq!(second.method, "PATCH");
-        assert_eq!(second.headers["content-type"], XLSX_MIME);
-        assert_eq!(second.body, "PK-workbook-2");
     }
 }

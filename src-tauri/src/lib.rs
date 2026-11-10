@@ -86,7 +86,6 @@ pub fn run() {
             google::google_sign_out,
             google::google_list_spreadsheets,
             google::google_file_info,
-            google::google_upload_workbook,
             google::google_download,
             google::open_link,
             links::list_google_links,

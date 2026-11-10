@@ -32,9 +32,7 @@
         <button type="button" class="icon-btn is-quiet is-sm" title="Edit the Google Sheet link" aria-label="Edit the Google Sheet link" (click)="linkOpen.set(true)">
           <app-icon name="edit" [size]="14" />
         </button>
-        @if (link.origin === 'app') {
-          <span class="badge" title="This table is written to its Google Sheet each time you Save a link file, so Sync does not read it back">kept in Google by Save</span>
-        } @else if (google.signedIn()) {
+        @if (google.signedIn()) {
           <button
             type="button"
             class="btn btn-secondary btn-sm"

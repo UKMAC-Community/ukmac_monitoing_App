@@ -625,20 +625,27 @@ pub fn columns_and_retired(template_key: &str) -> (Vec<Column>, Vec<Retired>) {
 
 // -------------------------------------------------------------- Nursery
 
+/// A seedling count: never below zero.
+fn seedlings(name: &str) -> Column {
+    between(number(name), Some(0.0), None)
+}
+
 fn nursery_batch_columns() -> Vec<Column> {
     let damage = r#"[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage]"#;
+    // Everything the batch's seedlings were sorted into: healthy and each kind of not healthy.
+    let sorted = format!("[Healthy],{damage}");
     vec![
         text("Batch #"),
         required(link("Plant type", VARIETY_SOURCE)),
         text("Origin"),
         date("Supply date"),
-        required(number("Total number")),
-        number("Healthy"),
-        number("Stem rot"),
-        number("Leaf rot"),
-        number("Smaller"),
-        number("Disease"),
-        number("Physical damage"),
+        required(seedlings("Total number")),
+        seedlings("Healthy"),
+        seedlings("Stem rot"),
+        seedlings("Leaf rot"),
+        seedlings("Smaller"),
+        seedlings("Disease"),
+        seedlings("Physical damage"),
         formula(
             "Not healthy",
             &format!(r#"=IF(COUNT({damage})=0,"",SUM({damage}))"#),
@@ -646,6 +653,13 @@ fn nursery_batch_columns() -> Vec<Column> {
         formula(
             "Healthy %",
             r#"=IF(OR([Healthy]="",[Total number]="",[Total number]=0),"",ROUND([Healthy]/[Total number]*100,2))"#,
+        ),
+        // Total number must equal the healthy ones plus every not-healthy one: "OK", or how many are missing or over.
+        formula(
+            "Count check",
+            &format!(
+                r#"=IF(OR([Total number]="",COUNT({sorted})=0),"",IF(SUM({sorted})=[Total number],"OK",IF(SUM({sorted})<[Total number],([Total number]-SUM({sorted}))&" missing",(SUM({sorted})-[Total number])&" over")))"#
+            ),
         ),
         date("Planting start date"),
         date("Planting end date"),
@@ -1053,6 +1067,39 @@ mod tests {
             serde_json::to_value(&columns).unwrap(),
             "the QA/QC fixture is out of date"
         );
+    }
+
+    /// The app's tests (src/app/sheet/fixtures/nursery-columns.json) run these columns' formulas in the app's own engine from
+    /// this copy: when they change, make it again with `TEMPLATE_OUT=/tmp/t.json cargo test dump_template -- --ignored`
+    /// (its "nursery-batches" columns).
+    #[test]
+    fn the_nursery_columns_the_app_tests_use_are_the_template_s() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../src/app/sheet/fixtures/nursery-columns.json"
+        ))
+        .unwrap();
+        let mut columns = nursery_batch_columns();
+        for (index, column) in columns.iter_mut().enumerate() {
+            column.key = format!("c{}", index + 1);
+        }
+        assert_eq!(
+            fixture,
+            serde_json::to_value(&columns).unwrap(),
+            "the nursery fixture is out of date"
+        );
+    }
+
+    #[test]
+    fn nursery_counts_are_never_negative_and_the_sorting_is_checked_against_the_total() {
+        let columns = nursery_batch_columns();
+        let named = |name: &str| columns.iter().find(|c| c.name == name).unwrap();
+        for name in ["Total number", "Healthy", "Stem rot", "Leaf rot", "Smaller", "Disease", "Physical damage"] {
+            assert_eq!((named(name).min, named(name).max), (Some(0.0), None), "{name}");
+        }
+        assert_eq!(named("Count check").col_type, "formula");
+        let at = |name: &str| columns.iter().position(|c| c.name == name).unwrap();
+        // Beside the percentage, before the dates.
+        assert_eq!(at("Count check"), at("Healthy %") + 1);
     }
 
     #[test]

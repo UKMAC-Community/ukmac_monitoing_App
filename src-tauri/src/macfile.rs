@@ -4,9 +4,11 @@
 //! view settings kept for it here, the Google Sheet it is linked to). **It carries no rows**
 //! (version 2, `links_only`): a file that gets copied or sent must not be a copy of the farm's
 //! data. The data stays in Google, which decides who may read it: opening the file on another
-//! computer links each table to its sheet and reads it from there, and a Google account that
-//! can't open the sheet gets empty tables. Tables that are not linked to a Google Sheet have no
-//! data to travel and arrive empty. The MAC's location and coordinates are left out too.
+//! computer links each table to its sheet and reads it from there. Tables that are not linked to
+//! a Google Sheet have no data to travel and arrive empty. The one exception is the map: the
+//! Zones table, when it is not linked to Google, goes in the file with its rows (the plots and
+//! their outlines), so the Zone Map is there when the file is opened. The MAC's own location and
+//! coordinates are left out.
 //!
 //! Version 1 files (saved with every row) still open, as copies of what they hold.
 //!
@@ -158,7 +160,10 @@ fn assemble(conn: &Connection, mac_id: i64, links_only: bool) -> CmdResult<MacFi
                 |row| row.get(0),
             )
             .map_err(err)?;
-        let rows = if links_only {
+        // The map travels in the file (the Zones table, when no Google Sheet holds it); no other rows do.
+        let carries_map = sheet.template_key.as_deref() == Some("zones")
+            && !links.iter().any(|link| link.sheet_id == sheet.sheet_id);
+        let rows = if links_only && !carries_map {
             Vec::new()
         } else {
             load_rows(conn, sheet.sheet_id)?
@@ -428,6 +433,8 @@ pub struct Imported {
     pub rows: usize,
     /// Tables linked to a Google Sheet: their rows are read from there next.
     pub linked: usize,
+    /// Tables with neither a Google link nor rows: empty (the map is not one of them).
+    pub empty: usize,
     /// This computer already had the file's code on another MAC, so the MAC got `mac.mac_code`.
     pub code_changed: bool,
     /// With `replace`: the MAC here that was taken out for it.
@@ -521,6 +528,7 @@ pub fn import_as(
 
     let mut row_total = 0;
     let mut linked_total = 0;
+    let mut empty_total = 0;
     let links_only = file.links_only;
     let sheet_total = file.sheets.len();
     for sheet in file.sheets {
@@ -550,10 +558,17 @@ pub fn import_as(
             )
             .map_err(err)?;
         }
-        // A links-only file brings no rows, whatever it holds: the data comes from Google.
-        let mut rows = if links_only { Vec::new() } else { sheet.rows };
+        // A links-only file brings no rows, whatever it holds: the data comes from Google. Only the map (the Zones table
+        // with no Google link) is taken from the file.
+        let is_map = sheet.template_key.as_deref() == Some("zones")
+            && sheet
+                .google_link
+                .as_ref()
+                .is_none_or(|link| link.spreadsheet_id.trim().is_empty());
+        let mut rows = if links_only && !is_map { Vec::new() } else { sheet.rows };
         rows.sort_by(|a, b| a.position.total_cmp(&b.position));
         row_total += rows.len();
+        let has_rows = !rows.is_empty();
         insert_rows(
             &tx,
             sheet_id,
@@ -606,6 +621,8 @@ pub fn import_as(
             )
             .map_err(err)?;
             linked_total += 1;
+        } else if !has_rows {
+            empty_total += 1;
         }
     }
     tx.commit().map_err(err)?;
@@ -614,6 +631,7 @@ pub fn import_as(
         sheets: sheet_total,
         rows: row_total,
         linked: linked_total,
+        empty: empty_total,
         code_changed,
         replaced_mac_id,
     })
@@ -640,12 +658,13 @@ pub struct Saved {
     pub empty_on_open: Vec<String>,
 }
 
-/// The tables of a MAC that have rows here and no Google link: a file can't carry them.
+/// The tables of a MAC that have rows here and no Google link: a file can't carry them (the Zones table, the map, it can).
 fn unlinked_with_rows(conn: &Connection, mac_id: i64) -> CmdResult<Vec<String>> {
     let mut statement = conn
         .prepare(
             "SELECT s.title FROM sheets s
              WHERE s.mac_id = ?1
+               AND COALESCE(s.template_key, '') <> 'zones'
                AND NOT EXISTS (SELECT 1 FROM google_links l WHERE l.sheet_id = s.sheet_id)
                AND EXISTS (SELECT 1 FROM sheet_rows r WHERE r.sheet_id = s.sheet_id)
              ORDER BY s.display_order, s.sheet_id",
@@ -1248,13 +1267,26 @@ mod tests {
     }
 
     #[test]
-    fn it_says_which_tables_with_data_will_arrive_empty() {
+    fn it_says_which_tables_with_data_will_arrive_empty_but_not_the_map() {
         let mut here = memory();
         let mac_id = farm(&mut here);
-        // Zones has rows and a link here: nothing is lost. Take the link off and it is listed.
-        assert!(unlinked_with_rows(&here, mac_id).unwrap().is_empty());
+        // Zones has rows and a link here: nothing is lost. Take the link off and it still travels: it is the map.
         here.execute("DELETE FROM google_links", []).unwrap();
-        assert_eq!(unlinked_with_rows(&here, mac_id).unwrap(), vec!["Zones".to_string()]);
+        assert!(unlinked_with_rows(&here, mac_id).unwrap().is_empty());
+        // Any other table with rows and no link is listed.
+        let other: i64 = here
+            .query_row(
+                "SELECT sheet_id FROM sheets WHERE mac_id = ?1 AND COALESCE(template_key, '') <> 'zones' ORDER BY sheet_id LIMIT 1",
+                [mac_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let mut data = Map::new();
+        data.insert("c1".into(), Value::String("x".into()));
+        let tx = here.transaction().unwrap();
+        insert_rows(&tx, other, vec![data], None, None).unwrap();
+        tx.commit().unwrap();
+        assert_eq!(unlinked_with_rows(&here, mac_id).unwrap(), vec![other_title(&here, other)]);
     }
 
     #[test]
@@ -1283,5 +1315,63 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM sheets WHERE mac_id = ?1", [mac_id], |row| row.get(0))
             .unwrap();
         assert_eq!(still, 15);
+    }
+
+    #[test]
+    fn the_map_travels_in_the_file_and_nothing_else_does() {
+        let mut here = memory();
+        let mac_id = farm(&mut here);
+        // The zones are not in Google (no link), and another table has a row of its own.
+        here.execute("DELETE FROM google_links", []).unwrap();
+        let other: i64 = here
+            .query_row(
+                "SELECT sheet_id FROM sheets WHERE mac_id = ?1 AND COALESCE(template_key, '') <> 'zones' ORDER BY sheet_id LIMIT 1",
+                [mac_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let mut data = Map::new();
+        data.insert("c1".into(), Value::String("Secret batch B7".into()));
+        let tx = here.transaction().unwrap();
+        insert_rows(&tx, other, vec![data], None, None).unwrap();
+        tx.commit().unwrap();
+
+        let file = build(&here, mac_id).unwrap();
+        for sheet in &file.sheets {
+            let is_map = sheet.template_key.as_deref() == Some("zones");
+            assert_eq!(sheet.rows.len(), if is_map { 3 } else { 0 }, "{}", sheet.title);
+        }
+        let text = String::from_utf8(serde_json::to_vec(&file).unwrap()).unwrap();
+        assert!(text.contains("\"A2\""), "the plots are in the file");
+        assert!(!text.contains("Secret batch B7"), "no other table's rows");
+        // The farm's own place still does not travel, and the save does not list the map as one that arrives empty.
+        assert_eq!((file.mac.latitude, file.mac.longitude), (None, None));
+        assert_eq!(unlinked_with_rows(&here, mac_id).unwrap(), vec![other_title(&here, other)]);
+
+        // Opened elsewhere: the map's rows come, the other table's do not, and the tables left empty are counted.
+        let mut there = memory();
+        let done = import(&mut there, through_a_file(&file), false).unwrap();
+        assert_eq!((done.sheets, done.rows, done.linked), (15, 3, 0));
+        assert_eq!(done.empty, 14);
+        let zones = zones_of(&there, done.mac.mac_id);
+        let plots: i64 = there
+            .query_row("SELECT COUNT(*) FROM sheet_rows WHERE sheet_id = ?1", [zones], |row| row.get(0))
+            .unwrap();
+        assert_eq!(plots, 3);
+        let total: i64 = there.query_row("SELECT COUNT(*) FROM sheet_rows", [], |row| row.get(0)).unwrap();
+        assert_eq!(total, 3);
+    }
+
+    #[test]
+    fn a_zones_table_that_is_in_google_goes_by_its_link_not_by_rows() {
+        let mut here = memory();
+        let mac_id = farm(&mut here); // Zones is linked to a Google Sheet
+        let file = build(&here, mac_id).unwrap();
+        assert!(file.sheets.iter().all(|sheet| sheet.rows.is_empty()));
+    }
+
+    fn other_title(conn: &Connection, sheet_id: i64) -> String {
+        conn.query_row("SELECT title FROM sheets WHERE sheet_id = ?1", [sheet_id], |row| row.get(0))
+            .unwrap()
     }
 }

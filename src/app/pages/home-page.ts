@@ -5,7 +5,7 @@ import { Icon } from '../components/icon';
 import { MacDialog } from '../components/mac-dialog';
 import { UpdateButton } from '../components/update-button';
 import { Api, errorText } from '../core/api';
-import { Google, sheetUrl } from '../core/google';
+import { Google } from '../core/google';
 import { MacList } from '../core/mac-list';
 import type { ImportedMac, Mac } from '../core/models';
 import { Toasts } from '../core/toast';
@@ -110,7 +110,7 @@ import { baseName } from '../core/paths';
       <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
         <button type="button" class="menu-item" (click)="open(menu.mac)"><app-icon name="table" /> Open</button>
         <button type="button" class="menu-item" (click)="edit(menu.mac)"><app-icon name="edit" /> Edit</button>
-        <button type="button" class="menu-item" (click)="saveToFile(menu.mac)" title="Save this MAC's tables and their Google links to a file. The file holds no data: it is read from Google when the file is opened"><app-icon name="download" /> Save a link file…</button>
+        <button type="button" class="menu-item" (click)="saveToFile(menu.mac)" title="Save this MAC's tables and their Google links to a file, with the Zone Map's plots. No other data is in it: that is read from Google when the file is opened"><app-icon name="download" /> Save a link file…</button>
         <div class="menu-divider"></div>
         <button type="button" class="menu-item danger" (click)="remove(menu.mac)"><app-icon name="trash" /> Delete</button>
       </div>
@@ -242,8 +242,6 @@ export class HomePage {
   /** The MAC's tables and their Google links in one `.ukmac` file: no rows, so the file can't leak the farm's data. */
   async saveToFile(mac: Mac) {
     this.menu$.set(null);
-    // The tables a file can't carry (rows nobody has in Google yet) go into a Google Sheet first, if the person says so.
-    if (!(await this.keepInGoogle(mac))) return;
     const stamp = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
     const name = mac.macName.replace(/[\\/:*?"<>|]+/g, ' ').trim() || mac.macCode;
     const path = await this.api.pickSavePath(`${name} ${stamp}.ukmac`, 'UKMAC MAC file', ['ukmac']);
@@ -252,7 +250,9 @@ export class HomePage {
     try {
       const saved = await this.api.exportMacFile(mac.macId, path);
       this.toasts.show(
-        `${mac.macName} saved to ${baseName(path)}: ${saved.sheets} tables and ${saved.linked} Google link${saved.linked === 1 ? '' : 's'}, no data in the file (${size(saved.bytes)})`,
+        `${mac.macName} saved to ${baseName(path)}: ${saved.sheets} tables and ${saved.linked} Google link${saved.linked === 1 ? '' : 's'}; ` +
+          (saved.rows > 0 ? `the Zone Map (${saved.rows} rows of Zones) is in the file, no other data` : 'no data in the file') +
+          ` (${size(saved.bytes)})`,
       );
       if (saved.emptyOnOpen.length) {
         this.toasts.show(
@@ -267,67 +267,6 @@ export class HomePage {
     } finally {
       this.busy.set(false);
     }
-  }
-
-  /**
-   * Before a MAC is saved to a file: asks whether to put the tables that are not in Google (the zones, for one) into a Google
-   * Sheet, made in the signed-in account's Drive and linked, so they come with the file for those who may open that sheet.
-   * Returns false to stop the save.
-   */
-  private async keepInGoogle(mac: Mac): Promise<boolean> {
-    try {
-      const book = await this.api.getWorkbook(mac.macId);
-      await this.google.refreshLinks();
-      const { tables, existing } = this.google.keepable(book);
-      if (!tables.length) return true;
-      const list = tables.map((table) => `${table.rows.length} row${table.rows.length === 1 ? '' : 's'} in ${table.title}`).join(', ');
-      const answer = await this.api.choose(
-        existing
-          ? `The Zone Map (${list}) is kept in the Google Sheet “UKMAC – ${mac.macName}”.\n\nUpdate it with the zones as they are now? Anything changed in that Google Sheet itself is replaced.`
-          : `The Zone Map (${list}) isn't in a Google Sheet, so a saved file can't bring the map to another computer.\n\n` +
-              `Make a Google Sheet “UKMAC – ${mac.macName}” in your Google Drive with the Zones table only, and link the table to it? Only you can open it until you share it; ` +
-              `the accounts you share it with can see the zones. No other table is put in Google.\n\nSave without it: the file is saved and the map arrives empty.`,
-        'Keep the Zone Map in Google',
-        existing ? 'Update it' : 'Make the sheet',
-        'Save without it',
-      );
-      if (answer === null) return false;
-      if (answer === 'no') return true;
-      if (!(await this.allowCreatingFiles())) return false;
-      const file = await this.google.keepInGoogle(book);
-      this.toasts.show(
-        `The Zone Map (${list}) is in the Google Sheet “${file.name}”. Share it with the people who should open this MAC.`,
-        'ok',
-        { label: 'Open to share', run: () => void this.api.openLink(sheetUrl(file.id)) },
-        16000,
-      );
-      return true;
-    } catch (error) {
-      this.toasts.error(errorText(error));
-      return false;
-    }
-  }
-
-  /** Making the sheet needs one more permission from Google; a sign-in from before has not got it, so sign in again (as the same account). */
-  private async allowCreatingFiles(): Promise<boolean> {
-    if (this.google.status()?.canCreate) return true;
-    const who = this.google.status()?.email ?? null;
-    const answer = await this.api.choose(
-      'To make the Google Sheet, Google has to let this app create files. Sign in again and tick the box that allows it.',
-      'One more permission',
-      'Sign in again',
-      'Not now',
-    );
-    if (answer !== 'yes' || !(await this.google.signIn())) return false;
-    if ((this.google.status()?.email ?? null) !== who) {
-      this.toasts.error(`You signed in as a different Google account${who ? ` than ${who}` : ''}, so nothing was made. Sign in again with the same account.`);
-      return false;
-    }
-    if (!this.google.status()?.canCreate) {
-      this.toasts.error("Google did not allow creating files. Sign in again and tick that box, or add the scope .../auth/drive.file to the app's consent screen in Google Cloud.");
-      return false;
-    }
-    return true;
   }
 
   /**
@@ -355,7 +294,7 @@ export class HomePage {
         const answer = await this.api.choose(
           `${here.macName} (${here.macCode}) is already on this computer: ${here.sheetCount} tables, ${here.rowCount} rows, last changed ${here.updatedAt.slice(0, 10)}.\n\n` +
             (peek.linksOnly
-              ? `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, no data (${peek.linkedTables} linked to Google).\n\n` +
+              ? `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.linkedTables} linked to Google${peek.rows ? `, and the Zone Map (${peek.rows} rows)` : ''}, no other data.\n\n` +
                 `Keep both: the file's copy is added next to it, with a new code, and read from Google.\n` +
                 `Replace: the one here is taken out, with every row in it (also tables that aren't linked to Google, which can't be read back), and the file's copy takes its place.`
               : `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.rows} rows.\n\n` +
@@ -372,7 +311,7 @@ export class HomePage {
       if (done.replacedMacId !== null && this.store.mac()?.macId === done.replacedMacId) this.store.workbook.set(null);
       await this.google.refreshLinks();
       const code = done.codeChanged ? ` · code ${done.mac.macCode}, the file's was taken here` : '';
-      if (done.linked > 0 || done.rows === 0) {
+      if (peek.linksOnly) {
         this.toasts.show(`${done.mac.macName} added: ${done.sheets} tables${code}`);
         void this.router.navigate(['/mac', done.mac.macId]);
         await this.loadFromGoogle(done);
@@ -415,10 +354,17 @@ export class HomePage {
   private async loadFromGoogle(done: ImportedMac) {
     const name = done.mac.macName;
     const links = this.google.links().filter((link) => link.macId === done.mac.macId);
-    const notLinked = done.sheets - done.linked;
+    const notLinked = done.empty;
     const unlinkedNote = notLinked > 0 ? ` ${notLinked} table${notLinked === 1 ? ' isn’t' : 's aren’t'} linked to Google, so ${notLinked === 1 ? 'it is' : 'they are'} empty.` : '';
     if (!links.length) {
-      this.toasts.show(`${name} has no data in its file and no table is linked to Google, so every table is empty.`, 'info', undefined, 9000);
+      this.toasts.show(
+        done.rows > 0
+          ? `${name} added with its Zone Map. No other table is linked to Google, so the rest is empty.`
+          : `${name} has no data in its file and no table is linked to Google, so every table is empty.`,
+        'info',
+        undefined,
+        9000,
+      );
       return;
     }
     if (!this.google.signedIn()) {
