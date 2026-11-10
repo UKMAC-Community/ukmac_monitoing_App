@@ -22,6 +22,7 @@ import { WorkbookStore } from '../core/workbook-store';
 import { buildTemplate } from '../excel/excel-template';
 import { safeFileName } from '../excel/exceljs';
 import { buildPowerBiWorkbook } from '../excel/powerbi-export';
+import { zoneMapPicture } from '../zonemap/zone-image';
 import { formatFormulaValue, isFormulaError } from '../formula/evaluate-formula';
 import { mappingFromLink } from '../google/sheet-sync';
 import { columnLabel, displayCell } from '../sheet/columns';
@@ -635,7 +636,9 @@ export class SheetPage {
     const path = await this.api.pickSavePath(`${safeFileName(sheet.title)} - ${safeFileName(book.mac.macCode)}.xlsx`);
     if (!path) return;
     try {
-      await this.api.writeFile(path, await buildPowerBiWorkbook([{ mac: book.mac, sheets: [sheet] }], { single: true }));
+      // The Zones table also gets a sheet with the map as the Zone Map draws it.
+      const picture = sheet.templateKey === 'zones' ? (zoneMapPicture(sheet) ?? undefined) : undefined;
+      await this.api.writeFile(path, await buildPowerBiWorkbook([{ mac: book.mac, sheets: [sheet] }], { single: true, picture }));
       this.toasts.show(`Saved ${baseName(path)}`);
     } catch (error) {
       this.toasts.error(errorText(error));

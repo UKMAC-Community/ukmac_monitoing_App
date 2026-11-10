@@ -183,7 +183,7 @@
     <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
       <button type="button" class="menu-item" (click)="exportMenu.set(null); exportTable()">
         <app-icon name="file" />
-        <span class="menu-item-text">This table to Excel<span class="menu-item-sub">Its rows, formulas worked out</span></span>
+        <span class="menu-item-text">This table to Excel<span class="menu-item-sub">Its rows, formulas worked out@if (sheet.templateKey === 'zones') {, and a Zone map sheet}</span></span>
       </button>
       <button type="button" class="menu-item" (click)="exportMenu.set(null); downloadTemplate()">
         <app-icon name="download" />

@@ -52,4 +52,22 @@ describe('a new table from any Excel sheet', () => {
     ]);
     expect(rows[1]).toEqual({ n1: 'A2', n2: '2026-08-02', n3: '1040', n4: 'false' });
   });
+
+  it('puts a picture on a sheet of its own after the table, opening on it, with no cells to read', async () => {
+    const png =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const zones = makeSheet(1, 'Zones', [{ key: 'c1', name: 'Plot', type: 'text' }], [{ c1: 'A1' }]);
+    const bytes = await buildPowerBiWorkbook([{ mac: makeMac(), sheets: [zones] }], {
+      single: true,
+      picture: { dataUrl: png, width: 1000, height: 600 },
+    });
+    const Excel = await loadExcel();
+    const book = new Excel.Workbook();
+    await book.xlsx.load(bytes);
+    expect(book.worksheets.map((sheet) => sheet.name)).toEqual(['Zones', 'Zone map']);
+    expect(book.worksheets[1].getImages()).toHaveLength(1);
+    expect(book.worksheets[1].actualRowCount).toBe(0);
+    // Reading the file back finds only the table, not the picture's sheet.
+    expect((await readExcelSheets(bytes)).map((tab) => tab.name)).toEqual(['Zones']);
+  });
 });

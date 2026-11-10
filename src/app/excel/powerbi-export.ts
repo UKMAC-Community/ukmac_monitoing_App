@@ -136,10 +136,18 @@ function exportRow(
   return out;
 }
 
+/** A picture to put on a sheet of its own after the tables (the Zones table's map). */
+export interface ExportPicture {
+  /** A PNG as a data URL. */
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
 /** The Power BI workbook (.xlsx bytes) of these MACs' tables. */
 export async function buildPowerBiWorkbook(
   books: readonly Workbook[],
-  options: { single?: boolean } = {},
+  options: { single?: boolean; picture?: ExportPicture } = {},
 ): Promise<ArrayBuffer> {
   const Excel = await loadExcel();
   const book = new Excel.Workbook();
@@ -160,7 +168,18 @@ export async function buildPowerBiWorkbook(
       table.rows,
     );
   }
+  if (options.picture) writePicture(book, options.picture, usedSheets);
   return book.xlsx.writeBuffer() as Promise<ArrayBuffer>;
+}
+
+/** The picture on a sheet of its own, with no cells (so a read of the file finds only the tables), and the file opens on it. */
+function writePicture(book: import('exceljs').Workbook, picture: ExportPicture, usedSheets: Set<string>) {
+  const sheet = book.addWorksheet(sheetName('Zone map', usedSheets));
+  const id = book.addImage({ base64: picture.dataUrl, extension: 'png' });
+  const shown = Math.min(1500, picture.width);
+  sheet.addImage(id, { tl: { col: 0, row: 0 }, ext: { width: shown, height: Math.round((picture.height * shown) / picture.width) } });
+  sheet.views = [{ showGridLines: false }];
+  book.views = [{ x: 0, y: 0, width: 20000, height: 20000, firstSheet: 0, activeTab: book.worksheets.length - 1, visibility: 'visible' }];
 }
 
 /** The About sheet (how to use the file) and the MACs table. */
