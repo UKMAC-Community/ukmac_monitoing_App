@@ -9,6 +9,7 @@ import { MacList } from './core/mac-list';
 import { PowerBi } from './core/powerbi';
 import { Shell } from './core/shell';
 import { Toasts } from './core/toast';
+import { AppUpdater } from './core/updater';
 import { WorkbookStore } from './core/workbook-store';
 
 const HEADING_ICONS: Record<string, string> = {
@@ -38,6 +39,7 @@ export class App implements OnInit {
   readonly toasts = inject(Toasts);
   readonly powerBi = inject(PowerBi);
   private readonly google = inject(Google);
+  private readonly updater = inject(AppUpdater);
   readonly shell = inject(Shell);
   private readonly router = inject(Router);
 
@@ -132,6 +134,7 @@ export class App implements OnInit {
     void this.macs.refresh();
     void this.powerBi.init();
     void this.google.init();
+    void this.updater.checkOnStart();
   }
 
   headingIcon(heading: string) {

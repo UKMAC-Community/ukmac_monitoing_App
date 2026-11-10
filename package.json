@@ -1,6 +1,6 @@
 {
   "name": "ukmac-monitoring",
-  "version": "0.0.0",
+  "version": "0.1.1",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -24,6 +24,8 @@
     "@angular/router": "^22.2.0",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.8.4",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.1",
     "@types/leaflet": "^1.9.22",
     "@univerjs/preset-sheets-conditional-formatting": "1.0.2",
     "@univerjs/preset-sheets-core": "1.0.2",

@@ -10,6 +10,7 @@ import type { Mac } from '../core/models';
 import { Toasts } from '../core/toast';
 import { WorkbookStore } from '../core/workbook-store';
 import { formatDate } from '../sheet/columns';
+import { baseName } from '../core/paths';
 
 /** Every MAC on this Mac, under its province (its location), and a new one. */
 @Component({
@@ -243,7 +244,7 @@ export class HomePage {
     this.busy.set(true);
     try {
       const saved = await this.api.exportMacFile(mac.macId, path);
-      this.toasts.show(`${mac.macName} saved to ${path.split('/').pop()}: ${saved.sheets} tables, ${saved.rows} rows (${size(saved.bytes)})`);
+      this.toasts.show(`${mac.macName} saved to ${baseName(path)}: ${saved.sheets} tables, ${saved.rows} rows (${size(saved.bytes)})`);
     } catch (error) {
       this.toasts.error(errorText(error));
     } finally {

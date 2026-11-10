@@ -9,6 +9,8 @@ import { Google } from '../core/google';
 import type { DatabaseInfo, GoogleLink, GoogleStatus } from '../core/models';
 import { PowerBi } from '../core/powerbi';
 import { Toasts } from '../core/toast';
+import { AppUpdater } from '../core/updater';
+import { baseName } from '../core/paths';
 
 /** Google sign-in and the sheets read from it, Power BI, backups, and where the data is kept. */
 @Component({
@@ -308,10 +310,64 @@ import { Toasts } from '../core/toast';
             </div>
           </section>
         </div>
+
+        <div>
+          <span class="section-label">App</span>
+          <section class="card">
+            <div class="row-head">
+              <span class="tile-icon"><app-icon name="download" [size]="18" /></span>
+              <div class="grow">
+                <h2 class="card-title">Updates</h2>
+                <p class="card-desc">
+                  Get the newest version without installing again. It downloads, installs and restarts the app; your tables stay as they are.
+                </p>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text">
+                <span class="setting-title">This version</span>
+                <span class="setting-desc update-status">
+                  @switch (updater.state()) {
+                    @case ('checking') { Looking for a new version… }
+                    @case ('available') { Version {{ updater.update()?.version }} is ready. }
+                    @case ('downloading') { Downloading version {{ updater.update()?.version }}@if (updater.percent() !== null) { : {{ updater.percent() }}% } … }
+                    @case ('installed') { Installed. Restarting… }
+                    @case ('current') { You have the newest version. }
+                    @case ('error') { <span class="update-error">{{ updater.error() }}</span> }
+                    @default { Not checked yet. }
+                  }
+                </span>
+                <code class="path">{{ updater.version() ? 'UKMAC Monitoring ' + updater.version() : 'UKMAC Monitoring' }}</code>
+              </div>
+              <div class="actions">
+                @if (updater.state() === 'available' || updater.state() === 'downloading' || updater.state() === 'installed') {
+                  <button type="button" class="btn btn-primary btn-sm" [disabled]="updater.busy()" (click)="updater.install()">
+                    <app-icon name="download" /> Update and restart
+                  </button>
+                } @else {
+                  <button type="button" class="btn btn-secondary btn-sm" [disabled]="updater.busy()" (click)="updater.check()">Check for updates</button>
+                }
+              </div>
+            </div>
+            @if (updater.update(); as found) {
+              @if (found.body) {
+                <div class="setting-row notes">
+                  <div class="setting-text">
+                    <span class="setting-title">What is new in {{ found.version }}</span>
+                    <pre class="release-notes">{{ found.body }}</pre>
+                  </div>
+                </div>
+              }
+            }
+          </section>
+        </div>
       </div>
     </div>
   `,
   styles: `
+    .update-status { display: block; }
+    .update-error { color: var(--danger, #b42318); }
+    .release-notes { margin: 6px 0 0; white-space: pre-wrap; font: inherit; font-size: 0.8125rem; line-height: 1.5; color: var(--text-muted); max-height: 220px; overflow: auto; }
     .sk-path { width: 340px; max-width: 100%; height: 14px; margin-top: 6px; }
     .sk-size { width: 60px; height: 12px; margin-top: 8px; }
     .page { max-width: 944px; margin: 0 auto; padding-top: 40px; }
@@ -353,6 +409,7 @@ import { Toasts } from '../core/toast';
 export class SettingsPage implements OnInit {
   readonly powerBi = inject(PowerBi);
   readonly google = inject(Google);
+  readonly updater = inject(AppUpdater);
   private readonly api = inject(Api);
   private readonly toasts = inject(Toasts);
   readonly info = signal<DatabaseInfo | null>(null);
@@ -374,6 +431,7 @@ export class SettingsPage implements OnInit {
   });
 
   async ngOnInit() {
+    void this.updater.loadVersion();
     void this.google.init().then(() => {
       void this.google.refreshStatus();
       void this.google.refreshLinks();
@@ -505,7 +563,7 @@ export class SettingsPage implements OnInit {
     if (!path) return;
     try {
       await this.api.backupDatabase(path);
-      this.toasts.show(`Backup saved: ${path.split('/').pop()}`);
+      this.toasts.show(`Backup saved: ${baseName(path)}`);
     } catch (error) {
       this.toasts.error(errorText(error));
     }

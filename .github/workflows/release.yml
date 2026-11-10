@@ -1,0 +1,110 @@
+# Builds the installers for Mac and Windows and publishes them, with the update file (latest.json), as a
+# GitHub Release of this repository. The app reads its updates from there (see plugins.updater in
+# src-tauri/tauri.conf.json). See RELEASING.md.
+#
+# Secrets (Settings > Secrets and variables > Actions), all required:
+#   TAURI_SIGNING_PRIVATE_KEY   the updater signing key (contents of ~/.ukmac-signing/ukmac-updater.key)
+#   UKMAC_GOOGLE_CLIENT_ID      the shared Google client. Required: whatever this builds is what every installed
+#   UKMAC_GOOGLE_CLIENT_SECRET  app updates to, so a build without them would take Google sign-in away.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # One job makes the (draft) release; the builds only add files to it, so they cannot race to create it.
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+      version: ${{ steps.create.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the secrets are set
+        shell: bash
+        env:
+          A: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          B: ${{ secrets.UKMAC_GOOGLE_CLIENT_ID }}
+          C: ${{ secrets.UKMAC_GOOGLE_CLIENT_SECRET }}
+        run: |
+          for name in A B C; do
+            if [ -z "${!name}" ]; then echo "A required secret is empty (see the header of release.yml)"; exit 1; fi
+          done
+      - name: Create the draft release
+        id: create
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          for file in package.json; do
+            [ "$(node -p "require('./$file').version")" = "$version" ] || { echo "$file version differs from tauri.conf.json ($version)"; exit 1; }
+          done
+          grep -q "^version = \"$version\"" src-tauri/Cargo.toml || { echo "src-tauri/Cargo.toml version differs ($version)"; exit 1; }
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$version" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match version $version"; exit 1
+          fi
+          id="$(gh api "repos/${GITHUB_REPOSITORY}/releases" -f tag_name="v$version" -f target_commitish="${GITHUB_SHA}" \
+            -f name="UKMAC Monitoring v$version" -F draft=true \
+            -f body="Open UKMAC Monitoring, then Settings > Updates > Check for updates. First install: download the installer for your computer below." \
+            --jq .id)"
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            args: --target aarch64-apple-darwin --bundles app,dmg
+            rust_targets: aarch64-apple-darwin
+          - os: macos-latest
+            args: --target x86_64-apple-darwin --bundles app,dmg
+            rust_targets: x86_64-apple-darwin
+          - os: windows-latest
+            args: --bundles nsis
+            rust_targets: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          UKMAC_GOOGLE_CLIENT_ID: ${{ secrets.UKMAC_GOOGLE_CLIENT_ID }}
+          UKMAC_GOOGLE_CLIENT_SECRET: ${{ secrets.UKMAC_GOOGLE_CLIENT_SECRET }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          tagName: v${{ needs.create-release.outputs.version }}
+          releaseDraft: true
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }}
+
+  # Only when every build worked: make the release public, which is what makes the apps see it.
+  publish:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${GITHUB_REPOSITORY}/releases/${{ needs.create-release.outputs.release_id }}" -X PATCH -F draft=false

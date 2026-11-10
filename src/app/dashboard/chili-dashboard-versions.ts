@@ -7,6 +7,7 @@ import { Toasts } from '../core/toast';
 import { ChiliKpiStore } from './chili-kpi-store';
 import { ChiliVersionStore, importMessage } from './chili-version-store';
 import { keptWords, versionDays, type DashboardVersion } from './chili-versions';
+import { baseName } from '../core/paths';
 
 /**
  * Dashboard versions: every version of the dashboard this Mac has made or been sent, as a vertical
@@ -154,7 +155,7 @@ export class ChiliDashboardVersions {
   exportOne(version: DashboardVersion) {
     return this.run(async () => {
       const path = await this.store.exportVersion(version);
-      if (path) this.toasts.show(`Exported version ${version.number}: ${path.split('/').pop()}`);
+      if (path) this.toasts.show(`Exported version ${version.number}: ${baseName(path)}`);
     });
   }
 

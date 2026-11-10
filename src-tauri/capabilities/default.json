@@ -1,8 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window: core, and the open/save file dialogs",
-  "windows": ["main"],
+  "description": "The main window: core, the open/save file dialogs, and app updates",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "dialog:default",
@@ -10,6 +12,8 @@
     "dialog:allow-save",
     "dialog:allow-ask",
     "dialog:allow-message",
-    "dialog:allow-confirm"
+    "dialog:allow-confirm",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

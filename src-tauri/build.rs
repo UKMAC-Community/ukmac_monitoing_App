@@ -8,10 +8,13 @@ fn random_key() -> Vec<u8> {
     if std::fs::File::open("/dev/urandom").and_then(|mut file| file.read_exact(&mut key)).is_ok() {
         return key;
     }
-    // No /dev/urandom (not macOS or Linux): the time and this process, mixed.
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|time| time.as_nanos()).unwrap_or(0);
-    let mixed = format!("{now}-{}-{:?}", std::process::id(), std::thread::current().id());
-    client_seal::apply(mixed.as_bytes(), &key)
+    // No /dev/urandom (Windows): the standard library's hasher keys, which the system seeds randomly.
+    use std::hash::{BuildHasher, Hasher};
+    for chunk in key.chunks_mut(8) {
+        let word = std::collections::hash_map::RandomState::new().build_hasher().finish().to_le_bytes();
+        chunk.copy_from_slice(&word[..chunk.len()]);
+    }
+    key
 }
 
 fn main() {

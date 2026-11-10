@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "UKMAC Monitoring",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.ukmac.monitoring",
   "build": {
     "frontendDist": "../dist/ukmac-monitoring/browser",
@@ -22,16 +22,15 @@
       }
     ],
     "security": {
-      "dangerousDisableAssetCspModification": ["style-src"],
-      "csp":"default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: data: blob: https://server.arcgisonline.com; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:; connect-src ipc: http://ipc.localhost 'self' https://server.arcgisonline.com"
+      "dangerousDisableAssetCspModification": [
+        "style-src"
+      ],
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: data: blob: https://server.arcgisonline.com; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:; connect-src ipc: http://ipc.localhost 'self' https://server.arcgisonline.com"
     }
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg"
-    ],
+    "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,9 +39,30 @@
       "icons/icon.ico"
     ],
     "category": "Business",
-    "shortDescription": "Chili farm monitoring on this Mac",
+    "shortDescription": "Chili farm monitoring on this computer",
     "macOS": {
-      "minimumSystemVersion": "11.0"
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    },
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcwM0I3OTgxNjYwQjE4NUIKUldSYkdBdG1nWGs3Y0sxdUg5Rkl3aWo4OG9DRzlHQVlnOFc3ZWFqRUh3WE92RWY5TmZkcTFMTWgK",
+      "endpoints": [
+        "https://github.com/UKMAC-Community/ukmac_monitoing_App/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

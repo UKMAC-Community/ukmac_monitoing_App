@@ -27,6 +27,7 @@ import { mappingFromLink } from '../google/sheet-sync';
 import { columnLabel, displayCell } from '../sheet/columns';
 import { columnsToLimit, columnsToRemove, missingTemplateColumns, retiredColumns, upgradesItself, withTemplateColumns } from '../sheet/template-columns';
 import { UniverSheet, type ColumnRequest } from '../univer/univer-sheet';
+import { baseName } from '../core/paths';
 
 /** One table: the sheet, and everything done to it. */
 @Component({
@@ -468,7 +469,7 @@ export class SheetPage {
     try {
       const bytes = await buildTemplate(sheet, { linkOptions: this.linkOptions });
       await this.api.writeFile(path, bytes);
-      this.toasts.show(`Template saved: ${path.split('/').pop()}`);
+      this.toasts.show(`Template saved: ${baseName(path)}`);
     } catch (error) {
       this.toasts.error(errorText(error));
     } finally {
@@ -576,7 +577,7 @@ export class SheetPage {
     if (!path) return;
     try {
       const bytes = await this.api.readFile(path);
-      this.importFile.set({ fileName: path.split('/').pop() ?? path, bytes });
+      this.importFile.set({ fileName: baseName(path), bytes });
     } catch (error) {
       this.toasts.error(errorText(error));
     }
@@ -635,7 +636,7 @@ export class SheetPage {
     if (!path) return;
     try {
       await this.api.writeFile(path, await buildPowerBiWorkbook([{ mac: book.mac, sheets: [sheet] }], { single: true }));
-      this.toasts.show(`Saved ${path.split('/').pop()}`);
+      this.toasts.show(`Saved ${baseName(path)}`);
     } catch (error) {
       this.toasts.error(errorText(error));
     }

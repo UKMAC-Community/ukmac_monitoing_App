@@ -1,6 +1,6 @@
 [package]
 name = "ukmac-monitoring"
-version = "0.1.0"
+version = "0.1.1"
 description = "UKMAC Monitoring: chili farm (MAC) tables on this computer"
 authors = ["UKMAC"]
 license = ""
@@ -32,3 +32,5 @@ reqwest = { version = "0.13", default-features = false, features = ["native-tls"
 tokio = { version = "1", features = ["net", "time", "io-util", "sync", "rt", "macros"] }
 sha2 = "0.10"
 base64 = "0.23"
+tauri-plugin-process = "2.4.0"
+tauri-plugin-updater = "2.14.1"

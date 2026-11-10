@@ -7,6 +7,7 @@ import { readExcelSheets, tableFromSheet, type ExcelSheetData } from '../excel/s
 import { typeLabel } from '../sheet/columns';
 import { Icon } from './icon';
 import { Modal } from './modal';
+import { baseName } from '../core/paths';
 
 type Start = 'blank' | 'copy' | 'excel';
 
@@ -210,7 +211,7 @@ export class TableDialog {
     try {
       const bytes = await this.api.readFile(path);
       const sheets = await readExcelSheets(bytes);
-      const name = path.split('/').pop() ?? path;
+      const name = baseName(path);
       this.excelName.set(name);
       this.excelSheets.set(sheets);
       this.pickSheet(0);

@@ -46,6 +46,7 @@ import {
   type StudioVisual,
 } from './studio-model';
 import { buildSummaryWorkbook } from './summary-export';
+import { baseName } from '../core/paths';
 
 const FIELD_DRAG = 'application/x-ukmac-field';
 
@@ -632,7 +633,7 @@ export class DashboardStudio implements OnDestroy {
         .summaries.map((summary) => ({ title: summary.title, result: summaryResult(this.formulas(), sheet, summary) }))
         .filter((item): item is { title: string; result: NonNullable<typeof item.result> } => !!item.result);
       await this.api.writeFile(path, await buildSummaryWorkbook(sheet.title, results));
-      this.toasts.show(`Saved ${path.split('/').pop()}`);
+      this.toasts.show(`Saved ${baseName(path)}`);
     } catch (error) {
       this.toasts.error(errorText(error));
     }

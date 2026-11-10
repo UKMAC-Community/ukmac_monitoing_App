@@ -20,6 +20,7 @@ import { WorkbookStore } from '../core/workbook-store';
 import { buildPowerBiWorkbook } from '../excel/powerbi-export';
 import { safeFileName } from '../excel/exceljs';
 import { formatDate } from '../sheet/columns';
+import { baseName } from '../core/paths';
 
 const HEADING_ICONS: Record<string, string> = {
   Setup: 'map',
@@ -273,7 +274,7 @@ export class MacPage {
     if (!path) return;
     try {
       await this.api.writeFile(path, await buildPowerBiWorkbook([book]));
-      this.toasts.show(`Saved ${path.split('/').pop()}`);
+      this.toasts.show(`Saved ${baseName(path)}`);
     } catch (error) {
       this.toasts.error(errorText(error));
     }

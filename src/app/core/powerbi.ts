@@ -4,6 +4,7 @@ import { buildPowerBiWorkbook } from '../excel/powerbi-export';
 import { Api, errorText } from './api';
 import { Toasts } from './toast';
 import { WorkbookStore } from './workbook-store';
+import { baseName } from './paths';
 
 const PATH_KEY = 'powerbi.path';
 const AUTO_KEY = 'powerbi.auto';
@@ -82,7 +83,7 @@ export class PowerBi {
       const bytes = await buildPowerBiWorkbook(books);
       await this.api.writeFile(path, bytes);
       this.lastExport.set(new Date());
-      if (!quiet) this.toasts.show(`Power BI file saved: ${path.split('/').pop()}`);
+      if (!quiet) this.toasts.show(`Power BI file saved: ${baseName(path)}`);
       return true;
     } catch (error) {
       this.toasts.error(`Power BI file not saved: ${errorText(error)}`);

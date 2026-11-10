@@ -1,0 +1,119 @@
+import { TestBed } from '@angular/core/testing';
+
+import { baseName } from './paths';
+import { Toasts } from './toast';
+import { AppUpdater, type PendingUpdate, type UpdateEvent, type UpdaterBackend } from './updater';
+
+function pending(run: (onEvent: (event: UpdateEvent) => void) => Promise<void> = async () => {}): PendingUpdate {
+  return { version: '0.2.0', currentVersion: '0.1.0', body: 'Faster tables', downloadAndInstall: async (onEvent) => run(onEvent ?? (() => {})) };
+}
+
+function setup(found: PendingUpdate | null | Error) {
+  const relaunch = vi.fn(async () => {});
+  const backend: UpdaterBackend = {
+    version: async () => '0.1.0',
+    check: async () => {
+      if (found instanceof Error) throw found;
+      return found;
+    },
+    relaunch,
+  };
+  const updater = TestBed.inject(AppUpdater);
+  updater.backend = backend;
+  return { updater, relaunch, toasts: TestBed.inject(Toasts) };
+}
+
+describe('AppUpdater', () => {
+  it('reads the running version', async () => {
+    const { updater } = setup(null);
+    await updater.loadVersion();
+    expect(updater.version()).toBe('0.1.0');
+  });
+
+  it('says so when this is the newest version', async () => {
+    const { updater } = setup(null);
+    await updater.check();
+    expect(updater.state()).toBe('current');
+    expect(updater.update()).toBeNull();
+    expect(updater.lastChecked()).not.toBeNull();
+  });
+
+  it('keeps the new version found, with its notes', async () => {
+    const { updater } = setup(pending());
+    await updater.check();
+    expect(updater.state()).toBe('available');
+    expect(updater.update()?.version).toBe('0.2.0');
+    expect(updater.update()?.body).toBe('Faster tables');
+  });
+
+  it('shows a plain error when the check fails by hand, and none when it runs by itself', async () => {
+    const loud = setup(new Error('error sending request for url'));
+    await loud.updater.check();
+    expect(loud.updater.state()).toBe('error');
+    expect(loud.updater.error()).toContain('Check the internet connection');
+
+    TestBed.resetTestingModule();
+    const quiet = setup(new Error('error sending request for url'));
+    await quiet.updater.check(true);
+    expect(quiet.updater.state()).toBe('idle');
+    expect(quiet.updater.error()).toBeNull();
+  });
+
+  it('downloads with progress, installs, and then restarts', async () => {
+    const seen: (number | null)[] = [];
+    let updater!: AppUpdater;
+    const found = pending(async (onEvent) => {
+      onEvent({ event: 'Started', data: { contentLength: 200 } });
+      onEvent({ event: 'Progress', data: { chunkLength: 50 } });
+      seen.push(updater.percent());
+      onEvent({ event: 'Progress', data: { chunkLength: 150 } });
+      seen.push(updater.percent());
+      onEvent({ event: 'Finished' });
+    });
+    const made = setup(found);
+    updater = made.updater;
+    await updater.check();
+    await updater.install();
+    expect(seen).toEqual([25, 100]);
+    expect(updater.state()).toBe('installed');
+    expect(made.relaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not restart when the install fails, and says why', async () => {
+    const made = setup(
+      pending(async () => {
+        throw new Error('signature verification failed');
+      }),
+    );
+    await made.updater.check();
+    await made.updater.install();
+    expect(made.updater.state()).toBe('error');
+    expect(made.updater.error()).toContain('not installed');
+    expect(made.relaunch).not.toHaveBeenCalled();
+  });
+
+  it('offers the update in a message at start, once', async () => {
+    vi.useFakeTimers();
+    try {
+      const made = setup(pending());
+      const first = made.updater.checkOnStart(10);
+      await vi.advanceTimersByTimeAsync(20);
+      await first;
+      expect(made.toasts.items().map((toast) => toast.text)).toEqual(['Version 0.2.0 is ready.']);
+      expect(made.toasts.items()[0].action?.label).toBe('Update');
+      await made.updater.checkOnStart(10); // already looked this run
+      expect(made.toasts.items()).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(20000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('baseName', () => {
+  it('takes the file name from a Mac or a Windows path', () => {
+    expect(baseName('/Users/a/Farm A.ukmac')).toBe('Farm A.ukmac');
+    expect(baseName('C:\\Users\\a\\Farm A.ukmac')).toBe('Farm A.ukmac');
+    expect(baseName('plain.xlsx')).toBe('plain.xlsx');
+  });
+});

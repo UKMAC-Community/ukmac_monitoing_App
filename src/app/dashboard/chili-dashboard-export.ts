@@ -6,6 +6,7 @@ import { errorText } from '../core/api';
 import { Toasts } from '../core/toast';
 import { ChiliVersionStore } from './chili-version-store';
 import { latestOf } from './chili-versions';
+import { baseName } from '../core/paths';
 
 /**
  * Export dashboard: the dashboard as it is now, as a file to share. When it has changed since its latest
@@ -91,7 +92,7 @@ export class ChiliDashboardExport {
     try {
       const done = await this.store.exportCurrent(this.name(), this.note());
       if (!done) return; // They closed the save window: nothing was made.
-      this.toasts.show(`${done.created ? 'Saved as version ' + done.version.number + ' and exported' : 'Exported version ' + done.version.number}: ${done.path.split('/').pop()}`);
+      this.toasts.show(`${done.created ? 'Saved as version ' + done.version.number + ' and exported' : 'Exported version ' + done.version.number}: ${baseName(done.path)}`);
       this.closed.emit();
     } catch (error) {
       this.toasts.error(errorText(error));
