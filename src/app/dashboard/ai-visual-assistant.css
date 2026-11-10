@@ -1,0 +1,51 @@
+.ai-layout { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.35fr); gap: 24px; min-height: 420px; }
+.composer { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.connection-head, .connection-actions, .generate-actions, .results-heading { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.connection-head { justify-content: space-between; }
+.connection-state { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.status-dot { width: 7px; height: 7px; background: var(--text-muted); border-radius: 50%; }
+.status-dot.connected { background: var(--accent); }
+.connection-form { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--fill); }
+.connection-form .input-field { width: 100%; min-width: 0; font-size: 12px; }
+.connection-form .form-group { display: grid; gap: 4px; }
+.connection-form .form-label { font-size: 12px; }
+.small { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.presets { display: flex; align-items: center; gap: 9px; font-size: 11px; color: var(--text-muted); }
+.presets button, .disconnect { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+.disconnect { text-align: left; font-size: 11px; width: fit-content; }
+.prompt-label { font-size: 13px; font-weight: 600; margin-top: 4px; }
+.prompt { resize: vertical; min-height: 104px; width: 100%; line-height: 1.5; font-size: 13px; }
+.examples { display: flex; gap: 6px; flex-wrap: wrap; }
+.examples button { padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-muted); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+.privacy { display: flex; align-items: flex-start; gap: 7px; color: var(--text-muted); font-size: 11px; line-height: 1.55; }
+.privacy app-icon { flex: none; margin-top: 2px; }
+.feedback { padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; line-height: 1.5; }
+.feedback.error { color: var(--danger); background: var(--danger-soft, #fff4f3); }
+.results { min-width: 0; border-left: 1px solid var(--border); padding-left: 24px; display: flex; flex-direction: column; gap: 14px; }
+.results-heading { justify-content: space-between; }
+.results-heading h3 { font-size: 14px; }
+.results-heading > span { font-size: 12px; color: var(--text-muted); }
+.suggestions { display: grid; gap: 8px; padding: 0; list-style: none; }
+.suggestions li { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.suggestions li.previewed { border-color: var(--accent); }
+.suggestions label { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; cursor: pointer; }
+.suggestions input { accent-color: var(--accent); flex: none; }
+.suggestions label span { min-width: 0; }
+.suggestions strong, .suggestions small { display: block; overflow-wrap: anywhere; }
+.suggestions strong { font-size: 12px; font-weight: 600; }
+.suggestions small { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.suggestions button { font: inherit; font-size: 11px; color: var(--accent); border: 0; background: none; cursor: pointer; }
+.real-preview { overflow: auto; min-width: 0; border-radius: 12px; background: var(--fill); }
+.ai-empty { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; gap: 14px; min-height: 330px; padding: 28px; }
+.ai-empty > span { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px; color: var(--accent); background: var(--accent-soft); }
+.ai-empty h3 { font-size: 18px; letter-spacing: -.02em; }
+.ai-empty p { color: var(--text-muted); font-size: 13px; max-width: 310px; line-height: 1.6; }
+.empty-types { display: flex; gap: 20px; color: var(--text-muted); margin-top: 6px; }
+.selection-note { flex: 1; min-width: 0; font-size: 12px; color: var(--text-muted); }
+button:disabled { cursor: default; opacity: .55; }
+@media (max-width: 800px) {
+  .ai-layout { grid-template-columns: 1fr; }
+  .results { border-left: 0; border-top: 1px solid var(--border); padding: 18px 0 0; }
+  .ai-empty { min-height: 190px; }
+  .selection-note { flex-basis: 100%; }
+}

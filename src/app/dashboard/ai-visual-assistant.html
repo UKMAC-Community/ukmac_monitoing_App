@@ -1,0 +1,50 @@
+<app-modal [open]="true" title="Create with AI" [subtitle]="sheet().title + ' · review suggestions before adding them'" size="xwide" (closed)="closed.emit()">
+  <div class="ai-layout">
+    <section class="composer" aria-label="Describe your visuals">
+      <div class="connection-head">
+        <span class="connection-state"><span class="status-dot" [class.connected]="status()?.configured"></span>{{ status()?.configured ? (status()?.provider === 'openrouter' ? 'OpenRouter' : 'AI server') : 'Connect your AI' }}</span>
+        <button type="button" class="btn btn-plain btn-sm" [disabled]="generating() || configBusy()" [attr.aria-expanded]="settingsOpen()" (click)="settingsOpen.set(!settingsOpen())"><app-icon name="settings" [size]="14" /> Connection</button>
+      </div>
+      @if (loading()) { <p class="small" role="status">Loading connection…</p> }
+      @if (loadFailed()) { <button type="button" class="btn btn-secondary btn-sm" (click)="loadConnection()">Retry loading connection</button> }
+      @if (settingsOpen()) {
+        <form class="connection-form" (submit)="$event.preventDefault(); saveConnection()">
+          <label class="form-group"><span class="form-label">Provider</span><select class="input-field" [disabled]="configBusy() || generating() || loading()" [value]="provider()" (change)="chooseProvider($any($event.target).value)"><option value="openrouter">OpenRouter</option><option value="local">Local / compatible server</option></select></label>
+          <label class="form-group"><span class="form-label">API base URL</span><input class="input-field" type="url" [readOnly]="provider() === 'openrouter'" [disabled]="configBusy() || generating() || loading()" [value]="baseUrl()" (input)="baseUrl.set($any($event.target).value)" spellcheck="false" placeholder="http://127.0.0.1:11434/v1" /></label>
+          @if (provider() === 'local') {
+            <div class="presets"><span>Use:</span><button type="button" [disabled]="configBusy() || generating()" (click)="useLocal('http://127.0.0.1:11434/v1')">Ollama</button><button type="button" [disabled]="configBusy() || generating()" (click)="useLocal('http://127.0.0.1:1234/v1')">LM Studio</button></div>
+          }
+          <label class="form-group"><span class="form-label">Model ID</span><input class="input-field" [disabled]="configBusy() || generating() || loading()" [value]="model()" (input)="model.set($any($event.target).value)" spellcheck="false" placeholder="The model name from your provider" /></label>
+          <label class="form-group"><span class="form-label">API key {{ provider() === 'local' ? '(optional)' : '' }}</span><input class="input-field" type="password" autocomplete="new-password" [disabled]="configBusy() || generating() || loading()" [value]="apiKey()" (input)="apiKey.set($any($event.target).value)" [placeholder]="keepsKey() ? 'Saved · leave blank to keep' : 'Paste your API key'" /></label>
+          <p class="small">The key is kept on this Mac, outside database backups.</p>
+          <div class="connection-actions"><button type="submit" class="btn btn-secondary btn-sm" [disabled]="configBusy() || generating() || loading() || !model().trim()">{{ configBusy() ? 'Working…' : 'Save connection' }}</button><button type="button" class="btn btn-plain btn-sm" [disabled]="configBusy() || generating() || !connectedToDraft()" (click)="testConnection()">Test connection</button></div>
+          @if (status()?.configured) { <button type="button" class="disconnect" [disabled]="configBusy() || generating()" (click)="disconnect()">Disconnect and forget key</button> }
+        </form>
+      }
+      @if (connectionError()) { <p class="feedback error" role="alert">{{ connectionError() }}</p> }
+      @if (connectionMessage()) { <p class="feedback" role="status">{{ connectionMessage() }}</p> }
+      <label class="prompt-label" for="ai-visual-prompt">What would you like to see?</label>
+      <textarea id="ai-visual-prompt" class="input-field prompt" rows="4" maxlength="2000" [disabled]="generating()" [value]="prompt()" (input)="prompt.set($any($event.target).value)" placeholder="For example: compare counts by origin and show the total as a card."></textarea>
+      <div class="examples" aria-label="Example requests">@for (example of examples(); track example) { <button type="button" [disabled]="generating()" (click)="prompt.set(example)">{{ example }}</button> }</div>
+      <p class="privacy"><app-icon name="info" [size]="14" /><span>Sends your request, column names, types and row count to the connection above. Row values stay on this Mac. Charts are calculated from your table here.</span></p>
+      @if (status()?.configured && !connectedToDraft()) { <p class="small">Save your connection changes before generating.</p> }
+      <div class="generate-actions"><button type="button" class="btn btn-primary" [disabled]="!canGenerate()" (click)="generate()"><app-icon [name]="generating() ? 'refresh' : 'sparkles'" />{{ generating() ? 'Creating suggestions…' : 'Generate visuals' }}</button>@if (generating()) { <button type="button" class="btn btn-plain btn-sm" [disabled]="cancelling()" (click)="cancel()">{{ cancelling() ? 'Cancelling…' : 'Cancel' }}</button> }</div>
+      @if (generationError()) { <p class="feedback error" role="alert">{{ generationError() }}</p> }
+    </section>
+    <section class="results" aria-label="Suggested visuals" [attr.aria-busy]="generating()">
+      @if (suggestions().length) {
+        <div class="results-heading"><h3>Suggested visuals</h3><span>{{ suggestions().length }} to review</span></div>
+        <ul class="suggestions">@for (visual of suggestions(); track visual.id) { <li [class.previewed]="previewId() === visual.id"><label><input type="checkbox" [checked]="included().includes(visual.id)" (change)="toggleIncluded(visual.id)" /><span><strong>{{ visual.title }}</strong><small>{{ typeLabel(visual) }} · {{ measureLabel(visual) }}</small></span></label><button type="button" [attr.aria-pressed]="previewId() === visual.id" [attr.aria-label]="'Preview ' + visual.title" (click)="previewId.set(visual.id)">Preview</button></li> }</ul>
+        <div class="real-preview"><app-sheet-dashboard [sheet]="sheet()" [formulas]="formulas()" [board]="previewBoard()" /></div>
+        <p class="small">This preview uses your current table. Added visuals remain editable in Build and Format.</p>
+      } @else {
+        <div class="ai-empty"><span><app-icon name="sparkles" [size]="28" /></span><h3>{{ generating() ? 'Finding the right visuals…' : 'Turn a question into a chart' }}</h3><p>{{ generating() ? (provider() === 'local' ? 'A local model can take a few minutes, especially the first time it loads. You can cancel at any time. Nothing is added automatically.' : 'You can cancel while the model works. Nothing is added automatically.') :'Describe a comparison, trend or summary. Review the suggestions here, then choose which ones to add.' }}</p><div class="empty-types"><app-icon name="chart-column" [size]="20" /><app-icon name="chart-line" [size]="20" /><app-icon name="donut" [size]="20" /></div></div>
+      }
+    </section>
+  </div>
+  <ng-container footer>
+    <span class="selection-note" role="status">{{ suggestions().length ? included().length + ' selected' : 'Your dashboard stays unchanged until you add a visual.' }}</span>
+    <button type="button" class="btn btn-secondary" (click)="closed.emit()">Close</button>
+    <button type="button" class="btn btn-primary" [disabled]="!included().length || generating()" (click)="addSelected()"><app-icon name="plus" /> Add {{ included().length || '' }} visual{{ included().length === 1 ? '' : 's' }}</button>
+  </ng-container>
+</app-modal>

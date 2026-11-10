@@ -1,0 +1,417 @@
+/* Design tokens: the only place raw colours live. Everything else uses these.
+   Ported from ThaFlow (packages/ui/src/styles/tokens.css, itself from telecloud) so UKMAC
+   has the Tha.space look: Apple-style frosted glass. Translucent surfaces sit on a soft
+   ambient glow, edged by a 0.5px hairline and a very soft shadow. SF Pro type with tight
+   tracking, 18px card radius, 36px controls (44px on touch), 4px bars and compact rows.
+
+   UKMAC additions: the accent palettes a user can pick in Settings → Theme
+   (`data-accent` on <html>, set by ThemeSync) and the names older code still uses
+   (--foreground, --muted, --line, …) as aliases at the bottom. */
+
+:root {
+  color-scheme: light;
+
+  /* Khmer first: its webfont only covers Khmer (unicode-range), so Latin text falls
+     through to San Francisco on Apple devices and Inter everywhere else. */
+  --font:
+    var(--font-khmer), -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "SF Pro Display", var(--font-inter), "Helvetica Neue", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --tracking: -0.01em;
+  --tracking-title: -0.022em;
+
+  /* Canvas, plus the soft colour glow the glass has to blur */
+  --bg: #f5f5f7;
+  --ambient:
+    radial-gradient(
+      64rem 44rem at 4% -14%,
+      rgba(0, 113, 227, 0.16),
+      transparent 64%
+    ),
+    radial-gradient(
+      52rem 38rem at 102% 2%,
+      rgba(175, 82, 222, 0.11),
+      transparent 62%
+    ),
+    radial-gradient(
+      58rem 42rem at 60% 112%,
+      rgba(255, 159, 10, 0.1),
+      transparent 64%
+    );
+  /* Extra glow behind the sign-in card, so the glass has something to blur */
+  --ambient-focus:
+    radial-gradient(
+      30rem 24rem at 44% 42%,
+      rgba(0, 113, 227, 0.2),
+      transparent 70%
+    ),
+    radial-gradient(
+      26rem 22rem at 60% 60%,
+      rgba(255, 159, 10, 0.14),
+      transparent 70%
+    );
+
+  /* Glass: --surface for cards and panels, --surface-thick for floating layers (menus,
+     dialogs, toasts), --surface-solid where content scrolls underneath (sticky cells) */
+  --surface: rgba(255, 255, 255, 0.66);
+  --surface-thick: rgba(255, 255, 255, 0.88);
+  --surface-solid: #ffffff;
+  /* --surface as it looks on the canvas, opaque: for a sticky bar inside a
+     glass panel (content scrolls under it, so it can't be see-through) */
+  --surface-flat: color-mix(in srgb, #ffffff 66%, var(--bg));
+  --blur: saturate(180%) blur(20px);
+  --blur-thick: saturate(190%) blur(32px);
+
+  /* Interaction fills: translucent, so they work on any surface */
+  --surface-hover: rgba(60, 60, 67, 0.07);
+  --row-hover: rgba(60, 60, 67, 0.045);
+  --fill: rgba(120, 120, 128, 0.12);
+  --field: rgba(255, 255, 255, 0.7);
+  --field-hover: rgba(255, 255, 255, 0.95);
+  --thumb: #ffffff; /* selected segment in a segmented control, the knob of a switch */
+
+  /* Edges: 0.5px hairlines (1px on low-density screens, see below) */
+  --hairline: 0.5px;
+  --border: rgba(60, 60, 67, 0.16);
+  --border-strong: rgba(60, 60, 67, 0.28);
+
+  /* Text */
+  --text: #1d1d1f;
+  --text-muted: #6e6e73;
+
+  /* Brand + status. --accent is for text, icons and rings; --accent-solid is a fill
+     behind --accent-fg text. The default accent is the Tha.space blue; the others are
+     below (data-accent). */
+  --accent: #0066d9;
+  --accent-hover: #0058bb;
+  --accent-solid: #0066d9;
+  --accent-solid-hover: #0058bb;
+  --accent-fg: #ffffff;
+  --success: #1f7a35;
+  --warning: #a34a00;
+  --danger: #d70015;
+  --danger-solid: #d70015;
+
+  /* Charts: one series in the accent, a ~10% wash of it for areas, hairline grid */
+  --chart-1: var(--accent-solid);
+  --chart-area: color-mix(in srgb, var(--chart-1) 10%, transparent);
+  --chart-grid: var(--border);
+  /* Several series told apart (a person's tables by hour): taken in this
+     order, each keeping its slot; not the accent, so a teal or peach accent
+     can't match one. Checked for colour-blind readers on the card surface
+     (side by side ΔE ≥ 9.1, ≥ 19.6 to the eye) — three are under 3:1 here,
+     so a chart using them names its series in words too. Past eight: other. */
+  --chart-cat-1: #2a78d6;
+  --chart-cat-2: #eb6834;
+  --chart-cat-3: #1baf7a;
+  --chart-cat-4: #eda100;
+  --chart-cat-5: #e87ba4;
+  --chart-cat-6: #008300;
+  --chart-cat-7: #6250d6;
+  --chart-cat-8: #e34948;
+  --chart-cat-other: #a1a1a6;
+
+  /* Status tints, derived from the solids so a custom accent stays consistent */
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --accent-soft-hover: color-mix(in srgb, var(--accent) 17%, transparent);
+  --success-soft: color-mix(in srgb, var(--success) 12%, transparent);
+  --warning-soft: color-mix(in srgb, var(--warning) 12%, transparent);
+  --danger-soft: color-mix(in srgb, var(--danger) 10%, transparent);
+  --ring: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent);
+
+  /* Depth: a light top edge plus very soft, low-opacity shadows. No heavy drop shadows. */
+  --overlay: rgba(20, 20, 30, 0.34);
+  --edge: inset 0 0.5px 0 rgba(255, 255, 255, 0.8);
+  --shadow-xs: 0 0.5px 1px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 12px 40px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-card: var(--edge), var(--shadow-sm);
+
+  /* Shape + layout */
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px; /* cards: matches iOS widget corners */
+  --radius-xl: 22px; /* dialogs and hero surfaces */
+  --sidebar-w: 240px;
+  --rail-w: 64px;
+  --topbar-h: 56px;
+  --control-h: 36px; /* buttons, inputs, selects; 44px on touch (below) */
+
+  /* Table row heights: compact 40 / default 48 / comfortable 56 (data-density on
+     <html>, from Settings → Theme → Table). */
+  --row-h: 48px;
+  --cell-px: 16px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-menu: 150ms; /* dropdowns and menus */
+  --dur: 200ms;
+  --dur-slow: 320ms;
+  /* Spring (mass 1, stiffness 180, damping 20) sampled as a CSS easing; falls back to
+     --ease where linear() is unsupported */
+  --ease-spring: var(--ease);
+  --dur-spring: 580ms;
+}
+
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(
+      0,
+      0.021,
+      0.075,
+      0.151,
+      0.24,
+      0.335,
+      0.43,
+      0.521,
+      0.607,
+      0.684,
+      0.753,
+      0.812,
+      0.863,
+      0.905,
+      0.94,
+      0.967,
+      0.988,
+      1.004,
+      1.015,
+      1.023,
+      1.027,
+      1.029,
+      1.03,
+      1.029,
+      1.027,
+      1.025,
+      1.022,
+      1.019,
+      1.016,
+      1.014,
+      1.011,
+      1.009,
+      1.007,
+      1.005,
+      1.004,
+      1.003,
+      1
+    );
+  }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0b0b0f;
+  --ambient:
+    radial-gradient(
+      64rem 44rem at 4% -14%,
+      rgba(10, 132, 255, 0.26),
+      transparent 64%
+    ),
+    radial-gradient(
+      52rem 38rem at 102% 2%,
+      rgba(191, 90, 242, 0.18),
+      transparent 62%
+    ),
+    radial-gradient(
+      58rem 42rem at 60% 112%,
+      rgba(48, 209, 88, 0.09),
+      transparent 64%
+    );
+  --ambient-focus:
+    radial-gradient(
+      30rem 24rem at 44% 42%,
+      rgba(10, 132, 255, 0.3),
+      transparent 70%
+    ),
+    radial-gradient(
+      26rem 22rem at 60% 60%,
+      rgba(191, 90, 242, 0.2),
+      transparent 70%
+    );
+
+  --surface: rgba(44, 44, 50, 0.56);
+  --surface-thick: rgba(38, 38, 44, 0.84);
+  --surface-solid: #202026;
+  --surface-flat: color-mix(in srgb, rgb(44, 44, 50) 56%, var(--bg));
+
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --row-hover: rgba(255, 255, 255, 0.05);
+  --fill: rgba(120, 120, 128, 0.24);
+  --field: rgba(255, 255, 255, 0.07);
+  --field-hover: rgba(255, 255, 255, 0.12);
+  --thumb: rgba(120, 120, 128, 0.42);
+
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  --text: #f5f5f7;
+  --text-muted: #a1a1a6;
+
+  --accent: #4da3ff;
+  --accent-hover: #7bbcff;
+  --accent-solid: #0a72e0;
+  --accent-solid-hover: #1a82f0;
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+  --danger-solid: #d92d20;
+
+  --chart-1: #3d97f5;
+  /* The same eight, stepped for the dark surface (ΔE ≥ 8.4, all ≥ 3:1). */
+  --chart-cat-1: #3987e5;
+  --chart-cat-2: #d95926;
+  --chart-cat-3: #199e70;
+  --chart-cat-4: #c98500;
+  --chart-cat-5: #d55181;
+  --chart-cat-6: #008300;
+  --chart-cat-7: #9085e9;
+  --chart-cat-8: #e66767;
+  --chart-cat-other: #6e6e73;
+
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-soft-hover: color-mix(in srgb, var(--accent) 26%, transparent);
+  --success-soft: color-mix(in srgb, var(--success) 18%, transparent);
+  --warning-soft: color-mix(in srgb, var(--warning) 18%, transparent);
+  --danger-soft: color-mix(in srgb, var(--danger) 16%, transparent);
+
+  --overlay: rgba(0, 0, 0, 0.55);
+  --edge: inset 0 0.5px 0 rgba(255, 255, 255, 0.09);
+  --shadow-xs: 0 0.5px 1px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 14px 44px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* The other accents (Settings → Theme). Blue, the default, is above. Each has a text
+   shade (--accent) dark enough to read on white, and a fill (--accent-solid). */
+[data-accent="teal"] {
+  --accent: #0f766e;
+  --accent-hover: #0b5f59;
+  --accent-solid: #0f766e;
+  --accent-solid-hover: #0b5f59;
+}
+[data-accent="peach"] {
+  --accent: #b5583c;
+  --accent-hover: #994a32;
+  --accent-solid: #c96a4d;
+  --accent-solid-hover: #a8543a;
+}
+[data-accent="sage"] {
+  --accent: #4a7d5b;
+  --accent-hover: #3d6a4c;
+  --accent-solid: #5f9a72;
+  --accent-solid-hover: #4a7d5b;
+}
+[data-accent="lavender"] {
+  --accent: #6a559c;
+  --accent-hover: #574585;
+  --accent-solid: #7c67b0;
+  --accent-solid-hover: #63508f;
+}
+[data-theme="dark"][data-accent="teal"] {
+  --accent: #3cc7b5;
+  --accent-hover: #6fdccd;
+  --accent-solid: #0f8a80;
+  --accent-solid-hover: #13a094;
+  --chart-1: #2fb8a7;
+}
+[data-theme="dark"][data-accent="peach"] {
+  --accent: #f0a083;
+  --accent-hover: #f5bba6;
+  --accent-solid: #c96a4d;
+  --accent-solid-hover: #d77c5f;
+  --chart-1: #e88d6e;
+}
+[data-theme="dark"][data-accent="sage"] {
+  --accent: #8fcf9f;
+  --accent-hover: #aedcb9;
+  --accent-solid: #4f8a62;
+  --accent-solid-hover: #5f9a72;
+  --chart-1: #7cc28e;
+}
+[data-theme="dark"][data-accent="lavender"] {
+  --accent: #b3a2e6;
+  --accent-hover: #c9bcee;
+  --accent-solid: #7c67b0;
+  --accent-solid-hover: #8e7ac0;
+  --chart-1: #a18fdd;
+}
+
+/* Hairlines: 0.5px is one device pixel on retina screens; on 1x screens use a full pixel */
+@media (max-resolution: 1.49dppx) {
+  :root {
+    --hairline: 1px;
+  }
+}
+
+/* Touch targets */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 44px;
+  }
+}
+
+/* No blur available, or the user asked for less transparency: glass becomes solid */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  :root,
+  [data-theme="dark"] {
+    --surface: var(--surface-solid);
+    --surface-thick: var(--surface-solid);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  [data-theme="dark"] {
+    --surface: var(--surface-solid);
+    --surface-thick: var(--surface-solid);
+    --blur: none;
+    --blur-thick: none;
+  }
+}
+
+:root[data-density="compact"] {
+  --row-h: 40px;
+}
+:root[data-density="comfortable"] {
+  --row-h: 56px;
+}
+
+/* Paper is white: a page printed from dark mode still comes out dark on light */
+@media print {
+  [data-theme="dark"] {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface-solid: #ffffff;
+    --text: #1d1d1f;
+    --text-muted: #6e6e73;
+    --accent: #0066d9;
+    --chart-1: #0066d9;
+    --fill: rgba(120, 120, 128, 0.12);
+    --border: rgba(60, 60, 67, 0.16);
+    --border-strong: rgba(60, 60, 67, 0.28);
+    --warning-soft: rgba(163, 74, 0, 0.12);
+  }
+}
+
+/* The names older UKMAC code uses, kept as aliases so every page follows the tokens.
+   New code uses the token names above (or the Tailwind colours in globals.css). */
+:root {
+  --background: var(--bg);
+  --foreground: var(--text);
+  --muted: var(--text-muted);
+  --line: var(--border);
+  --line-strong: var(--border-strong);
+  --accent-strong: var(--accent-hover);
+  --table-row-h: var(--row-h);
+  --table-cell-px: var(--cell-px);
+
+  --shape-compact: var(--radius-sm);
+  --shape-control: var(--radius);
+  --shape-menu: var(--radius-md);
+  --shape-card: var(--radius-lg);
+  --shape-panel: var(--radius-lg);
+  --shape-dialog: var(--radius-xl);
+}

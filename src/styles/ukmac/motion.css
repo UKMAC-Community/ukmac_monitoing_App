@@ -1,0 +1,270 @@
+/* Motion: keyframes and the entrance/feedback animations of the shared components.
+   Almost everything animates opacity and transform only; the exceptions are decorative
+   (skeleton shimmer, stroke drawing). Timing comes from the --ease / --dur-* tokens.
+   Reduced motion is honoured at the bottom: every animation here must be covered by it.
+   Ported from ThaFlow's motion.css. */
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes itemIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes rowIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes modalOut {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@keyframes sheetIn {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheetOut {
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes bulkIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes menuOut {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes slide {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@layer components {
+  /* Cards in a grid rise in one after another (first 12 only, the rest appear at once) */
+  .card-grid > * {
+    animation: itemIn var(--dur-slow) var(--ease) backwards;
+    animation-delay: calc(var(--i, 0) * 40ms);
+  }
+  .card-grid > :nth-child(2) {
+    --i: 1;
+  }
+  .card-grid > :nth-child(3) {
+    --i: 2;
+  }
+  .card-grid > :nth-child(4) {
+    --i: 3;
+  }
+  .card-grid > :nth-child(5) {
+    --i: 4;
+  }
+  .card-grid > :nth-child(6) {
+    --i: 5;
+  }
+  .card-grid > :nth-child(7) {
+    --i: 6;
+  }
+  .card-grid > :nth-child(8) {
+    --i: 7;
+  }
+  .card-grid > :nth-child(9) {
+    --i: 8;
+  }
+  .card-grid > :nth-child(10) {
+    --i: 9;
+  }
+  .card-grid > :nth-child(11) {
+    --i: 10;
+  }
+  .card-grid > :nth-child(12) {
+    --i: 11;
+  }
+  .card-grid > :nth-child(n + 13) {
+    animation: none;
+  }
+
+  /* ── Feedback ── */
+  :is(.btn, .icon-btn, .btn-xs, .chip, .segment):active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .alert-box.error {
+    animation: shake 0.35s ease;
+  }
+
+  /* ── Overlays ── */
+  .modal-backdrop {
+    animation: fade var(--dur-fast) ease;
+  }
+  .modal-dialog {
+    animation: modalIn var(--dur) var(--ease);
+  }
+  .modal-backdrop.closing {
+    animation: fadeOut 160ms ease forwards;
+    pointer-events: none;
+  }
+  .modal-backdrop.closing .modal-dialog {
+    animation: modalOut 160ms var(--ease) forwards;
+  }
+  @media (max-width: 639.98px) {
+    .modal-backdrop.is-sheet .modal-dialog {
+      animation: sheetIn 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .modal-backdrop.is-sheet.closing .modal-dialog {
+      animation: sheetOut 0.2s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+    }
+  }
+  .select-panel,
+  .menu-panel {
+    animation: menuIn var(--dur-menu) var(--ease);
+    transform-origin: top;
+  }
+  .select-panel[data-placement="top"],
+  .menu-panel[data-placement="top"] {
+    transform-origin: bottom;
+  }
+  .select-panel.closing,
+  .menu-panel.closing {
+    animation: menuOut var(--dur-menu) var(--ease) forwards;
+    pointer-events: none;
+  }
+  .tooltip,
+  .chart-tooltip {
+    animation: fade var(--dur-fast) ease;
+  }
+  .bulk-bar {
+    animation: bulkIn var(--dur) var(--ease);
+  }
+
+  /* ── Loading ── */
+  .spinner-sm,
+  .spinner-lg {
+    animation: spin 0.7s linear infinite;
+  }
+  .skeleton {
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  /* A view refetching keeps its frame at reduced opacity: no skeleton flash, no jump */
+  .is-refreshing {
+    opacity: 0.6;
+    transition: opacity var(--dur) ease;
+  }
+
+  /* Progress bars: the fill glides to its width and shimmers while work is in progress */
+  .progress-bar.is-active::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--accent-fg) 40%, transparent),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: slide 1.2s linear infinite;
+  }
+
+  /* Success check draws itself */
+  .success-check {
+    animation: pop 0.4s var(--ease) backwards;
+  }
+  .success-check circle,
+  .success-check path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: draw 0.45s var(--ease) 0.1s forwards;
+  }
+  .success-check path {
+    animation-delay: 0.35s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spinner-sm,
+  .spinner-lg,
+  .animate-spin {
+    animation-duration: 1.2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

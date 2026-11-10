@@ -1,0 +1,219 @@
+@if (!onHome()) {
+<aside class="sidebar rail-scroll" [class.is-collapsed]="shell.collapsed()">
+  <div class="sidebar-header">
+    @if (!shell.collapsed()) {
+      <a class="sidebar-logo" routerLink="/">
+        <img src="logo/UKMAC_Logo.webp" alt="" />
+        <span class="sidebar-logo-text">
+          <span class="sidebar-brand">UNIONKMAC</span>
+          <span class="sidebar-tag">Monitoring · this Mac</span>
+        </span>
+      </a>
+    }
+    <button
+      type="button"
+      class="sidebar-toggle"
+      [attr.aria-label]="shell.collapsed() ? 'Open the sidebar' : 'Fold the sidebar'"
+      [title]="shell.collapsed() ? 'Open the sidebar' : 'Fold the sidebar'"
+      (click)="shell.toggle()"
+    >
+      <app-icon name="panel-left" [size]="18" />
+    </button>
+  </div>
+
+  <nav class="sidebar-nav">
+    @if (!shell.collapsed()) {
+      <label class="nav-search">
+        <app-icon name="search" [size]="16" />
+        <input type="search" placeholder="Search menu" [value]="find()" (input)="find.set($any($event.target).value)" />
+      </label>
+    }
+
+    @if (!inMac()) {
+    <div class="nav-group">
+      <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" #all="routerLinkActive" title="UKMAC">
+        @if (all.isActive) {
+          <span class="nav-pill"></span>
+        }
+        <app-icon name="building" [size]="17" />
+        <span class="nav-label">UKMAC</span>
+      </a>
+      <a class="nav-link" routerLink="/settings" routerLinkActive="active" #bi="routerLinkActive" title="Connections & backup">
+        @if (bi.isActive) {
+          <span class="nav-pill"></span>
+        }
+        <app-icon name="chart" [size]="17" />
+        <span class="nav-label">Connections & backup</span>
+        @if (powerBi.auto()) {
+          <span class="badge success live">live</span>
+        }
+      </a>
+    </div>
+    }
+
+    <div class="nav-group">
+      @if (inMac()) {
+      } @else if (!shell.collapsed()) {
+        <span class="nav-section-label">MACs</span>
+      } @else {
+        <span class="nav-section-label"><span class="nav-rule"></span></span>
+      }
+
+      @if (!macs.loaded() && !shell.collapsed()) {
+        @for (n of [1, 2]; track n) {
+          <span class="skeleton nav-skel"></span>
+        }
+      }
+
+      @for (mac of shownMacs(); track mac.macId) {
+        <a
+          class="nav-link mac-link"
+          [routerLink]="['/mac', mac.macId]"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+          #macLink="routerLinkActive"
+          [class.is-lit]="openMacId() === mac.macId"
+          [title]="inMac() ? 'Dashboard' : mac.macName"
+        >
+          @if (macLink.isActive) {
+            <span class="nav-pill"></span>
+          }
+          @if (inMac()) {
+            <app-icon name="grid" [size]="17" />
+            <span class="nav-label">Dashboard</span>
+          } @else {
+            <span class="avatar is-xs">{{ initial(mac.macName) }}</span>
+            <span class="nav-label">{{ mac.macName }}</span>
+            @if (!shell.collapsed()) {
+              <span class="mac-code">{{ mac.macCode }}</span>
+            }
+          }
+        </a>
+        @if (openMacId() === mac.macId) {
+          @if (layoutGroup() || showZoneMap()) {
+            @if (!shell.collapsed()) {
+              <span class="nav-section-label">Farm Layout</span>
+            }
+            @if (showZoneMap()) {
+              <a class="nav-link" [routerLink]="['/mac', mac.macId, 'zone-map']" routerLinkActive="active" #zmLink="routerLinkActive" title="Zone Map">
+                @if (zmLink.isActive) {
+                  <span class="nav-pill"></span>
+                }
+                <app-icon name="pin" [size]="17" />
+                <span class="nav-label">Zone Map</span>
+              </a>
+            }
+          }
+          @if (layoutGroup(); as layout) {
+            @for (sheet of layout.sheets; track sheet.sheetId) {
+              @if (sheet.title !== 'Zones') {
+              <a class="nav-link" [routerLink]="['/mac', mac.macId, 'table', sheet.sheetId]" routerLinkActive="active" #layoutLink="routerLinkActive" [title]="sheet.title">
+                @if (layoutLink.isActive) {
+                  <span class="nav-pill"></span>
+                }
+                <app-icon [name]="sheet.icon || 'map'" [size]="17" />
+                <span class="nav-label">{{ sheet.title }}</span>
+              </a>
+              }
+            }
+          }
+          @if (progressGroups().length) {
+            @if (!shell.collapsed()) {
+              <span class="nav-section-label">Farm Progress</span>
+            }
+            @for (group of progressGroups(); track group.heading) {
+              @if (!shell.collapsed()) {
+                <button type="button" class="nav-link" [attr.aria-expanded]="isOpen(group.heading)" (click)="toggleHeading(group.heading)">
+                  <app-icon [name]="headingIcon(group.heading)" [size]="17" />
+                  <span class="nav-label">{{ group.heading }}</span>
+                  <app-icon class="nav-chevron" name="chevron-down" [size]="14" />
+                </button>
+              }
+              @if (shell.collapsed() || isOpen(group.heading)) {
+                <div class="nav-children">
+                  @for (sheet of group.sheets; track sheet.sheetId) {
+                    <a class="nav-link is-nested" [routerLink]="['/mac', mac.macId, 'table', sheet.sheetId]" routerLinkActive="active" #tableLink="routerLinkActive" [title]="sheet.title">
+                      @if (tableLink.isActive) {
+                        <span class="nav-pill"></span>
+                      }
+                      @if (shell.collapsed()) {
+                        <app-icon [name]="sheet.icon || headingIcon(group.heading)" [size]="15" />
+                      }
+                      <span class="nav-label">{{ sheet.title }}</span>
+                    </a>
+                  }
+                </div>
+              }
+            }
+          }
+        }
+      } @empty {
+        @if (macs.loaded() && !shell.collapsed() && !inMac()) {
+          <p class="nav-empty">{{ find() ? 'Nothing matches.' : 'No MACs yet.' }}</p>
+        }
+      }
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <a class="user-menu-trigger" routerLink="/settings" title="Where the data is kept">
+      <span class="avatar is-sm"><app-icon name="laptop" [size]="14" /></span>
+      @if (!shell.collapsed()) {
+        <span class="user-menu-info">
+          <span class="user-name">This Mac</span>
+          <span class="user-sub">{{ store.saving() > 0 ? 'Saving…' : 'Everything saved here' }}</span>
+        </span>
+        <span class="user-menu-end"><app-icon name="settings" [size]="15" /></span>
+      }
+    </a>
+  </div>
+</aside>
+}
+
+<main class="content">
+  @if (!onHome()) {
+  <header class="topbar">
+    <div class="topbar-left">
+      <nav class="breadcrumbs" aria-label="Where you are">
+        @for (crumb of crumbs(); track $index; let last = $last) {
+          @if (crumb.link && !last) {
+            <a class="crumb-item" [routerLink]="crumb.link">{{ crumb.label }}</a>
+          } @else {
+            <span class="crumb-item" [class.active]="last">{{ crumb.label }}</span>
+          }
+          @if (!last) {
+            <span class="crumb-sep">/</span>
+          }
+        }
+      </nav>
+    </div>
+    <div class="topbar-right">
+      <span class="sync" [class.is-busy]="store.saving() > 0">
+        @if (store.saving() > 0) {
+          <span class="spinner-sm"></span> Saving…
+        } @else {
+          <app-icon name="cloud-check" [size]="15" /> Saved on this Mac
+        }
+      </span>
+    </div>
+  </header>
+  }
+  <router-outlet />
+</main>
+
+<div class="toasts" aria-live="polite">
+  @for (toast of toasts.items(); track toast.id) {
+    <div class="toast" [class]="toast.tone === 'ok' ? 'success' : toast.tone">
+      <span class="toast-icon">
+        <app-icon [name]="toast.tone === 'error' ? 'alert' : toast.tone === 'info' ? 'info' : 'check'" [size]="18" />
+      </span>
+      <span class="toast-body"><span class="toast-msg">{{ toast.text }}</span></span>
+      @if (toast.action) {
+        <button type="button" class="toast-action" (click)="toast.action.run(); toasts.dismiss(toast.id)">{{ toast.action.label }}</button>
+      } @else {
+        <span></span>
+      }
+      <button type="button" class="toast-close" aria-label="Dismiss" (click)="toasts.dismiss(toast.id)"><app-icon name="x" [size]="14" /></button>
+    </div>
+  }
+</div>

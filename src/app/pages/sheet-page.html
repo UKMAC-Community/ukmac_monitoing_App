@@ -1,0 +1,266 @@
+@if (sheet(); as sheet) {
+  <header class="sheet-head">
+    @if (mode() !== 'table') {
+      <button type="button" class="page-back-icon" title="Back to the table's page" aria-label="Back" (click)="setMode('table')">
+        <app-icon name="arrow-left" [size]="16" />
+      </button>
+    } @else {
+      <a class="page-back-icon" [routerLink]="['/mac', sheet.macId]" [title]="'Back to ' + (store.mac()?.macName ?? 'the MAC')" aria-label="Back">
+        <app-icon name="arrow-left" [size]="16" />
+      </a>
+    }
+    <div class="title">
+      <h1>{{ sheet.title }}</h1>
+      <span class="muted">· {{ store.mac()?.macName }}</span>
+      <button type="button" class="icon-btn is-quiet is-sm" title="Table settings" (click)="settingsOpen.set(true)">
+        <app-icon name="settings" [size]="15" />
+      </button>
+    </div>
+    <div class="head-actions">
+      @if (mode() === 'dashboard') {
+        <button type="button" class="btn btn-primary btn-sm" (click)="setMode('table')"><app-icon name="check" /> Done</button>
+      } @else {
+      @if (mode() === 'sheet' && problemCount()) {
+        <span class="badge danger" title="Cells drawn red don't fit their column: a number, a date, a value from the list"><app-icon name="alert" /> {{ problemCount() }} cell{{ problemCount() === 1 ? '' : 's' }} to check</span>
+      }
+      @if (google.linkOf(sheet.sheetId); as link) {
+        <span class="google-chip" [title]="'Connected to the Google Sheet ' + link.spreadsheetTitle + ' › ' + link.tabTitle + ': Sync reads it again'">
+          <app-icon name="table" [size]="13" />
+          <span class="google-chip-name">{{ link.spreadsheetTitle }} › {{ link.tabTitle }}</span>
+          <span>· {{ link.lastSyncedAt ? 'read ' + google.ago(link.lastSyncedAt) : 'not read yet' }}</span>
+        </span>
+        <button type="button" class="icon-btn is-quiet is-sm" title="Edit the Google Sheet link" aria-label="Edit the Google Sheet link" (click)="linkOpen.set(true)">
+          <app-icon name="edit" [size]="14" />
+        </button>
+        @if (google.signedIn()) {
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="google.isSyncing(sheet.sheetId) || mode() === 'sheet'"
+            [title]="mode() === 'sheet' ? 'Go back to the table to sync' : 'Read the Google Sheet again: the rows here are replaced by the tab\'s'"
+            (click)="google.syncAndTell(sheet.sheetId)"
+          >
+            <app-icon name="refresh" /> {{ google.isSyncing(sheet.sheetId) ? 'Reading…' : 'Sync' }}
+          </button>
+        } @else {
+          <a class="btn btn-secondary btn-sm" routerLink="/settings" title="Sign in with Google to read this table's sheet again"><app-icon name="refresh" /> Sign in to sync</a>
+        }
+      }
+      <button type="button" class="btn btn-secondary btn-sm" [disabled]="busy()" (click)="downloadTemplate()" title="A blank workbook with this table's columns: fill it in, then Import">
+        <app-icon name="download" /> Template
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="toggleImport($event)" [attr.aria-expanded]="importMenu() !== null" title="Rows from an Excel file or a Google Sheet, checked before they're saved">
+        <app-icon name="upload" /> Import <app-icon name="chevron-down" [size]="14" />
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="toggleExport($event)" [attr.aria-expanded]="exportMenu() !== null">
+        <app-icon name="file" /> Export <app-icon name="chevron-down" [size]="14" />
+      </button>
+      }
+    </div>
+  </header>
+
+  @if (mode() === 'dashboard') {
+    <div class="sheet">
+      <app-dashboard-studio [sheet]="sheet" [formulas]="store.formulas()" />
+    </div>
+  } @else if (mode() === 'sheet') {
+    <!-- Open in sheet: the table as a full spreadsheet (Univer, as the system's sheet view), the window's whole height; every change saved as it's made. -->
+    <div class="records full">
+      <app-univer-sheet [sheet]="sheet" (columnRequest)="columnRequest($event)" />
+      <!-- The MAC's tables as the sheet's tabs, over the grid's footer (its zoom stays clear on the right). -->
+      <nav class="sheet-tabs" aria-label="Tables">
+        <div class="tab-list">
+          @for (other of store.sheets(); track other.sheetId) {
+            <a
+              class="tab"
+              [class.active]="other.sheetId === sheet.sheetId"
+              [routerLink]="['/mac', other.macId, 'table', other.sheetId]"
+              queryParamsHandling="preserve"
+              [title]="other.heading + ' › ' + other.title"
+            >
+              <app-icon name="table" [size]="13" /> {{ other.title }}
+            </a>
+          }
+          <button type="button" class="tab add" title="New table" (click)="newTableOpen.set(true)"><app-icon name="plus" [size]="14" /></button>
+        </div>
+      </nav>
+    </div>
+  } @else {
+    <!-- As the system's table page: the table's KPIs and charts, its rows as a table (Open in sheet for the spreadsheet), its summaries under. -->
+    <div class="page-scroll">
+      <section class="kpi-panel" [class.folded]="panelHidden()">
+        <header class="panel-head">
+          <span class="group-kicker"><app-icon name="chart" [size]="12" /> Dashboard</span>
+          <span class="panel-note">Summary and KPIs of the rows below, worked out as they change</span>
+          <span class="grow"></span>
+          <button type="button" class="btn btn-plain btn-sm" (click)="setMode('dashboard')"><app-icon name="edit" /> Edit dashboard</button>
+          <button type="button" class="btn btn-plain btn-sm" (click)="togglePanel()" [attr.aria-expanded]="!panelHidden()">
+            <app-icon [name]="panelHidden() ? 'chevron-down' : 'arrow-up'" /> {{ panelHidden() ? 'Show' : 'Hide' }}
+          </button>
+        </header>
+        @if (!panelHidden()) {
+          <app-sheet-dashboard [sheet]="sheet" [formulas]="store.formulas()" part="top" />
+        }
+      </section>
+
+      <label class="input-wrap search page-search">
+        <span class="input-prefix"><app-icon name="search" [size]="15" /></span>
+        <input class="input-field has-prefix" type="search" placeholder="Search rows" [value]="search()" (input)="search.set($any($event.target).value)" />
+      </label>
+
+      @if (offerShown() && templateOffer(); as offer) {
+        <div class="alert-box info template-offer" role="status">
+          <app-icon name="refresh" />
+          <div class="offer-text">
+            <strong>{{ offer.title }}</strong>
+            <span>Bring this table up to date: its rows are not touched, and you see what changes before it does.</span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" [disabled]="busy()" (click)="addTemplateColumns()">{{ offer.button }}…</button>
+          <button type="button" class="icon-btn is-quiet is-sm" title="Hide this" aria-label="Hide this" (click)="hideOffer()"><app-icon name="x" [size]="14" /></button>
+        </div>
+      }
+
+      <section class="card data-card">
+        <header class="data-head">
+          <div class="data-title">
+            <h2>{{ sheet.title }}</h2>
+            <p>
+              {{ sheet.rows.length }} row{{ sheet.rows.length === 1 ? '' : 's' }} · {{ sheet.columns.length }} columns
+              @if (filtered()) {
+                · {{ rows().length }} found
+              }
+            </p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" [disabled]="busy()" (click)="seeConnections()" title="See how a Google Sheet's columns connect to this table's, in one step">
+            <app-icon name="table" /> Column connections
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="toggleExport($event)" [attr.aria-expanded]="exportMenu() !== null">
+            <app-icon name="download" /> Export <app-icon name="chevron-down" [size]="14" />
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="setMode('sheet')"><app-icon name="grid" /> Open in sheet</button>
+        </header>
+        <app-sheet-table
+          [sheet]="sheet"
+          [rows]="rows()"
+          [formulas]="store.formulas()"
+          [sort]="sort()"
+          [searching]="filtered()"
+          (sortBy)="sortBy($event)"
+        />
+      </section>
+
+      @if (!panelHidden() && hasSummaries()) {
+        <section class="kpi-panel after">
+          <app-sheet-dashboard [sheet]="sheet" [formulas]="store.formulas()" part="summaries" />
+        </section>
+      }
+    </div>
+  }
+
+  @if (importMenu(); as menu) {
+    <div class="menu-scrim" (mousedown)="importMenu.set(null)"></div>
+    <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
+      <button type="button" class="menu-item" (click)="importMenu.set(null); pickImport()">
+        <app-icon name="file" />
+        <span class="menu-item-text">Excel file<span class="menu-item-sub">An .xlsx file from this Mac</span></span>
+      </button>
+      <button type="button" class="menu-item" (click)="importMenu.set(null); googleIntoOpen.set(true)">
+        <app-icon name="table" />
+        <span class="menu-item-text">Google Sheet<span class="menu-item-sub">A tab of one of your Google Sheets</span></span>
+      </button>
+      @if (google.linkOf(sheet.sheetId)) {
+        <div class="menu-divider"></div>
+        <button type="button" class="menu-item" [disabled]="busy()" (click)="importMenu.set(null); redefineGoogle()">
+          <app-icon name="refresh" />
+          <span class="menu-item-text">Define the Google tab again<span class="menu-item-sub">Say where its column names and data start, then read it again</span></span>
+        </button>
+      }
+    </div>
+  }
+
+  @if (exportMenu(); as menu) {
+    <div class="menu-scrim" (mousedown)="exportMenu.set(null)"></div>
+    <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
+      <button type="button" class="menu-item" (click)="exportMenu.set(null); exportTable()">
+        <app-icon name="file" />
+        <span class="menu-item-text">This table to Excel<span class="menu-item-sub">Its rows, formulas worked out</span></span>
+      </button>
+      <button type="button" class="menu-item" (click)="exportMenu.set(null); downloadTemplate()">
+        <app-icon name="download" />
+        <span class="menu-item-text">Excel template<span class="menu-item-sub">Blank, to fill in and import</span></span>
+      </button>
+      <div class="menu-divider"></div>
+      <button type="button" class="menu-item" (click)="exportMenu.set(null); openImports()">
+        <app-icon name="undo" />
+        <span class="menu-item-text">Imports<span class="menu-item-sub">What came in from Excel, and undo</span></span>
+      </button>
+    </div>
+  }
+
+  @if (columnDialog(); as dialog) {
+    <app-column-dialog
+      [open]="true"
+      [column]="dialog.column"
+      [preset]="dialog.preset"
+      [sheet]="sheet"
+      [sheets]="store.sheets()"
+      [formulas]="store.formulas()"
+      (closed)="columnDialog.set(null)"
+      (saved)="saveColumn($event)"
+    />
+  }
+
+  <app-columns-panel
+    [open]="columnsOpen()"
+    [title]="sheet.title"
+    [columns]="sheet.columns"
+    (closed)="columnsOpen.set(false)"
+    (edit)="columnsOpen.set(false); columnDialog.set({ column: $event, insertAt: 0, preset: null })"
+    (remove)="deleteColumn($event)"
+    (add)="columnsOpen.set(false); openNewColumn()"
+    (reordered)="reorderColumns($event)"
+  />
+
+  <app-table-dialog
+    [open]="settingsOpen()"
+    [sheet]="sheet"
+    [templateOffer]="templateOffer()"
+    [working]="busy()"
+    (templateUpdate)="addTemplateColumns()"
+    (closed)="settingsOpen.set(false)"
+    (updated)="settingsOpen.set(false)"
+    (remove)="deleteTable($event)"
+  />
+  <app-table-dialog [open]="newTableOpen()" (closed)="newTableOpen.set(false)" (created)="tableCreated($event)" />
+
+  <app-import-dialog [file]="importFile()" [sheet]="sheet" (closed)="importFile.set(null)" (imported)="imported($event)" />
+  <app-google-import-dialog [open]="googleIntoOpen()" [into]="sheet" (closed)="closeGooglePicker()" (picked)="googlePicked($event)" />
+  <app-google-link-dialog [open]="linkOpen()" [sheet]="sheet" [canSync]="mode() !== 'sheet'" (closed)="linkOpen.set(false)" (redefine)="redefineGoogle()" />
+
+  <app-modal [open]="importsOpen()" title="Imports" [subtitle]="sheet.title" (closed)="importsOpen.set(false)">
+    @for (record of imports(); track record.importId) {
+      <div class="import">
+        <span class="avatar is-sm"><app-icon name="file" [size]="13" /></span>
+        <div class="grow">
+          <strong>{{ record.fileName }}</strong>
+          <small class="muted">
+            {{ when(record.importedAt) }} · {{ record.rowCount }} rows{{ record.mode === 'replace' ? ', replaced the table' : '' }}
+            @if (record.rowsLeft !== record.rowCount) {
+              · {{ record.rowsLeft }} still here
+            }
+          </small>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" [disabled]="!record.rowsLeft" (click)="undoImport(record)"><app-icon name="undo" /> Undo</button>
+      </div>
+    } @empty {
+      <p class="muted">Nothing imported into this table yet.</p>
+    }
+  </app-modal>
+} @else {
+  <div class="page">
+    <div class="card empty-state">
+      <strong>This table doesn't exist any more</strong>
+      <div class="empty-actions"><a class="btn btn-secondary" routerLink="/">Back to UKMAC</a></div>
+    </div>
+  </div>
+}

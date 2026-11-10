@@ -1,0 +1,178 @@
+:host {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Folded to the rail: only the icons. */
+.sidebar.is-collapsed .nav-label,
+.sidebar.is-collapsed .count-badge,
+.sidebar.is-collapsed .live {
+  display: none;
+}
+
+.sidebar.is-collapsed .nav-children {
+  gap: 2px;
+}
+
+.nav-section-label.sub {
+  padding: 8px 10px 2px;
+  font-size: 0.6875rem;
+}
+
+.mac-link .avatar {
+  flex: none;
+}
+
+.sidebar.is-collapsed .mac-link .avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 0.75rem;
+}
+
+.mac-code {
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.nav-link .count-badge {
+  margin-left: auto;
+  padding: 0 7px;
+  font-size: 0.6875rem;
+}
+
+.live {
+  margin-left: auto;
+  padding: 0 7px;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.crumb-item {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+a.crumb-item:hover {
+  color: var(--text);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.sync.is-busy {
+  color: var(--accent);
+}
+
+.toasts {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10001;
+  pointer-events: none;
+}
+
+/* A heading's button is a row like the links. */
+button.nav-link {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.nav-link .nav-chevron {
+  margin-left: auto;
+}
+
+/* A table group's row reads as a heading over its tables: medium weight, the text colour, a touch smaller. */
+button.nav-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.nav-link.is-nested {
+  color: var(--text-muted);
+}
+
+.nav-link.is-nested.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-skel { height: 34px; margin: 4px 0; border-radius: var(--radius-md); }
+
+/* A calmer menu: muted icons that light up, small spaced section labels, tidy nested rows, a turning chevron. */
+.sidebar .nav-link > app-icon:first-child,
+.sidebar .nav-link > svg:first-child {
+  color: var(--text-muted);
+  transition: color var(--dur-fast) var(--ease);
+}
+.sidebar .nav-link:hover > app-icon:first-child,
+.sidebar .nav-link.active > app-icon:first-child {
+  color: var(--accent);
+}
+.sidebar .nav-section-label {
+  margin-top: 14px;
+  padding: 0 12px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+.sidebar button.nav-link {
+  margin-top: 2px;
+  font-weight: 500;
+}
+.sidebar .nav-chevron {
+  transition: transform var(--dur) var(--ease);
+}
+.sidebar button.nav-link[aria-expanded='false'] .nav-chevron {
+  transform: rotate(-90deg);
+}
+.sidebar .nav-children {
+  margin: 2px 0 6px 20px;
+  padding-left: 10px;
+  border-left: var(--hairline) solid var(--border);
+  gap: 1px;
+}
+.sidebar .nav-link.is-nested {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  border-radius: var(--radius-sm);
+}
+.sidebar .nav-link.is-nested:hover {
+  color: var(--text);
+}

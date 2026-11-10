@@ -1,0 +1,552 @@
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  ElementRef,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
+
+import type { KpiVisual } from '../core/models';
+import { BAD_COLOR, formatNumber, GOOD_COLOR, KPI_PALETTE, type ChartPoint } from './dashboard-model';
+
+const HEIGHT = 230;
+const MAX_GROUPS = 12;
+
+/** A nice round top for an axis: 1, 2, 2.5 or 5 × a power of ten. */
+function niceMax(value: number) {
+  if (value <= 0) return 1;
+  const power = 10 ** Math.floor(Math.log10(value));
+  const step = [1, 2, 2.5, 5, 10].find((n) => n * power >= value)!;
+  return step * power;
+}
+
+function short(label: string, length: number) {
+  return label.length > length ? `${label.slice(0, length - 1)}…` : label;
+}
+
+/** Charts that read in the order the groups come (a trend), so they keep every group instead of the largest. */
+const IN_ORDER: KpiVisual[] = ['line', 'area', 'waterfall'];
+
+interface Tile {
+  label: string;
+  value: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Boxes sized by value, each as square as can be (the squarified treemap) inside `w` × `h`. */
+function squarify(items: { label: string; value: number }[], w: number, h: number): Tile[] {
+  const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
+  const nodes = items.map((item) => ({ ...item, area: (item.value / total) * w * h }));
+  const out: Tile[] = [];
+  let x = 0;
+  let y = 0;
+  let room = { w, h };
+  let row: typeof nodes = [];
+  const worst = (cells: typeof nodes, side: number) => {
+    const sum = cells.reduce((a, cell) => a + cell.area, 0);
+    const big = Math.max(...cells.map((cell) => cell.area));
+    const small = Math.min(...cells.map((cell) => cell.area));
+    return Math.max((side * side * big) / (sum * sum), (sum * sum) / (side * side * small));
+  };
+  const place = (cells: typeof nodes) => {
+    const sum = cells.reduce((a, cell) => a + cell.area, 0);
+    if (room.w >= room.h) {
+      const width = sum / room.h;
+      let top = y;
+      for (const cell of cells) {
+        out.push({ label: cell.label, value: cell.value, x, y: top, w: width, h: cell.area / width });
+        top += cell.area / width;
+      }
+      x += width;
+      room = { w: room.w - width, h: room.h };
+    } else {
+      const height = sum / room.w;
+      let left = x;
+      for (const cell of cells) {
+        out.push({ label: cell.label, value: cell.value, x: left, y, w: cell.area / height, h: height });
+        left += cell.area / height;
+      }
+      y += height;
+      room = { w: room.w, h: room.h - height };
+    }
+  };
+  for (const node of nodes) {
+    const side = Math.min(room.w, room.h);
+    if (row.length && worst([...row, node], side) > worst(row, side)) {
+      place(row);
+      row = [node];
+    } else {
+      row.push(node);
+    }
+  }
+  if (row.length) place(row);
+  return out;
+}
+
+/** A KPI chart, as Power BI draws its visuals: column, bar, line, pie or donut, in its colours. */
+@Component({
+  selector: 'app-kpi-chart',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (visual() === 'gauge') {
+      @if (gaugeData(); as g) {
+        <svg [attr.width]="width()" height="170" role="img" [attr.aria-label]="label()">
+          <path [attr.d]="g.track" fill="none" stroke="#e1dfdd" stroke-width="20" stroke-linecap="round" />
+          @if (g.frac > 0) {
+            <path [attr.d]="g.arc" fill="none" [attr.stroke]="g.colour" stroke-width="20" stroke-linecap="round" />
+          }
+          @if (g.goal) {
+            <line [attr.x1]="g.goal.x1" [attr.y1]="g.goal.y1" [attr.x2]="g.goal.x2" [attr.y2]="g.goal.y2" stroke="#252423" stroke-width="2.5" />
+          }
+          <text class="big-value" [attr.x]="g.cx" [attr.y]="g.cy - 14" text-anchor="middle">{{ g.valueText }}</text>
+          @if (g.goal) {
+            <text class="axis" [attr.x]="g.cx" [attr.y]="g.cy + 6" text-anchor="middle">Goal: {{ g.goal.text }}</text>
+          }
+          <text class="axis" [attr.x]="g.cx - g.r" [attr.y]="g.cy + 22" text-anchor="middle">0</text>
+          <text class="axis" [attr.x]="g.cx + g.r" [attr.y]="g.cy + 22" text-anchor="middle">{{ g.maxText }}</text>
+        </svg>
+      }
+    } @else if (!points().length) {
+      <p class="none">No rows to chart yet.</p>
+    } @else if (visual() === 'pie' || visual() === 'donut') {
+      <div class="round">
+        <svg [attr.width]="pieSize" [attr.height]="pieSize" viewBox="-1 -1 2 2" role="img" [attr.aria-label]="label()">
+          @for (slice of slices(); track slice.label; let i = $index) {
+            <path [attr.d]="slice.path" [attr.fill]="colour(i)" stroke="#fff" stroke-width="0.01">
+              <title>{{ slice.label }}: {{ format(slice.value) }} ({{ slice.percent }}%)</title>
+            </path>
+          }
+          @if (visual() === 'donut') {
+            <circle r="0.58" fill="#fff" />
+          }
+        </svg>
+        <ul class="legend">
+          @for (slice of slices(); track slice.label; let i = $index) {
+            <li>
+              <span class="dot" [style.background]="colour(i)"></span>
+              <span class="name">{{ slice.label }}</span>
+              <span class="num">{{ format(slice.value) }} · {{ slice.percent }}%</span>
+            </li>
+          }
+        </ul>
+      </div>
+    } @else {
+      @switch (visual()) {
+        @case ('bar') {
+          <svg [attr.width]="width()" [attr.height]="barHeight()" role="img" [attr.aria-label]="label()">
+            @for (bar of bars(); track bar.label; let i = $index) {
+              <g [attr.transform]="'translate(0,' + (i * 28 + 4) + ')'">
+                <text class="axis" x="0" y="15">{{ bar.short }}</text>
+                <rect [attr.x]="labelWidth" y="3" [attr.width]="bar.size" height="18" rx="2" [attr.fill]="colour(0)">
+                  <title>{{ bar.label }}: {{ format(bar.value) }}</title>
+                </rect>
+                <text class="value" [attr.x]="labelWidth + bar.size + 6" y="16">{{ format(bar.value) }}</text>
+              </g>
+            }
+          </svg>
+        }
+        @case ('funnel') {
+          <svg [attr.width]="width()" [attr.height]="stages().length * 30 + 8" role="img" [attr.aria-label]="label()">
+            @for (stage of stages(); track stage.label; let i = $index) {
+              <g [attr.transform]="'translate(0,' + (i * 30 + 4) + ')'">
+                <text class="axis" x="0" y="17">{{ stage.short }}</text>
+                <rect [attr.x]="stage.x" y="2" [attr.width]="stage.size" height="24" rx="2" [attr.fill]="colour(i)">
+                  <title>{{ stage.label }}: {{ format(stage.value) }} ({{ stage.pct }}% of the first)</title>
+                </rect>
+                <text class="value" [attr.x]="labelWidth + (width() - labelWidth - 60) + 8" y="18">{{ format(stage.value) }}</text>
+              </g>
+            }
+          </svg>
+        }
+        @case ('treemap') {
+          <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
+            @for (tile of tiles(); track tile.label; let i = $index) {
+              <rect [attr.x]="tile.x + 1" [attr.y]="tile.y + 1" [attr.width]="tile.w - 2" [attr.height]="tile.h - 2" rx="3" [attr.fill]="colour(i)">
+                <title>{{ tile.label }}: {{ format(tile.value) }}</title>
+              </rect>
+              @if (tile.w > 56 && tile.h > 34) {
+                <text class="tile-label" [attr.x]="tile.x + 8" [attr.y]="tile.y + 18">{{ short(tile.label, tile.w / 7) }}</text>
+                <text class="tile-value" [attr.x]="tile.x + 8" [attr.y]="tile.y + 33">{{ format(tile.value) }}</text>
+              }
+            }
+          </svg>
+        }
+        @case ('radar') {
+          @if (radar(); as r) {
+            <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
+              @for (ring of r.rings; track $index) {
+                <polygon [attr.points]="ring" fill="none" stroke="#e1dfdd" />
+              }
+              @for (spoke of r.spokes; track spoke.label) {
+                <line [attr.x1]="r.cx" [attr.y1]="r.cy" [attr.x2]="spoke.x2" [attr.y2]="spoke.y2" stroke="#e1dfdd" />
+                <text class="axis" [attr.x]="spoke.lx" [attr.y]="spoke.ly" [attr.text-anchor]="spoke.anchor">{{ spoke.short }}</text>
+              }
+              <polygon [attr.points]="r.shape" [attr.fill]="colour(0)" fill-opacity="0.25" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
+              @for (spoke of r.spokes; track spoke.label) {
+                <circle [attr.cx]="spoke.vx" [attr.cy]="spoke.vy" r="3.5" [attr.fill]="colour(0)">
+                  <title>{{ spoke.label }}: {{ format(spoke.value) }}</title>
+                </circle>
+              }
+            </svg>
+          } @else {
+            <p class="none">A radar needs at least 3 groups.</p>
+          }
+        }
+        @case ('waterfall') {
+          <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
+            @for (tick of wfTicks(); track $index) {
+              <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
+              <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
+            }
+            @for (step of steps(); track step.label) {
+              <rect [attr.x]="step.x" [attr.y]="step.y" [attr.width]="step.w" [attr.height]="step.h" rx="2" [attr.fill]="step.colour">
+                <title>{{ step.label }}: {{ step.total ? '' : step.value >= 0 ? '+' : '' }}{{ format(step.value) }}</title>
+              </rect>
+              @if (step.w > 22) {
+                <text class="value" [attr.x]="step.x + step.w / 2" [attr.y]="step.y - 5" text-anchor="middle">{{ format(step.value) }}</text>
+              }
+              <text class="axis" [attr.x]="step.x + step.w / 2" [attr.y]="height - 8" text-anchor="middle">{{ step.short }}</text>
+            }
+          </svg>
+        }
+        @case ('area') {
+          <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
+            @for (tick of ticks(); track $index) {
+              <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
+              <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
+            }
+            <polygon [attr.points]="areaPath()" [attr.fill]="colour(0)" fill-opacity="0.22" />
+            <polyline [attr.points]="linePath()" fill="none" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
+            @for (dot of dots(); track $index) {
+              <circle [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.fill]="colour(0)">
+                <title>{{ dot.label }}: {{ format(dot.value) }}</title>
+              </circle>
+              @if (dot.showLabel) {
+                <text class="axis" [attr.x]="dot.x" [attr.y]="height - 8" text-anchor="middle">{{ dot.short }}</text>
+              }
+            }
+          </svg>
+        }
+        @case ('line') {
+          <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
+            @for (tick of ticks(); track $index) {
+              <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
+              <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
+            }
+            <polyline [attr.points]="linePath()" fill="none" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
+            @for (dot of dots(); track $index) {
+              <circle [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.fill]="colour(0)">
+                <title>{{ dot.label }}: {{ format(dot.value) }}</title>
+              </circle>
+              @if (dot.showLabel) {
+                <text class="axis" [attr.x]="dot.x" [attr.y]="height - 8" text-anchor="middle">{{ dot.short }}</text>
+              }
+            }
+          </svg>
+        }
+        @default {
+          <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
+            @for (tick of ticks(); track $index) {
+              <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
+              <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
+            }
+            @for (column of columns(); track column.label) {
+              <rect [attr.x]="column.x" [attr.y]="column.y" [attr.width]="column.w" [attr.height]="column.h" rx="2" [attr.fill]="colour(0)">
+                <title>{{ column.label }}: {{ format(column.value) }}</title>
+              </rect>
+              @if (column.w > 22) {
+                <text class="value" [attr.x]="column.x + column.w / 2" [attr.y]="column.y - 5" text-anchor="middle">{{ format(column.value) }}</text>
+              }
+              <text class="axis" [attr.x]="column.x + column.w / 2" [attr.y]="height - 8" text-anchor="middle">{{ column.short }}</text>
+            }
+          </svg>
+        }
+      }
+    }
+
+  `,
+  styles: `
+    :host { display: block; min-width: 0; }
+    svg { display: block; overflow: visible; }
+    .grid { stroke: #e1dfdd; stroke-width: 1; }
+    .axis { font-size: 11px; fill: #605e5c; }
+    .value { font-size: 11px; fill: #252423; font-weight: 600; }
+    .big-value { font-size: 30px; fill: #252423; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .tile-label { font-size: 11px; fill: #fff; font-weight: 600; }
+    .tile-value { font-size: 11px; fill: #fff; opacity: 0.85; }
+    .none { font-size: 0.8125rem; color: #605e5c; padding: 40px 0; text-align: center; }
+    .round { display: flex; align-items: center; gap: 18px; min-height: 200px; }
+    .legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; max-height: 210px; overflow: auto; }
+    .legend li { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #252423; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .num { color: #605e5c; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  `,
+})
+export class KpiChart {
+  readonly points = input.required<ChartPoint[]>();
+  readonly visual = input<KpiVisual>('column');
+  readonly decimals = input<number | null>(null);
+  readonly label = input('');
+  /** A gauge's number, and the goal it is on its way to. */
+  readonly value = input<number | null>(null);
+  readonly goal = input<number | null>(null);
+
+  readonly height = HEIGHT;
+  readonly left = 44;
+  readonly labelWidth = 110;
+  readonly pieSize = 180;
+  readonly width = signal(480);
+
+  constructor() {
+    const host = inject(ElementRef<HTMLElement>).nativeElement as HTMLElement;
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(() => {
+      const observer = new ResizeObserver(() => this.width.set(Math.max(240, Math.floor(host.clientWidth))));
+      observer.observe(host);
+      destroyRef.onDestroy(() => observer.disconnect());
+    });
+  }
+
+  colour(index: number) {
+    return KPI_PALETTE[index % KPI_PALETTE.length];
+  }
+
+  format(value: number) {
+    return formatNumber(value, this.decimals());
+  }
+
+  /** `short` for the template. */
+  readonly short = short;
+
+  /** At most 12 groups: the largest, then the rest as Other (a trend keeps every one: it's in order). */
+  private readonly grouped = computed(() => {
+    const points = this.points();
+    if (points.length <= MAX_GROUPS || IN_ORDER.includes(this.visual())) return points;
+    const sorted = [...points].sort((a, b) => b.value - a.value);
+    const rest = sorted.slice(MAX_GROUPS - 1).reduce((sum, point) => sum + point.value, 0);
+    return [...sorted.slice(0, MAX_GROUPS - 1), { label: 'Other', value: rest }];
+  });
+
+  private readonly top = computed(() => niceMax(Math.max(0, ...this.grouped().map((point) => point.value))));
+
+  readonly ticks = computed(() => {
+    const top = this.top();
+    const plot = HEIGHT - 28 - 16;
+    return [0, 1, 2, 3, 4].map((step) => ({
+      y: 16 + plot - (plot * step) / 4,
+      label: formatNumber((top * step) / 4, top < 4 ? 2 : 0),
+    }));
+  });
+
+  readonly columns = computed(() => {
+    const points = this.grouped();
+    const plotWidth = this.width() - this.left - 8;
+    const plot = HEIGHT - 28 - 16;
+    const slot = plotWidth / points.length;
+    const w = Math.max(4, Math.min(64, slot * 0.62));
+    const chars = Math.max(4, Math.floor(slot / 6.5));
+    return points.map((point, index) => {
+      const h = (Math.max(0, point.value) / this.top()) * plot;
+      return {
+        ...point,
+        short: short(point.label, chars),
+        x: this.left + slot * index + (slot - w) / 2,
+        w,
+        h,
+        y: 16 + plot - h,
+      };
+    });
+  });
+
+  readonly barHeight = computed(() => this.grouped().length * 28 + 8);
+
+  readonly bars = computed(() => {
+    const room = this.width() - this.labelWidth - 60;
+    const top = Math.max(0, ...this.grouped().map((point) => point.value)) || 1;
+    return this.grouped().map((point) => ({
+      ...point,
+      short: short(point.label, 16),
+      size: Math.max(1, (Math.max(0, point.value) / top) * room),
+    }));
+  });
+
+  readonly dots = computed(() => {
+    const points = this.grouped();
+    const plotWidth = this.width() - this.left - 20;
+    const plot = HEIGHT - 28 - 16;
+    const every = Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(plotWidth / 70))));
+    return points.map((point, index) => ({
+      ...point,
+      short: short(point.label, 10),
+      showLabel: index % every === 0,
+      x: this.left + 10 + (points.length === 1 ? plotWidth / 2 : (plotWidth * index) / (points.length - 1)),
+      y: 16 + plot - (Math.max(0, point.value) / this.top()) * plot,
+    }));
+  });
+
+  readonly linePath = computed(() => this.dots().map((dot) => `${dot.x},${dot.y}`).join(' '));
+
+  /** The line closed down to the axis: the area under it. */
+  readonly areaPath = computed(() => {
+    const dots = this.dots();
+    if (!dots.length) return '';
+    const base = 16 + (HEIGHT - 28 - 16);
+    return `${dots[0].x},${base} ${this.linePath()} ${dots[dots.length - 1].x},${base}`;
+  });
+
+  /** A waterfall's scale: each step rises or falls from where the one before it ended, then the total. */
+  private readonly wf = computed(() => {
+    let run = 0;
+    const rows = this.grouped().map((point) => {
+      const start = run;
+      run += point.value;
+      return { ...point, start, end: run, total: false };
+    });
+    rows.push({ label: 'Total', value: run, start: 0, end: run, total: true });
+    const levels = rows.flatMap((row) => [row.start, row.end]);
+    const hi = niceMax(Math.max(0, ...levels));
+    const lo = Math.min(0, ...levels) < 0 ? -niceMax(-Math.min(0, ...levels)) : 0;
+    return { rows, hi, lo };
+  });
+
+  readonly wfTicks = computed(() => {
+    const { hi, lo } = this.wf();
+    const plot = HEIGHT - 28 - 16;
+    return [0, 1, 2, 3, 4].map((step) => ({
+      y: 16 + plot - (plot * step) / 4,
+      label: formatNumber(lo + ((hi - lo) * step) / 4, hi - lo < 4 ? 2 : 0),
+    }));
+  });
+
+  readonly steps = computed(() => {
+    const { rows, hi, lo } = this.wf();
+    const plot = HEIGHT - 28 - 16;
+    const slot = (this.width() - this.left - 8) / rows.length;
+    const w = Math.max(4, Math.min(64, slot * 0.62));
+    const chars = Math.max(4, Math.floor(slot / 6.5));
+    const y = (value: number) => 16 + plot - ((value - lo) / (hi - lo || 1)) * plot;
+    return rows.map((row, index) => {
+      const top = y(Math.max(row.start, row.end));
+      const bottom = y(Math.min(row.start, row.end));
+      return {
+        ...row,
+        short: short(row.label, chars),
+        x: this.left + slot * index + (slot - w) / 2,
+        w,
+        y: top,
+        h: Math.max(2, bottom - top),
+        colour: row.total ? KPI_PALETTE[0] : row.value >= 0 ? GOOD_COLOR : BAD_COLOR,
+      };
+    });
+  });
+
+  /** A funnel's stages, the largest first, each a bar centred in the room, as wide as its share of the first. */
+  readonly stages = computed(() => {
+    const points = [...this.points()].filter((point) => point.value > 0).sort((a, b) => b.value - a.value).slice(0, MAX_GROUPS);
+    const top = points[0]?.value || 1;
+    const room = this.width() - this.labelWidth - 60;
+    return points.map((point) => {
+      const size = Math.max(2, (point.value / top) * room);
+      return { ...point, short: short(point.label, 16), size, x: this.labelWidth + (room - size) / 2, pct: Math.round((point.value / top) * 100) };
+    });
+  });
+
+  readonly tiles = computed(() =>
+    squarify(
+      this.grouped().filter((point) => point.value > 0).sort((a, b) => b.value - a.value),
+      this.width(),
+      HEIGHT,
+    ),
+  );
+
+  /** A radar: a spoke per group, a ring at each quarter of the biggest value, and the shape the values make. */
+  readonly radar = computed(() => {
+    const points = this.grouped();
+    if (points.length < 3) return null;
+    const cx = this.width() / 2;
+    const cy = HEIGHT / 2 + 4;
+    const radius = HEIGHT / 2 - 36;
+    const top = niceMax(Math.max(0, ...points.map((point) => point.value)));
+    const at = (index: number, fraction: number) => {
+      const angle = -Math.PI / 2 + (2 * Math.PI * index) / points.length;
+      return { x: cx + Math.cos(angle) * radius * fraction, y: cy + Math.sin(angle) * radius * fraction, cos: Math.cos(angle) };
+    };
+    const ring = (fraction: number) => points.map((_, index) => at(index, fraction)).map((p) => `${p.x},${p.y}`).join(' ');
+    return {
+      cx,
+      cy,
+      rings: [0.25, 0.5, 0.75, 1].map(ring),
+      shape: points.map((point, index) => at(index, Math.max(0, point.value) / top)).map((p) => `${p.x},${p.y}`).join(' '),
+      spokes: points.map((point, index) => {
+        const end = at(index, 1);
+        const label = at(index, 1.14);
+        const value = at(index, Math.max(0, point.value) / top);
+        return {
+          label: point.label,
+          short: short(point.label, 12),
+          value: point.value,
+          x2: end.x,
+          y2: end.y,
+          lx: label.x,
+          ly: label.y + 4,
+          anchor: label.cos > 0.25 ? 'start' : label.cos < -0.25 ? 'end' : 'middle',
+          vx: value.x,
+          vy: value.y,
+        };
+      }),
+    };
+  });
+
+  /** A gauge: a half dial filled to the value of its top, a tick where the goal is. */
+  readonly gaugeData = computed(() => {
+    const value = this.value() ?? 0;
+    const goal = this.goal();
+    const max = niceMax(Math.max(value, goal ?? 0, 0.0001));
+    const frac = Math.min(1, Math.max(0, value / max));
+    const radius = Math.max(60, Math.min(92, this.width() / 2 - 40));
+    const cx = this.width() / 2;
+    const cy = 128;
+    const point = (fraction: number, r = radius) => ({ x: cx - Math.cos(Math.PI * fraction) * r, y: cy - Math.sin(Math.PI * fraction) * r });
+    const end = point(frac);
+    const goalFraction = goal === null ? null : Math.min(1, Math.max(0, goal / max));
+    const g1 = goalFraction === null ? null : point(goalFraction, radius - 17);
+    const g2 = goalFraction === null ? null : point(goalFraction, radius + 17);
+    return {
+      cx,
+      cy,
+      r: radius,
+      frac,
+      track: `M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`,
+      arc: `M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${end.x} ${end.y}`,
+      goal: g1 && g2 ? { x1: g1.x, y1: g1.y, x2: g2.x, y2: g2.y, text: this.format(goal as number) } : null,
+      colour: goal === null ? KPI_PALETTE[0] : value >= goal ? GOOD_COLOR : BAD_COLOR,
+      valueText: this.format(value),
+      maxText: formatNumber(max, max < 4 ? 2 : 0),
+    };
+  });
+
+  readonly slices = computed(() => {
+    const points = this.grouped().filter((point) => point.value > 0);
+    const total = points.reduce((sum, point) => sum + point.value, 0) || 1;
+    let angle = -Math.PI / 2;
+    return points.map((point) => {
+      const share = point.value / total;
+      const start = angle;
+      angle += share * Math.PI * 2;
+      const end = angle;
+      const large = end - start > Math.PI ? 1 : 0;
+      const [x1, y1, x2, y2] = [Math.cos(start), Math.sin(start), Math.cos(end), Math.sin(end)];
+      const path =
+        share >= 0.9999 ? 'M 1 0 A 1 1 0 1 1 -1 0 A 1 1 0 1 1 1 0 Z' : `M 0 0 L ${x1} ${y1} A 1 1 0 ${large} 1 ${x2} ${y2} Z`;
+      return { ...point, path, percent: (share * 100).toFixed(share < 0.1 ? 1 : 0) };
+    });
+  });
+}

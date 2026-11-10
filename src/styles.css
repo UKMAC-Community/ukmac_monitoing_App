@@ -1,0 +1,300 @@
+/* The UKMAC system's design (Staff_Attention_UI/src/styles, copied as they are into
+   styles/ukmac/): tokens, element defaults, the shared components' classes, the shell
+   and motion. Keep them in step with the system. What follows them is this app's own. */
+@import './styles/ukmac/tokens.css';
+@import './styles/ukmac/base.css';
+@import './styles/ukmac/components.css';
+@import './styles/ukmac/shell.css';
+@import './styles/ukmac/motion.css';
+
+/* Tailwind's preflight, which the system's classes are drawn on (it isn't used here otherwise). */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+  button,
+  input,
+  select,
+  optgroup,
+  textarea,
+  ::file-selector-button {
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+  ol,
+  ul,
+  menu {
+    list-style: none;
+  }
+  img,
+  svg,
+  video,
+  canvas {
+    display: block;
+    vertical-align: middle;
+  }
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  table {
+    border-collapse: collapse;
+    text-indent: 0;
+    border-color: inherit;
+  }
+  dialog {
+    padding: 0;
+  }
+}
+
+/* Khmer from the Mac's own Khmer font, only for Khmer letters (Latin stays San Francisco),
+   as the system's Khmer webfont does. */
+@font-face {
+  font-family: 'UKMAC Khmer';
+  src: local('Khmer Sangam MN'), local('Khmer MN'), local('Noto Sans Khmer');
+  unicode-range: U+1780-17FF, U+19E0-19FF;
+}
+
+:root {
+  --font-khmer: 'UKMAC Khmer';
+  --font-inter: 'Inter';
+  /* This app's names, on the system's tokens */
+  --panel: var(--surface-solid);
+  --faint: color-mix(in srgb, var(--text-muted) 72%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 35%, transparent);
+  --cell-select: var(--accent-solid);
+  --cell-range: color-mix(in srgb, var(--accent) 9%, transparent);
+  --formula-bg: color-mix(in srgb, var(--accent) 3.5%, #fafafc);
+  --grid-line: #e2e3e7;
+  --grid-head: #f8f9fa;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+/* A desktop app: the shell's sidebar and top bar always show (the system hides them on phones). */
+.sidebar,
+.topbar {
+  display: flex;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.faint {
+  color: var(--faint);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Each routed page fills the space under the top bar, so its .page scrolls
+   (left inline, a page grew with its content and the window clipped it). */
+app-home-page,
+app-mac-layout,
+app-mac-page,
+app-settings-page,
+app-sheet-page,
+app-zone-map-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* A page's scrolling body, under the top bar. */
+.page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 30px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* A heading over a group of cards: "Province / Kampong Chhnang  1 MAC" */
+.group-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 10px;
+  border-bottom: var(--hairline) solid var(--border-strong);
+}
+
+.group-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+}
+
+.group-title small {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: var(--tracking);
+}
+
+.card-grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* ------------------------------------------------------------- dialogs */
+
+/* The native <dialog> wears the system's .modal-dialog; closed, it's gone. */
+dialog.modal-dialog {
+  padding: 0;
+  margin: auto;
+  border: var(--hairline) solid var(--border);
+}
+
+dialog.modal-dialog:not([open]) {
+  display: none;
+}
+
+dialog.modal-dialog::backdrop {
+  background: var(--overlay);
+}
+
+dialog.modal-dialog.is-full {
+  max-width: calc(100vw - 64px);
+  width: calc(100vw - 64px);
+  height: calc(100vh - 64px);
+}
+
+/* A menu opened at the pointer (a column's ▾, a right-click). */
+.menu-panel.floating {
+  position: fixed;
+  z-index: 1000;
+  border-radius: var(--radius-md);
+}
+
+.menu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+/* A field's label above it, the system's form-group. */
+label.form-group {
+  cursor: default;
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.form-hint.is-error {
+  color: var(--danger);
+}
+
+.form-hint.is-ok {
+  color: var(--success);
+}
+
+/* A page opens with a short rise and fade; reduced motion keeps it still. */
+@media (prefers-reduced-motion: no-preference) {
+  router-outlet + * {
+    animation: itemIn 320ms var(--ease) backwards;
+  }
+}
+
+/* The whole app: the menu, table rows, buttons and cards ease in; nothing moves for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .sidebar .nav-link,
+  .sidebar .nav-section-label {
+    animation: fade 260ms var(--ease) both;
+  }
+  .sidebar .nav-children .nav-link:nth-child(2) { animation-delay: 40ms; }
+  .sidebar .nav-children .nav-link:nth-child(3) { animation-delay: 80ms; }
+  .sidebar .nav-children .nav-link:nth-child(n + 4) { animation-delay: 120ms; }
+
+  .data-table tbody tr {
+    animation: rowIn 300ms var(--ease) both;
+  }
+  .data-table tbody tr:nth-child(n + 2) { animation-delay: 25ms; }
+  .data-table tbody tr:nth-child(n + 4) { animation-delay: 50ms; }
+  .data-table tbody tr:nth-child(n + 7) { animation-delay: 75ms; }
+  .data-table tbody tr:nth-child(n + 11) { animation-delay: 100ms; }
+
+  .card {
+    transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .btn {
+    transition: transform var(--dur-fast) var(--ease), background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* ------------------------------------------------------------- the sheet */
+
+/* Univer's toolbar (the full sheet, src/app/univer): the system's
+   univerToolbar.css — the app's own buttons at the toolbar's right end. */
+[data-u-comp='ribbon-toolbar'] > div:has([data-u-command^='ukmac.']) {
+  border-left-color: transparent;
+  margin-inline-start: auto;
+}
+
+/* Univer's Count / Sum / Average beside its zoom, as Excel's status bar has them:
+   the footer's left is the MAC's tables (the sheet page's tabs, over it). */
+app-univer-sheet footer {
+  position: relative;
+}
+
+app-univer-sheet footer > section > div:has([data-u-comp='status-bar-statistic-picker']) {
+  position: absolute;
+  top: 0;
+  right: 262px;
+  width: auto;
+  max-width: 220px;
+  height: 100%;
+}

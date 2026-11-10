@@ -1,0 +1,96 @@
+/* Base: the page canvas, type and element defaults. In Tailwind's base layer, so the
+   component classes and utilities on an element always win over these (an unlayered
+   `button { font: inherit }` used to beat every text-* class put on a button). */
+
+@layer base {
+  html {
+    /* The type scale is ThaFlow's: 15px, so 0.875rem (Tailwind's text-sm) is 13px. */
+    font-size: 15px;
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background: var(--bg);
+  }
+
+  body {
+    font-family: var(--font);
+    letter-spacing: var(--tracking);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  /* Soft colour glow behind everything: it is what the glass surfaces blur */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: var(--ambient);
+    pointer-events: none;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    letter-spacing: var(--tracking-title);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+  }
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+
+  ::placeholder {
+    color: var(--text-muted);
+    opacity: 0.8;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+}
+
+/* iOS and iPadOS Safari zoom the whole page into a field whose text is under 16px, so a
+   touch screen keeps fields at 16px. Unlayered on purpose: it beats every text-* class
+   (those are layered). A mouse gets the compact type. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

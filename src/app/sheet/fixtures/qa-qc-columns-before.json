@@ -1,0 +1,592 @@
+[
+ {
+  "key": "c1",
+  "name": "Date",
+  "type": "date",
+  "required": true
+ },
+ {
+  "key": "c2",
+  "name": "Zone",
+  "type": "link",
+  "source": "'Zones'[Plot]",
+  "required": true
+ },
+ {
+  "key": "c3",
+  "name": "Plant batch",
+  "type": "text",
+  "box": "QC record",
+  "required": false
+ },
+ {
+  "key": "c4",
+  "name": "Block",
+  "type": "text",
+  "box": "QC record",
+  "required": false
+ },
+ {
+  "key": "c5",
+  "name": "Date",
+  "type": "formula",
+  "box": "1 · Transplant (0 DAT)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+0>TODAY()+3,\"\",[Date]+0))",
+  "required": false
+ },
+ {
+  "key": "c6",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "1 · Transplant (0 DAT)",
+  "formula": "=IF([1 · Transplant (0 DAT) › Date]=\"\",\"\",DAYS([1 · Transplant (0 DAT) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c7",
+  "name": "4–5, good",
+  "type": "number",
+  "group": "Seedling Leaf Stage (No.)",
+  "box": "1 · Transplant (0 DAT)",
+  "required": false
+ },
+ {
+  "key": "c8",
+  "name": "3, >5",
+  "type": "number",
+  "group": "Seedling Leaf Stage (No.)",
+  "box": "1 · Transplant (0 DAT)",
+  "required": false
+ },
+ {
+  "key": "c9",
+  "name": "Disease",
+  "type": "number",
+  "group": "Seedling Leaf Stage (No.)",
+  "box": "1 · Transplant (0 DAT)",
+  "required": false
+ },
+ {
+  "key": "c10",
+  "name": "Healthy",
+  "type": "number",
+  "group": "Seedling Health / Vigor (No.)",
+  "box": "1 · Transplant (0 DAT)",
+  "required": false
+ },
+ {
+  "key": "c11",
+  "name": "Medium",
+  "type": "number",
+  "group": "Seedling Health / Vigor (No.)",
+  "box": "1 · Transplant (0 DAT)",
+  "required": false
+ },
+ {
+  "key": "c12",
+  "name": "Wilt",
+  "type": "number",
+  "group": "Seedling Health / Vigor (No.)",
+  "box": "1 · Transplant (0 DAT)",
+  "required": false
+ },
+ {
+  "key": "c13",
+  "name": "Date",
+  "type": "formula",
+  "box": "2 · Establishment (7 DAT)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+7>TODAY()+3,\"\",[Date]+7))",
+  "required": false
+ },
+ {
+  "key": "c14",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "2 · Establishment (7 DAT)",
+  "formula": "=IF([2 · Establishment (7 DAT) › Date]=\"\",\"\",DAYS([2 · Establishment (7 DAT) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c15",
+  "name": "Live plant",
+  "type": "number",
+  "group": "Plant Survival (No.)",
+  "box": "2 · Establishment (7 DAT)",
+  "required": false
+ },
+ {
+  "key": "c16",
+  "name": "Dead plant",
+  "type": "formula",
+  "group": "Plant Survival (No.)",
+  "box": "2 · Establishment (7 DAT)",
+  "formula": "=IF([Live plant]=\"\",\"\",20-[Live plant])",
+  "required": false
+ },
+ {
+  "key": "c17",
+  "name": "Upright plants",
+  "type": "number",
+  "group": "New Growth (No.)",
+  "box": "2 · Establishment (7 DAT)",
+  "required": false
+ },
+ {
+  "key": "c18",
+  "name": "Uneven / Wilt",
+  "type": "number",
+  "group": "New Growth (No.)",
+  "box": "2 · Establishment (7 DAT)",
+  "required": false
+ },
+ {
+  "key": "c19",
+  "name": "Date",
+  "type": "formula",
+  "box": "3 · Vegetative (30 DAT)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+30>TODAY()+3,\"\",[Date]+30))",
+  "required": false
+ },
+ {
+  "key": "c20",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "3 · Vegetative (30 DAT)",
+  "formula": "=IF([3 · Vegetative (30 DAT) › Date]=\"\",\"\",DAYS([3 · Vegetative (30 DAT) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c21",
+  "name": "Vigor score (1–5)",
+  "type": "number",
+  "group": "Plant average",
+  "box": "3 · Vegetative (30 DAT)",
+  "required": false
+ },
+ {
+  "key": "c22",
+  "name": "Plant height",
+  "type": "number",
+  "unit": "cm",
+  "group": "Plant average",
+  "box": "3 · Vegetative (30 DAT)",
+  "required": false
+ },
+ {
+  "key": "c23",
+  "name": "Canopy A, widest",
+  "type": "number",
+  "unit": "cm",
+  "group": "Plant average",
+  "box": "3 · Vegetative (30 DAT)",
+  "required": false
+ },
+ {
+  "key": "c24",
+  "name": "Canopy B, across",
+  "type": "number",
+  "unit": "cm",
+  "group": "Plant average",
+  "box": "3 · Vegetative (30 DAT)",
+  "required": false
+ },
+ {
+  "key": "c25",
+  "name": "Branches",
+  "type": "number",
+  "group": "Plant average",
+  "box": "3 · Vegetative (30 DAT)",
+  "required": false
+ },
+ {
+  "key": "c26",
+  "name": "Date",
+  "type": "formula",
+  "box": "4 · Flowering (45 DAT)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+45>TODAY(),\"\",[Date]+45))",
+  "required": false
+ },
+ {
+  "key": "c27",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "4 · Flowering (45 DAT)",
+  "formula": "=IF([4 · Flowering (45 DAT) › Date]=\"\",\"\",DAYS([4 · Flowering (45 DAT) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c28",
+  "name": "Plant flowering",
+  "type": "percentage",
+  "group": "Plant average",
+  "box": "4 · Flowering (45 DAT)",
+  "required": false
+ },
+ {
+  "key": "c29",
+  "name": "Flowers per plant",
+  "type": "number",
+  "group": "Plant average",
+  "box": "4 · Flowering (45 DAT)",
+  "required": false
+ },
+ {
+  "key": "c30",
+  "name": "Date",
+  "type": "formula",
+  "box": "5 · Fruit set (60 DAT)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+60>TODAY(),\"\",[Date]+60))",
+  "required": false
+ },
+ {
+  "key": "c31",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "5 · Fruit set (60 DAT)",
+  "formula": "=IF([5 · Fruit set (60 DAT) › Date]=\"\",\"\",DAYS([5 · Fruit set (60 DAT) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c32",
+  "name": "Upright",
+  "type": "number",
+  "group": "Fruit Orientation (No.)",
+  "box": "5 · Fruit set (60 DAT)",
+  "required": false
+ },
+ {
+  "key": "c33",
+  "name": "Mixed",
+  "type": "number",
+  "group": "Fruit Orientation (No.)",
+  "box": "5 · Fruit set (60 DAT)",
+  "required": false
+ },
+ {
+  "key": "c34",
+  "name": "Different",
+  "type": "number",
+  "group": "Fruit Orientation (No.)",
+  "box": "5 · Fruit set (60 DAT)",
+  "required": false
+ },
+ {
+  "key": "c35",
+  "name": "True-to-type",
+  "type": "number",
+  "group": "Fruit Shape (No.)",
+  "box": "5 · Fruit set (60 DAT)",
+  "required": false
+ },
+ {
+  "key": "c36",
+  "name": "Variability",
+  "type": "number",
+  "group": "Fruit Shape (No.)",
+  "box": "5 · Fruit set (60 DAT)",
+  "required": false
+ },
+ {
+  "key": "c37",
+  "name": "Off-type",
+  "type": "number",
+  "group": "Fruit Shape (No.)",
+  "box": "5 · Fruit set (60 DAT)",
+  "required": false
+ },
+ {
+  "key": "c38",
+  "name": "Young fruits per plant",
+  "type": "number",
+  "group": "Plant average",
+  "box": "5 · Fruit set (60 DAT)",
+  "required": false
+ },
+ {
+  "key": "c39",
+  "name": "Date",
+  "type": "formula",
+  "box": "6 · First Harvest (75 DAT)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+75>TODAY(),\"\",[Date]+75))",
+  "required": false
+ },
+ {
+  "key": "c40",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "6 · First Harvest (75 DAT)",
+  "formula": "=IF([6 · First Harvest (75 DAT) › Date]=\"\",\"\",DAYS([6 · First Harvest (75 DAT) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c41",
+  "name": "Harvest date",
+  "type": "date",
+  "box": "6 · First Harvest (75 DAT)",
+  "required": false
+ },
+ {
+  "key": "c42",
+  "name": "Fruit length",
+  "type": "number",
+  "unit": "cm",
+  "group": "Plant average",
+  "box": "6 · First Harvest (75 DAT)",
+  "required": false
+ },
+ {
+  "key": "c43",
+  "name": "Fruit diameter",
+  "type": "number",
+  "unit": "cm",
+  "group": "Plant average",
+  "box": "6 · First Harvest (75 DAT)",
+  "required": false
+ },
+ {
+  "key": "c44",
+  "name": "Date",
+  "type": "formula",
+  "box": "7 · Maturity (75 DAT+)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+75>TODAY(),\"\",[Date]+75))",
+  "required": false
+ },
+ {
+  "key": "c45",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "7 · Maturity (75 DAT+)",
+  "formula": "=IF([7 · Maturity (75 DAT+) › Date]=\"\",\"\",DAYS([7 · Maturity (75 DAT+) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c46",
+  "name": "Green",
+  "type": "number",
+  "group": "Fruit Color (No.)",
+  "box": "7 · Maturity (75 DAT+)",
+  "required": false
+ },
+ {
+  "key": "c47",
+  "name": "Turning",
+  "type": "number",
+  "group": "Fruit Color (No.)",
+  "box": "7 · Maturity (75 DAT+)",
+  "required": false
+ },
+ {
+  "key": "c48",
+  "name": "Red",
+  "type": "number",
+  "group": "Fruit Color (No.)",
+  "box": "7 · Maturity (75 DAT+)",
+  "required": false
+ },
+ {
+  "key": "c49",
+  "name": "Date",
+  "type": "formula",
+  "box": "8 · Harvest (75–150 DAT)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+75>TODAY(),\"\",[Date]+75))",
+  "required": false
+ },
+ {
+  "key": "c50",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "8 · Harvest (75–150 DAT)",
+  "formula": "=IF([8 · Harvest (75–150 DAT) › Date]=\"\",\"\",DAYS([8 · Harvest (75–150 DAT) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c51",
+  "name": "Total",
+  "type": "number",
+  "unit": "kg",
+  "group": "Marketable Fruit (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c52",
+  "name": "Marketable",
+  "type": "number",
+  "unit": "kg",
+  "group": "Marketable Fruit (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c53",
+  "name": "Pest damage",
+  "type": "number",
+  "unit": "kg",
+  "group": "Rejected (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c54",
+  "name": "Disease",
+  "type": "number",
+  "unit": "kg",
+  "group": "Rejected (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c55",
+  "name": "Too small",
+  "type": "number",
+  "unit": "kg",
+  "group": "Rejected (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c56",
+  "name": "Deformed",
+  "type": "number",
+  "unit": "kg",
+  "group": "Rejected (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c57",
+  "name": "Rot",
+  "type": "number",
+  "unit": "kg",
+  "group": "Rejected (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c58",
+  "name": "Color reject",
+  "type": "number",
+  "unit": "kg",
+  "group": "Rejected (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c59",
+  "name": "Total",
+  "type": "formula",
+  "unit": "kg",
+  "group": "Rejected (kg)",
+  "box": "8 · Harvest (75–150 DAT)",
+  "formula": "=IF(COUNT([8 · Harvest (75–150 DAT) › Rejected (kg) › Pest damage],[8 · Harvest (75–150 DAT) › Rejected (kg) › Disease],[8 · Harvest (75–150 DAT) › Rejected (kg) › Too small],[8 · Harvest (75–150 DAT) › Rejected (kg) › Deformed],[8 · Harvest (75–150 DAT) › Rejected (kg) › Rot],[8 · Harvest (75–150 DAT) › Rejected (kg) › Color reject])<6,\"\",SUM([8 · Harvest (75–150 DAT) › Rejected (kg) › Pest damage],[8 · Harvest (75–150 DAT) › Rejected (kg) › Disease],[8 · Harvest (75–150 DAT) › Rejected (kg) › Too small],[8 · Harvest (75–150 DAT) › Rejected (kg) › Deformed],[8 · Harvest (75–150 DAT) › Rejected (kg) › Rot],[8 · Harvest (75–150 DAT) › Rejected (kg) › Color reject]))",
+  "required": false
+ },
+ {
+  "key": "c60",
+  "name": "Harvest rounds",
+  "type": "number",
+  "group": "Cumulative Yield",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c61",
+  "name": "Harvested",
+  "type": "number",
+  "unit": "kg",
+  "group": "Cumulative Yield",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c62",
+  "name": "Total plant",
+  "type": "number",
+  "group": "Cumulative Yield",
+  "box": "8 · Harvest (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c63",
+  "name": "Date",
+  "type": "formula",
+  "box": "9 · Plant Health (75–150 DAT)",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+75>TODAY(),\"\",[Date]+75))",
+  "required": false
+ },
+ {
+  "key": "c64",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "9 · Plant Health (75–150 DAT)",
+  "formula": "=IF([9 · Plant Health (75–150 DAT) › Date]=\"\",\"\",DAYS([9 · Plant Health (75–150 DAT) › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c65",
+  "name": "0–70 DAT",
+  "type": "number",
+  "group": "Pest / Disease per block (No.)",
+  "box": "9 · Plant Health (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c66",
+  "name": "0–150 DAT",
+  "type": "number",
+  "group": "Pest / Disease per block (No.)",
+  "box": "9 · Plant Health (75–150 DAT)",
+  "required": false
+ },
+ {
+  "key": "c67",
+  "name": "Date",
+  "type": "formula",
+  "box": "10 · End of Cycles",
+  "formula": "=IF([Date]=\"\",\"\",IF([Date]+150>TODAY(),\"\",[Date]+150))",
+  "required": false
+ },
+ {
+  "key": "c68",
+  "name": "Days after transplant",
+  "type": "formula",
+  "box": "10 · End of Cycles",
+  "formula": "=IF([10 · End of Cycles › Date]=\"\",\"\",DAYS([10 · End of Cycles › Date],[Date]))",
+  "required": false
+ },
+ {
+  "key": "c69",
+  "name": "Harvest rounds",
+  "type": "number",
+  "group": "Cumulative Yield",
+  "box": "10 · End of Cycles",
+  "required": false
+ },
+ {
+  "key": "c70",
+  "name": "Harvested",
+  "type": "number",
+  "unit": "kg",
+  "group": "Cumulative Yield",
+  "box": "10 · End of Cycles",
+  "required": false
+ },
+ {
+  "key": "c71",
+  "name": "Total plant",
+  "type": "number",
+  "group": "Cumulative Yield",
+  "box": "10 · End of Cycles",
+  "required": false
+ },
+ {
+  "key": "c72",
+  "name": "Yield per plant",
+  "type": "formula",
+  "unit": "kg",
+  "group": "Cumulative Yield",
+  "box": "10 · End of Cycles",
+  "formula": "=IF(OR([10 · End of Cycles › Harvested]=\"\",[10 · End of Cycles › Total plant]=\"\",[10 · End of Cycles › Total plant]=0),\"\",[10 · End of Cycles › Harvested]/[10 · End of Cycles › Total plant])",
+  "required": false
+ }
+]

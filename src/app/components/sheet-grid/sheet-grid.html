@@ -1,0 +1,175 @@
+<textarea
+  #clip
+  class="clip"
+  aria-label="Table cells"
+  autocomplete="off"
+  autocorrect="off"
+  spellcheck="false"
+  (keydown)="key($event)"
+  (copy)="copied($event)"
+  (cut)="cut($event)"
+  (paste)="pasted($event)"
+  (input)="clipInput($event)"
+  (compositionend)="compositionEnd($event)"
+></textarea>
+
+<div #scroller class="scroller" (scroll)="onScroll()">
+  <table class="grid" [style.width.px]="totalWidth()">
+    <colgroup>
+      <col [style.width.px]="rowHeadWidth" />
+      @for (width of widths(); track $index) {
+        <col [style.width.px]="width" />
+      }
+    </colgroup>
+    <thead>
+      <tr class="letter-row">
+        <th class="corner" [style.top.px]="0"></th>
+        @for (letter of letters(); track $index; let c = $index) {
+          <th [style.top.px]="0" [class.selected]="columnSelected(c)" (mousedown)="columnHeadDown($event, c)">{{ letter }}</th>
+        }
+      </tr>
+      @if (showBoxes()) {
+        <tr class="box-row">
+          <th class="corner" [style.top.px]="boxTop"></th>
+          @for (span of boxSpans(); track span.start) {
+            <th [attr.colspan]="span.span" [class.empty-box]="!span.label" [style.top.px]="boxTop">
+              <span class="span-label">{{ span.label }}</span>
+            </th>
+          }
+        </tr>
+      }
+      @if (showGroups()) {
+        <tr class="group-row">
+          <th class="corner" [style.top.px]="groupTop()"></th>
+          @for (span of groupSpans(); track span.start) {
+            <th [attr.colspan]="span.span" [class.empty-group]="!span.label" [style.top.px]="groupTop()">
+              <span class="span-label">{{ span.label }}</span>
+            </th>
+          }
+        </tr>
+      }
+      <tr class="name-row">
+        <th class="corner" [style.top.px]="nameTop()">#</th>
+        @for (column of columns(); track column.key; let c = $index) {
+          <th
+            [style.top.px]="nameTop()"
+            [class.selected]="columnSelected(c)"
+            [class.formula-head]="column.type === 'formula'"
+            [attr.title]="label(column) + ' · ' + typeName(column) + (column.formula ? '\n' + column.formula : '') + (column.source ? '\nfrom ' + column.source : '')"
+            (mousedown)="columnHeadDown($event, c)"
+            (dblclick)="columnAction.emit({ action: 'edit', column, index: c })"
+            (contextmenu)="openColumnMenu($event, c)"
+          >
+            <div class="name">
+              @if (typeMark(column)) {
+                <span class="type-mark">{{ typeMark(column) }}</span>
+              }
+              <span class="name-text">{{ label(column) }}@if (column.required) {<span class="req">*</span>}</span>
+              <button type="button" class="col-menu-btn" aria-label="Column menu" (mousedown)="$event.stopPropagation()" (click)="openColumnMenu($event, c)">
+                <app-icon name="chevron-down" [size]="14" />
+              </button>
+            </div>
+            <span class="resize" (mousedown)="startResize($event, c)"></span>
+          </th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @if (topPad()) {
+        <tr class="pad" [style.height.px]="topPad()"><td [attr.colspan]="columns().length + 1"></td></tr>
+      }
+      @for (item of visible(); track item.row?.rowId ?? 'new') {
+        <tr [class.ghost]="!item.row" [style.height.px]="rowHeight">
+          <th
+            class="row-head"
+            [class.selected]="rowSelected(item.r)"
+            (mousedown)="rowHeadDown($event, item.r)"
+            (contextmenu)="openRowMenu($event, item.r)"
+          >
+            @if (item.row) {
+              {{ item.r + 1 }}
+            } @else {
+              <app-icon name="plus" [size]="13" />
+            }
+          </th>
+          @for (column of columns(); track column.key; let c = $index) {
+            @let cellProblem = problem(item.row, column);
+            <td
+              [class.num]="right(column)"
+              [class.formula]="column.type === 'formula'"
+              [class.invalid]="!!cellProblem"
+              [class.active]="isActive(item.r, c)"
+              [class.in-range]="inRange(item.r, c)"
+              [attr.title]="cellProblem"
+              (mousedown)="cellDown($event, item.r, c)"
+              (mouseenter)="cellEnter(item.r, c)"
+              (dblclick)="cellDouble(item.r, c)"
+              (contextmenu)="openRowMenu($event, item.r)"
+            >
+              @if (editing() && isActive(item.r, c)) {
+                <input
+                  #editor
+                  class="editor"
+                  [class.num]="right(column)"
+                  [value]="draft()"
+                  [attr.list]="listFor(column).length ? 'grid-list' : null"
+                  [placeholder]="placeholder(column)"
+                  (input)="draft.set($any($event.target).value)"
+                  (keydown)="editorKey($event)"
+                  (blur)="editorBlur()"
+                />
+                @if (listFor(column).length) {
+                  <datalist id="grid-list">
+                    @for (option of listFor(column); track option) {
+                      <option [value]="option"></option>
+                    }
+                  </datalist>
+                }
+              } @else {
+                <span class="value">{{ text(item.row, column) }}</span>
+                @if (column.type === 'link' || column.type === 'choice') {
+                  @if (isActive(item.r, c)) {
+                    <span class="pick" aria-hidden="true">▾</span>
+                  }
+                }
+              }
+            </td>
+          }
+        </tr>
+      }
+      @if (bottomPad()) {
+        <tr class="pad" [style.height.px]="bottomPad()"><td [attr.colspan]="columns().length + 1"></td></tr>
+      }
+    </tbody>
+  </table>
+  @if (!columns().length) {
+    <div class="no-columns">This table has no columns yet. Add one with <strong>+ Column</strong>.</div>
+  }
+</div>
+
+@if (menu(); as menu) {
+  <div class="menu-scrim" (mousedown)="closeMenu()" (contextmenu)="$event.preventDefault(); closeMenu()"></div>
+  <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y" (contextmenu)="$event.preventDefault()">
+    @if (menu.kind === 'column') {
+      <button type="button" class="menu-item" (click)="columnMenu('edit')"><app-icon name="edit" /> Edit column…</button>
+      <div class="menu-divider"></div>
+      <button type="button" class="menu-item" (click)="columnMenu('insert-left')"><app-icon name="arrow-left" /> Add column left</button>
+      <button type="button" class="menu-item" (click)="columnMenu('insert-right')"><app-icon name="arrow-right" /> Add column right</button>
+      <div class="menu-divider"></div>
+      <button type="button" class="menu-item" [disabled]="menu.index === 0" (click)="columnMenu('move-left')"><app-icon name="chevron-left" /> Move left</button>
+      <button type="button" class="menu-item" [disabled]="menu.index === columns().length - 1" (click)="columnMenu('move-right')"><app-icon name="chevron-right" /> Move right</button>
+      <div class="menu-divider"></div>
+      <button type="button" class="menu-item" (click)="columnMenu('sort-asc')"><app-icon name="arrow-up" /> Sort A → Z</button>
+      <button type="button" class="menu-item" (click)="columnMenu('sort-desc')"><app-icon name="arrow-down" /> Sort Z → A</button>
+      <div class="menu-divider"></div>
+      <button type="button" class="menu-item danger" (click)="columnMenu('delete')"><app-icon name="trash" /> Delete column</button>
+    } @else {
+      <button type="button" class="menu-item" [disabled]="!rows()[menu.index]" (click)="rowMenu('insert-above')"><app-icon name="arrow-up" /> Insert row above</button>
+      <button type="button" class="menu-item" [disabled]="!rows()[menu.index]" (click)="rowMenu('insert-below')"><app-icon name="arrow-down" /> Insert row below</button>
+      <div class="menu-divider"></div>
+      <button type="button" class="menu-item danger" [disabled]="!selectedRows().length" (click)="rowMenu('delete')">
+        <app-icon name="trash" /> Delete {{ selectedRows().length === 1 ? 'row' : selectedRows().length + ' rows' }}
+      </button>
+    }
+  </div>
+}

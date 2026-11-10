@@ -1,0 +1,339 @@
+:host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  background: var(--surface-solid);
+  overflow: hidden;
+}
+
+.clip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  resize: none;
+  pointer-events: none;
+}
+
+.scroller {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.grid {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+th,
+td {
+  border-right: 1px solid var(--grid-line);
+  border-bottom: 1px solid var(--grid-line);
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* -------------------------------------------------------------- header */
+
+thead th {
+  position: sticky;
+  z-index: 2;
+  background: var(--grid-head);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.letter-row th {
+  height: 22px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  user-select: none;
+  cursor: default;
+}
+
+.letter-row th.selected,
+.name-row th.selected {
+  background: color-mix(in srgb, var(--accent) 12%, var(--grid-head));
+  color: var(--accent);
+}
+
+.box-row th {
+  height: 28px;
+  background: #fff;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.group-row th {
+  height: 24px;
+  background: #fff;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.box-row th.empty-box,
+.group-row th.empty-group {
+  background: #fff;
+}
+
+.span-label {
+  display: inline-block;
+  padding: 0 8px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.name-row th {
+  height: 40px;
+  background: #fff;
+  cursor: default;
+  user-select: none;
+  border-bottom: 1px solid #c8cad0;
+}
+
+.name-row th.formula-head {
+  background: var(--formula-bg);
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 100%;
+  padding: 0 4px 0 8px;
+}
+
+.name-text {
+  flex: 1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 12.5px;
+}
+
+.req {
+  color: var(--danger);
+  margin-left: 2px;
+}
+
+.type-mark {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--fill);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.formula-head .type-mark {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-style: italic;
+}
+
+.col-menu-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.name-row th:hover .col-menu-btn,
+.name-row th.selected .col-menu-btn {
+  opacity: 1;
+}
+
+.col-menu-btn:hover {
+  background: var(--fill);
+  color: var(--text);
+}
+
+.resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+}
+
+.resize:hover {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.corner {
+  position: sticky;
+  left: 0;
+  z-index: 4 !important;
+  text-align: center !important;
+  color: var(--text-muted);
+  font-size: 11px;
+  background: var(--grid-head) !important;
+}
+
+/* ---------------------------------------------------------------- body */
+
+.row-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--grid-head);
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 11px;
+  text-align: center;
+  cursor: default;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-head.selected {
+  background: color-mix(in srgb, var(--accent) 12%, var(--grid-head));
+  color: var(--accent);
+}
+
+.row-head app-icon {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+td {
+  position: relative;
+  padding: 0 8px;
+  height: 30px;
+  cursor: cell;
+  user-select: none;
+  background: #fff;
+  color: var(--text);
+}
+
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.formula {
+  background: var(--formula-bg);
+  color: color-mix(in srgb, var(--accent) 55%, var(--text));
+}
+
+td.invalid::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-style: solid;
+  border-width: 0 7px 7px 0;
+  border-color: transparent var(--danger) transparent transparent;
+}
+
+td.invalid .value {
+  color: var(--danger);
+}
+
+td.in-range {
+  background: var(--cell-range);
+}
+
+td.formula.in-range {
+  background: color-mix(in srgb, var(--accent) 12%, #fff);
+}
+
+td.active {
+  outline: 2px solid var(--cell-select);
+  outline-offset: -2px;
+  z-index: 0;
+}
+
+.value {
+  pointer-events: none;
+}
+
+.pick {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+tr.ghost td {
+  background: #fff;
+}
+
+tr.ghost .row-head {
+  color: var(--accent);
+}
+
+tr.pad td {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.editor {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  border: 2px solid var(--cell-select);
+  padding: 0 6px;
+  font: inherit;
+  letter-spacing: 0;
+  outline: none;
+  background: #fff;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 22%, transparent);
+  z-index: 3;
+}
+
+.editor.num {
+  text-align: right;
+}
+
+.no-columns {
+  padding: 40px;
+  color: var(--text-muted);
+  text-align: center;
+}

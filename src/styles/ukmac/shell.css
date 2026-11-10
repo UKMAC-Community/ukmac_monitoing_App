@@ -1,0 +1,810 @@
+/* Shell: the frame around every signed-in page (sidebar, its nav rows, the top bar with
+   the breadcrumb, the phone's top and tab bars), the page header, and the sign-in page.
+   The look is ThaFlow's layout.css; the structure is UKMAC's (a sticky sidebar beside the
+   page, a tab bar on phones). The page background stays transparent, so the ambient glow
+   shows through. */
+
+@layer components {
+  /* ── Sidebar ── (desktop only; phones use the top and tab bars) */
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: none;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: var(--sidebar-w);
+    height: 100vh;
+    height: 100dvh;
+    background: var(--surface);
+    border-right: var(--hairline) solid var(--border);
+    transition: width var(--dur) var(--ease);
+  }
+  @media (min-width: 1024px) {
+    .sidebar {
+      display: flex;
+    }
+  }
+  .sidebar.is-collapsed {
+    width: var(--rail-w);
+  }
+
+  .sidebar-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: var(--topbar-h);
+    padding: 0 10px 0 14px;
+    border-bottom: var(--hairline) solid var(--border);
+  }
+  .sidebar.is-collapsed .sidebar-header {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+    color: var(--text);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+  }
+  .sidebar-logo img {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+  .sidebar-logo-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .sidebar-brand {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: var(--tracking-title);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sidebar-tag {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  .sidebar-toggle:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .sidebar-toggle svg {
+    width: 18px;
+    height: 18px;
+  }
+  .sidebar.is-collapsed .sidebar-toggle {
+    width: 40px;
+    height: 40px;
+  }
+
+  .sidebar-nav {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden; /* never sideways: long names truncate */
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sidebar.is-collapsed .sidebar-nav {
+    align-items: center;
+    padding: 12px 0;
+    scrollbar-width: none;
+  }
+  .sidebar.is-collapsed .sidebar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+  }
+  .nav-group + .nav-group {
+    margin-top: 12px;
+  }
+  .sidebar.is-collapsed .nav-group {
+    align-items: center;
+  }
+
+  /* Group titles read like the macOS sidebar: small, semibold, sentence case */
+  .nav-section-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 10px 4px;
+    border: none;
+    background: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: left;
+  }
+  button.nav-section-label {
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+  button.nav-section-label:hover {
+    color: var(--text);
+  }
+  .nav-section-label svg {
+    width: 13px;
+    height: 13px;
+    transition: transform var(--dur) var(--ease);
+  }
+  .nav-section-label[aria-expanded="false"] svg {
+    transform: rotate(-90deg);
+  }
+  /* Collapsed, a group's title is a short rule */
+  .sidebar.is-collapsed .nav-section-label {
+    justify-content: center;
+    padding: 10px 0 6px;
+  }
+  .nav-rule {
+    display: block;
+    width: 18px;
+    height: var(--hairline);
+    background: var(--border-strong);
+  }
+
+  .nav-link {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.3;
+    text-align: left;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      background 0.15s;
+  }
+  .nav-link:hover {
+    color: var(--text);
+    background: var(--surface-hover);
+  }
+  .nav-link.active,
+  .nav-link.is-lit {
+    color: var(--accent);
+  }
+  .nav-link.active:hover {
+    background: transparent;
+  }
+  .nav-link:focus-visible {
+    outline-offset: -2px;
+  }
+  .nav-link > svg {
+    width: 17px;
+    height: 17px;
+    transition: transform var(--dur) var(--ease);
+  }
+  .nav-link:hover > svg:first-child {
+    transform: translateX(2px);
+  }
+  .nav-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nav-link .nav-chevron {
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+    transition: transform var(--dur) var(--ease);
+  }
+  .nav-link[aria-expanded="false"] .nav-chevron {
+    transform: rotate(-90deg);
+  }
+  .nav-link.is-nested {
+    min-height: 32px;
+    font-size: 0.8125rem;
+  }
+  .nav-link.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+  .nav-link.is-disabled:hover {
+    background: transparent;
+    color: var(--text-muted);
+  }
+  /* The highlight behind the open page's row; it glides from row to row (layoutId) */
+  .nav-pill {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+  }
+  /* A stage's rows, under it: a guide line runs down from its icon */
+  .nav-children {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 2px 0 4px 18px;
+    padding-left: 8px;
+    border-left: var(--hairline) solid var(--border-strong);
+  }
+  .sidebar.is-collapsed .nav-children {
+    margin: 2px 0 0;
+    padding: 0;
+    border: none;
+    align-items: center;
+  }
+  /* Collapsed, an open stage (or folder) and its rows sit on one soft tray,
+     so it's plain which rows are its */
+  .sidebar.is-collapsed .nav-stage.is-open {
+    padding: 4px;
+    border-radius: var(--radius-md);
+    background: var(--row-hover);
+  }
+
+  /* One column down the middle: a row in a full-width wrapper (the rail's
+     moving rows) sits there too, not at the left edge (the user, 2026-10-19:
+     the icons zig-zagged) */
+  .sidebar.is-collapsed .nav-link {
+    width: 40px;
+    min-height: 40px;
+    height: 40px;
+    margin-inline: auto;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .sidebar.is-collapsed .nav-link > svg {
+    width: 19px;
+    height: 19px;
+  }
+  .sidebar.is-collapsed .nav-link:hover > svg:first-child {
+    transform: none;
+  }
+
+  .nav-empty {
+    padding: 8px 10px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  /* The menu search, over a project's rows: as big as the page's search box
+     (the user, 2026-10-18: it was too small) */
+  .nav-search {
+    display: flex;
+    flex-shrink: 0; /* a long menu under it squeezed it to ~20px */
+    align-items: center;
+    gap: 8px;
+    height: var(--control-h);
+    margin: 0 0 6px;
+    padding: 0 11px;
+    border-radius: var(--radius);
+    background: var(--fill);
+    color: var(--text);
+    transition:
+      background 0.15s,
+      box-shadow 0.15s;
+  }
+  .nav-search:focus-within {
+    background: var(--field-hover);
+    box-shadow: var(--ring);
+  }
+  .nav-search > svg {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+  }
+  .nav-search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.875rem;
+  }
+  .nav-search input::-webkit-search-cancel-button {
+    appearance: none;
+  }
+
+  /* Sidebar footer: who's signed in */
+  .sidebar-footer {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border-top: var(--hairline) solid var(--border);
+  }
+  .sidebar.is-collapsed .sidebar-footer {
+    align-items: center;
+    padding: 10px 0;
+  }
+
+  .user-menu-trigger {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .user-menu-trigger:hover,
+  .user-menu-trigger[aria-expanded="true"] {
+    background: var(--surface-hover);
+  }
+  .sidebar.is-collapsed .user-menu-trigger {
+    width: 40px;
+    padding: 4px;
+    justify-content: center;
+  }
+  .user-menu-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    line-height: 1.3;
+  }
+  .user-name {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-sub {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-menu-end {
+    display: flex;
+    color: var(--text-muted);
+  }
+  .user-menu-end svg {
+    width: 15px;
+    height: 15px;
+  }
+  .user-menu-panel {
+    min-width: 248px;
+  }
+
+  /* ── Top bar (desktop): where you are, over the page; content scrolls under it ── */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: var(--topbar-h);
+    padding: 0 32px;
+    background: var(--surface);
+    border-bottom: var(--hairline) solid var(--border);
+    -webkit-backdrop-filter: var(--blur);
+    backdrop-filter: var(--blur);
+  }
+  @media (min-width: 1024px) {
+    .topbar {
+      display: flex;
+    }
+  }
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    overflow: hidden;
+  }
+  .crumb-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+    border-radius: 4px;
+  }
+  a.crumb-item:hover {
+    color: var(--text);
+  }
+  .crumb-item.active {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .crumb-sep {
+    color: var(--border-strong);
+  }
+
+  /* ── Phone bars ── (below the lg breakpoint, where the sidebar is gone) */
+  .mobile-topbar {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) 16px 0;
+    background: var(--surface-thick);
+    border-bottom: var(--hairline) solid var(--border);
+    -webkit-backdrop-filter: var(--blur-thick);
+    backdrop-filter: var(--blur-thick);
+    transition: transform 0.3s var(--ease);
+  }
+  .mobile-topbar.is-hidden {
+    transform: translateY(-100%);
+  }
+  .mobile-topbar-spacer {
+    height: calc(56px + env(safe-area-inset-top, 0px));
+  }
+  @media (min-width: 1024px) {
+    .mobile-topbar,
+    .mobile-topbar-spacer {
+      display: none;
+    }
+  }
+  .mobile-breadcrumbs {
+    margin-bottom: 4px;
+  }
+  @media (min-width: 1024px) {
+    .mobile-breadcrumbs {
+      display: none;
+    }
+  }
+
+  .tabbar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--surface-thick);
+    border-top: var(--hairline) solid var(--border);
+    -webkit-backdrop-filter: var(--blur-thick);
+    backdrop-filter: var(--blur-thick);
+  }
+  @media (min-width: 1024px) {
+    .tabbar {
+      display: none;
+    }
+  }
+  .tab-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    height: 100%;
+    padding: 0 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      transform var(--dur-fast) var(--ease);
+  }
+  .tab-item:active {
+    transform: scale(0.95);
+  }
+  .tab-item.active {
+    color: var(--accent);
+  }
+  .tab-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+  }
+  .tab-icon svg {
+    position: relative;
+    width: 22px;
+    height: 22px;
+  }
+  .tab-pill {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: var(--accent-soft);
+  }
+  .tab-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .tab-item.active .tab-label {
+    font-weight: 600;
+  }
+
+  /* ── Page ── */
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+  }
+  .page-header-text {
+    min-width: 0;
+    flex: 1 1 320px;
+  }
+  .page-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.028em;
+  }
+  .page-desc {
+    margin-top: 3px;
+    max-width: 48rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+  }
+  .page-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .page-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: fit-content;
+    margin-bottom: 6px;
+    padding: 0;
+    border: none;
+    background: none;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .page-back:hover {
+    color: var(--text);
+  }
+  .page-back svg {
+    width: 14px;
+    height: 14px;
+  }
+  /* In a page's header: a round arrow on the left of the title, "Back to X"
+     its tooltip (the user, 2026-10-19: "back in the left of the head").
+     Drawn at 32px to sit with the title; tapped at 44px. */
+  .page-back-icon {
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: var(--hairline) solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--field);
+    color: var(--text-muted);
+    box-shadow: var(--shadow-xs);
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  .page-back-icon::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+  }
+  .page-back-icon:hover {
+    background: var(--field-hover);
+    color: var(--text);
+  }
+  .page-back-icon:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .page-back-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  @media (max-width: 540px) {
+    .page-title {
+      font-size: 1.375rem;
+    }
+  }
+
+  /* ── Sign-in ── a brand bar and one glass card under a soft glow */
+  .auth-layout {
+    --auth-gutter: clamp(20px, 4vw, 48px);
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  .auth-layout::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: var(--ambient-focus), var(--bg);
+    pointer-events: none;
+  }
+  .auth-top,
+  .auth-footer {
+    width: 100%;
+    max-width: 1240px;
+    margin-inline: auto;
+    padding-inline: var(--auth-gutter);
+  }
+  .auth-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 24px;
+  }
+  .auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: var(--tracking-title);
+    color: var(--text);
+    text-decoration: none;
+  }
+  .auth-brand img {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+  }
+  .auth-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px var(--auth-gutter);
+  }
+  .auth-footer {
+    padding-bottom: 24px;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+  }
+  .auth-card {
+    --control-h: 44px;
+    width: 100%;
+    max-width: 420px;
+    padding: 36px 32px;
+    border-radius: var(--radius-xl);
+  }
+  .auth-card-header {
+    margin-bottom: 24px;
+  }
+  .auth-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+  }
+  .auth-subtitle {
+    margin-top: 6px;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+    text-wrap: pretty;
+  }
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .auth-submit {
+    width: 100%;
+    margin-top: 4px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+  @media (max-width: 540px) {
+    .auth-card {
+      padding: 24px 20px;
+    }
+  }
+}

@@ -1,0 +1,2585 @@
+[
+ {
+  "column": "A",
+  "n": "1",
+  "stage": "Block info",
+  "group": "Block",
+  "field": "Block code",
+  "type": "text → FK block",
+  "key": "block_code"
+ },
+ {
+  "column": "B",
+  "n": "2",
+  "stage": "Block info",
+  "group": "Planting Date",
+  "field": "Planting date",
+  "type": "date",
+  "key": "planting_date"
+ },
+ {
+  "column": "C",
+  "n": "3",
+  "stage": "Stage 1 – Transplant (0 DAT)",
+  "group": "0 DAT Transplant",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s1_observed_date"
+ },
+ {
+  "column": "D",
+  "n": "4",
+  "stage": "Stage 1 – Transplant (0 DAT)",
+  "group": "Seedling Leaf Stage (No.)",
+  "field": "4-5 leaves, good",
+  "type": "int count",
+  "key": "s1_leaf_4_5_good"
+ },
+ {
+  "column": "E",
+  "n": "5",
+  "stage": "Stage 1 – Transplant (0 DAT)",
+  "group": "Seedling Leaf Stage (No.)",
+  "field": "3 or >5 leaves",
+  "type": "int count",
+  "key": "s1_leaf_3_or_gt5"
+ },
+ {
+  "column": "F",
+  "n": "6",
+  "stage": "Stage 1 – Transplant (0 DAT)",
+  "group": "Seedling Leaf Stage (No.)",
+  "field": "Disease",
+  "type": "int count",
+  "key": "s1_leaf_disease"
+ },
+ {
+  "column": "G",
+  "n": "7",
+  "stage": "Stage 1 – Transplant (0 DAT)",
+  "group": "Seedling Health / Vigor (No.)",
+  "field": "Healthy",
+  "type": "int count",
+  "key": "s1_health_healthy"
+ },
+ {
+  "column": "H",
+  "n": "8",
+  "stage": "Stage 1 – Transplant (0 DAT)",
+  "group": "Seedling Health / Vigor (No.)",
+  "field": "Medium",
+  "type": "int count",
+  "key": "s1_health_medium"
+ },
+ {
+  "column": "I",
+  "n": "9",
+  "stage": "Stage 1 – Transplant (0 DAT)",
+  "group": "Seedling Health / Vigor (No.)",
+  "field": "Wilt",
+  "type": "int count",
+  "key": "s1_health_wilt"
+ },
+ {
+  "column": "K",
+  "n": "11",
+  "stage": "Stage 2 – First Establishment (7 DAT)",
+  "group": "7 DAT Establishment",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s2_observed_date"
+ },
+ {
+  "column": "L",
+  "n": "12",
+  "stage": "Stage 2 – First Establishment (7 DAT)",
+  "group": "Plant Survival (No.)",
+  "field": "Live Plant",
+  "type": "int count",
+  "key": "s2_live"
+ },
+ {
+  "column": "M",
+  "n": "13",
+  "stage": "Stage 2 – First Establishment (7 DAT)",
+  "group": "Plant Survival (No.)",
+  "field": "Dead Plant",
+  "type": "int count",
+  "key": "s2_dead"
+ },
+ {
+  "column": "N",
+  "n": "14",
+  "stage": "Stage 2 – First Establishment (7 DAT)",
+  "group": "New Growth (No.)",
+  "field": "Upright Plants",
+  "type": "int count",
+  "key": "s2_upright"
+ },
+ {
+  "column": "O",
+  "n": "15",
+  "stage": "Stage 2 – First Establishment (7 DAT)",
+  "group": "New Growth (No.)",
+  "field": "Uneven, Wilt",
+  "type": "int count",
+  "key": "s2_uneven_wilt"
+ },
+ {
+  "column": "Q",
+  "n": "17",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "30 DAT Vegetative",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s3_observed_date"
+ },
+ {
+  "column": "R",
+  "n": "18",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#1",
+  "type": "int 1–5",
+  "key": "s3_vigor_p1"
+ },
+ {
+  "column": "S",
+  "n": "19",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#2",
+  "type": "int 1–5",
+  "key": "s3_vigor_p2"
+ },
+ {
+  "column": "T",
+  "n": "20",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#3",
+  "type": "int 1–5",
+  "key": "s3_vigor_p3"
+ },
+ {
+  "column": "U",
+  "n": "21",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#4",
+  "type": "int 1–5",
+  "key": "s3_vigor_p4"
+ },
+ {
+  "column": "V",
+  "n": "22",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#5",
+  "type": "int 1–5",
+  "key": "s3_vigor_p5"
+ },
+ {
+  "column": "W",
+  "n": "23",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#6",
+  "type": "int 1–5",
+  "key": "s3_vigor_p6"
+ },
+ {
+  "column": "X",
+  "n": "24",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#7",
+  "type": "int 1–5",
+  "key": "s3_vigor_p7"
+ },
+ {
+  "column": "Y",
+  "n": "25",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#8",
+  "type": "int 1–5",
+  "key": "s3_vigor_p8"
+ },
+ {
+  "column": "Z",
+  "n": "26",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#9",
+  "type": "int 1–5",
+  "key": "s3_vigor_p9"
+ },
+ {
+  "column": "AA",
+  "n": "27",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#10",
+  "type": "int 1–5",
+  "key": "s3_vigor_p10"
+ },
+ {
+  "column": "AB",
+  "n": "28",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#11",
+  "type": "int 1–5",
+  "key": "s3_vigor_p11"
+ },
+ {
+  "column": "AC",
+  "n": "29",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#12",
+  "type": "int 1–5",
+  "key": "s3_vigor_p12"
+ },
+ {
+  "column": "AD",
+  "n": "30",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#13",
+  "type": "int 1–5",
+  "key": "s3_vigor_p13"
+ },
+ {
+  "column": "AE",
+  "n": "31",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#14",
+  "type": "int 1–5",
+  "key": "s3_vigor_p14"
+ },
+ {
+  "column": "AF",
+  "n": "32",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#15",
+  "type": "int 1–5",
+  "key": "s3_vigor_p15"
+ },
+ {
+  "column": "AG",
+  "n": "33",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#16",
+  "type": "int 1–5",
+  "key": "s3_vigor_p16"
+ },
+ {
+  "column": "AH",
+  "n": "34",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#17",
+  "type": "int 1–5",
+  "key": "s3_vigor_p17"
+ },
+ {
+  "column": "AI",
+  "n": "35",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#18",
+  "type": "int 1–5",
+  "key": "s3_vigor_p18"
+ },
+ {
+  "column": "AJ",
+  "n": "36",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#19",
+  "type": "int 1–5",
+  "key": "s3_vigor_p19"
+ },
+ {
+  "column": "AK",
+  "n": "37",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Vigor Score (1–5)",
+  "field": "P#20",
+  "type": "int 1–5",
+  "key": "s3_vigor_p20"
+ },
+ {
+  "column": "AM",
+  "n": "39",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#1",
+  "type": "decimal cm",
+  "key": "s3_height_p1"
+ },
+ {
+  "column": "AN",
+  "n": "40",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#2",
+  "type": "decimal cm",
+  "key": "s3_height_p2"
+ },
+ {
+  "column": "AO",
+  "n": "41",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#3",
+  "type": "decimal cm",
+  "key": "s3_height_p3"
+ },
+ {
+  "column": "AP",
+  "n": "42",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#4",
+  "type": "decimal cm",
+  "key": "s3_height_p4"
+ },
+ {
+  "column": "AQ",
+  "n": "43",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#5",
+  "type": "decimal cm",
+  "key": "s3_height_p5"
+ },
+ {
+  "column": "AR",
+  "n": "44",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#6",
+  "type": "decimal cm",
+  "key": "s3_height_p6"
+ },
+ {
+  "column": "AS",
+  "n": "45",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#7",
+  "type": "decimal cm",
+  "key": "s3_height_p7"
+ },
+ {
+  "column": "AT",
+  "n": "46",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#8",
+  "type": "decimal cm",
+  "key": "s3_height_p8"
+ },
+ {
+  "column": "AU",
+  "n": "47",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#9",
+  "type": "decimal cm",
+  "key": "s3_height_p9"
+ },
+ {
+  "column": "AV",
+  "n": "48",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#10",
+  "type": "decimal cm",
+  "key": "s3_height_p10"
+ },
+ {
+  "column": "AW",
+  "n": "49",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#11",
+  "type": "decimal cm",
+  "key": "s3_height_p11"
+ },
+ {
+  "column": "AX",
+  "n": "50",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#12",
+  "type": "decimal cm",
+  "key": "s3_height_p12"
+ },
+ {
+  "column": "AY",
+  "n": "51",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#13",
+  "type": "decimal cm",
+  "key": "s3_height_p13"
+ },
+ {
+  "column": "AZ",
+  "n": "52",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#14",
+  "type": "decimal cm",
+  "key": "s3_height_p14"
+ },
+ {
+  "column": "BA",
+  "n": "53",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#15",
+  "type": "decimal cm",
+  "key": "s3_height_p15"
+ },
+ {
+  "column": "BB",
+  "n": "54",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#16",
+  "type": "decimal cm",
+  "key": "s3_height_p16"
+ },
+ {
+  "column": "BC",
+  "n": "55",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#17",
+  "type": "decimal cm",
+  "key": "s3_height_p17"
+ },
+ {
+  "column": "BD",
+  "n": "56",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#18",
+  "type": "decimal cm",
+  "key": "s3_height_p18"
+ },
+ {
+  "column": "BE",
+  "n": "57",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#19",
+  "type": "decimal cm",
+  "key": "s3_height_p19"
+ },
+ {
+  "column": "BF",
+  "n": "58",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Plant Height (cm)",
+  "field": "P#20",
+  "type": "decimal cm",
+  "key": "s3_height_p20"
+ },
+ {
+  "column": "BH",
+  "n": "60",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "1A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p1"
+ },
+ {
+  "column": "BI",
+  "n": "61",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "2A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p2"
+ },
+ {
+  "column": "BJ",
+  "n": "62",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "3A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p3"
+ },
+ {
+  "column": "BK",
+  "n": "63",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "4A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p4"
+ },
+ {
+  "column": "BL",
+  "n": "64",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "5A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p5"
+ },
+ {
+  "column": "BM",
+  "n": "65",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "6A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p6"
+ },
+ {
+  "column": "BN",
+  "n": "66",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "7A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p7"
+ },
+ {
+  "column": "BO",
+  "n": "67",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "8A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p8"
+ },
+ {
+  "column": "BP",
+  "n": "68",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "9A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p9"
+ },
+ {
+  "column": "BQ",
+  "n": "69",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "10A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p10"
+ },
+ {
+  "column": "BR",
+  "n": "70",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "11A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p11"
+ },
+ {
+  "column": "BS",
+  "n": "71",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "12A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p12"
+ },
+ {
+  "column": "BT",
+  "n": "72",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "13A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p13"
+ },
+ {
+  "column": "BU",
+  "n": "73",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "14A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p14"
+ },
+ {
+  "column": "BV",
+  "n": "74",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "15A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p15"
+ },
+ {
+  "column": "BW",
+  "n": "75",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "16A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p16"
+ },
+ {
+  "column": "BX",
+  "n": "76",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "17A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p17"
+ },
+ {
+  "column": "BY",
+  "n": "77",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "18A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p18"
+ },
+ {
+  "column": "BZ",
+  "n": "78",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "19A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p19"
+ },
+ {
+  "column": "CA",
+  "n": "79",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter A (cm) – widest direction",
+  "field": "20A",
+  "type": "decimal cm",
+  "key": "s3_canopy_a_p20"
+ },
+ {
+  "column": "CC",
+  "n": "81",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "1B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p1"
+ },
+ {
+  "column": "CD",
+  "n": "82",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "2B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p2"
+ },
+ {
+  "column": "CE",
+  "n": "83",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "3B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p3"
+ },
+ {
+  "column": "CF",
+  "n": "84",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "4B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p4"
+ },
+ {
+  "column": "CG",
+  "n": "85",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "5B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p5"
+ },
+ {
+  "column": "CH",
+  "n": "86",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "6B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p6"
+ },
+ {
+  "column": "CI",
+  "n": "87",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "7B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p7"
+ },
+ {
+  "column": "CJ",
+  "n": "88",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "8B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p8"
+ },
+ {
+  "column": "CK",
+  "n": "89",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "9B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p9"
+ },
+ {
+  "column": "CL",
+  "n": "90",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "10B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p10"
+ },
+ {
+  "column": "CM",
+  "n": "91",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "11B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p11"
+ },
+ {
+  "column": "CN",
+  "n": "92",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "12B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p12"
+ },
+ {
+  "column": "CO",
+  "n": "93",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "13B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p13"
+ },
+ {
+  "column": "CP",
+  "n": "94",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "14B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p14"
+ },
+ {
+  "column": "CQ",
+  "n": "95",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "15B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p15"
+ },
+ {
+  "column": "CR",
+  "n": "96",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "16B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p16"
+ },
+ {
+  "column": "CS",
+  "n": "97",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "17B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p17"
+ },
+ {
+  "column": "CT",
+  "n": "98",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "18B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p18"
+ },
+ {
+  "column": "CU",
+  "n": "99",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "19B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p19"
+ },
+ {
+  "column": "CV",
+  "n": "100",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Canopy Diameter B (cm) – perpendicular direction",
+  "field": "20B",
+  "type": "decimal cm",
+  "key": "s3_canopy_b_p20"
+ },
+ {
+  "column": "CX",
+  "n": "102",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#1",
+  "type": "int",
+  "key": "s3_branches_p1"
+ },
+ {
+  "column": "CY",
+  "n": "103",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#2",
+  "type": "int",
+  "key": "s3_branches_p2"
+ },
+ {
+  "column": "CZ",
+  "n": "104",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#3",
+  "type": "int",
+  "key": "s3_branches_p3"
+ },
+ {
+  "column": "DA",
+  "n": "105",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#4",
+  "type": "int",
+  "key": "s3_branches_p4"
+ },
+ {
+  "column": "DB",
+  "n": "106",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#5",
+  "type": "int",
+  "key": "s3_branches_p5"
+ },
+ {
+  "column": "DC",
+  "n": "107",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#6",
+  "type": "int",
+  "key": "s3_branches_p6"
+ },
+ {
+  "column": "DD",
+  "n": "108",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#7",
+  "type": "int",
+  "key": "s3_branches_p7"
+ },
+ {
+  "column": "DE",
+  "n": "109",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#8",
+  "type": "int",
+  "key": "s3_branches_p8"
+ },
+ {
+  "column": "DF",
+  "n": "110",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#9",
+  "type": "int",
+  "key": "s3_branches_p9"
+ },
+ {
+  "column": "DG",
+  "n": "111",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#10",
+  "type": "int",
+  "key": "s3_branches_p10"
+ },
+ {
+  "column": "DH",
+  "n": "112",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#11",
+  "type": "int",
+  "key": "s3_branches_p11"
+ },
+ {
+  "column": "DI",
+  "n": "113",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#12",
+  "type": "int",
+  "key": "s3_branches_p12"
+ },
+ {
+  "column": "DJ",
+  "n": "114",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#13",
+  "type": "int",
+  "key": "s3_branches_p13"
+ },
+ {
+  "column": "DK",
+  "n": "115",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#14",
+  "type": "int",
+  "key": "s3_branches_p14"
+ },
+ {
+  "column": "DL",
+  "n": "116",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#15",
+  "type": "int",
+  "key": "s3_branches_p15"
+ },
+ {
+  "column": "DM",
+  "n": "117",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#16",
+  "type": "int",
+  "key": "s3_branches_p16"
+ },
+ {
+  "column": "DN",
+  "n": "118",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#17",
+  "type": "int",
+  "key": "s3_branches_p17"
+ },
+ {
+  "column": "DO",
+  "n": "119",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#18",
+  "type": "int",
+  "key": "s3_branches_p18"
+ },
+ {
+  "column": "DP",
+  "n": "120",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#19",
+  "type": "int",
+  "key": "s3_branches_p19"
+ },
+ {
+  "column": "DQ",
+  "n": "121",
+  "stage": "Stage 3 – Vegetative (30 DAT)",
+  "group": "Branching (No. branches/plant)",
+  "field": "P#20",
+  "type": "int",
+  "key": "s3_branches_p20"
+ },
+ {
+  "column": "DS",
+  "n": "123",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "45 DAT Flowering",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s4_observed_date"
+ },
+ {
+  "column": "DT",
+  "n": "124",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#1",
+  "type": "int",
+  "key": "s4_flowers_p1"
+ },
+ {
+  "column": "DU",
+  "n": "125",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#2",
+  "type": "int",
+  "key": "s4_flowers_p2"
+ },
+ {
+  "column": "DV",
+  "n": "126",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#3",
+  "type": "int",
+  "key": "s4_flowers_p3"
+ },
+ {
+  "column": "DW",
+  "n": "127",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#4",
+  "type": "int",
+  "key": "s4_flowers_p4"
+ },
+ {
+  "column": "DX",
+  "n": "128",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#5",
+  "type": "int",
+  "key": "s4_flowers_p5"
+ },
+ {
+  "column": "DY",
+  "n": "129",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#6",
+  "type": "int",
+  "key": "s4_flowers_p6"
+ },
+ {
+  "column": "DZ",
+  "n": "130",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#7",
+  "type": "int",
+  "key": "s4_flowers_p7"
+ },
+ {
+  "column": "EA",
+  "n": "131",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#8",
+  "type": "int",
+  "key": "s4_flowers_p8"
+ },
+ {
+  "column": "EB",
+  "n": "132",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#9",
+  "type": "int",
+  "key": "s4_flowers_p9"
+ },
+ {
+  "column": "EC",
+  "n": "133",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#10",
+  "type": "int",
+  "key": "s4_flowers_p10"
+ },
+ {
+  "column": "ED",
+  "n": "134",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#11",
+  "type": "int",
+  "key": "s4_flowers_p11"
+ },
+ {
+  "column": "EE",
+  "n": "135",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#12",
+  "type": "int",
+  "key": "s4_flowers_p12"
+ },
+ {
+  "column": "EF",
+  "n": "136",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#13",
+  "type": "int",
+  "key": "s4_flowers_p13"
+ },
+ {
+  "column": "EG",
+  "n": "137",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#14",
+  "type": "int",
+  "key": "s4_flowers_p14"
+ },
+ {
+  "column": "EH",
+  "n": "138",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#15",
+  "type": "int",
+  "key": "s4_flowers_p15"
+ },
+ {
+  "column": "EI",
+  "n": "139",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#16",
+  "type": "int",
+  "key": "s4_flowers_p16"
+ },
+ {
+  "column": "EJ",
+  "n": "140",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#17",
+  "type": "int",
+  "key": "s4_flowers_p17"
+ },
+ {
+  "column": "EK",
+  "n": "141",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#18",
+  "type": "int",
+  "key": "s4_flowers_p18"
+ },
+ {
+  "column": "EL",
+  "n": "142",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#19",
+  "type": "int",
+  "key": "s4_flowers_p19"
+ },
+ {
+  "column": "EM",
+  "n": "143",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Plant Flowering – Flowers per Plant (No.)",
+  "field": "P#20",
+  "type": "int",
+  "key": "s4_flowers_p20"
+ },
+ {
+  "column": "EO",
+  "n": "145",
+  "stage": "Stage 4 – Flowering (45 DAT)",
+  "group": "Flower Abortion",
+  "field": "Flower abortion",
+  "type": "decimal %",
+  "key": "s4_flower_abortion_pct"
+ },
+ {
+  "column": "EQ",
+  "n": "147",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "60 DAT Fruit set",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s5_observed_date"
+ },
+ {
+  "column": "ER",
+  "n": "148",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#1",
+  "type": "int",
+  "key": "s5_young_fruits_p1"
+ },
+ {
+  "column": "ES",
+  "n": "149",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#2",
+  "type": "int",
+  "key": "s5_young_fruits_p2"
+ },
+ {
+  "column": "ET",
+  "n": "150",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#3",
+  "type": "int",
+  "key": "s5_young_fruits_p3"
+ },
+ {
+  "column": "EU",
+  "n": "151",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#4",
+  "type": "int",
+  "key": "s5_young_fruits_p4"
+ },
+ {
+  "column": "EV",
+  "n": "152",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#5",
+  "type": "int",
+  "key": "s5_young_fruits_p5"
+ },
+ {
+  "column": "EW",
+  "n": "153",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#6",
+  "type": "int",
+  "key": "s5_young_fruits_p6"
+ },
+ {
+  "column": "EX",
+  "n": "154",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#7",
+  "type": "int",
+  "key": "s5_young_fruits_p7"
+ },
+ {
+  "column": "EY",
+  "n": "155",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#8",
+  "type": "int",
+  "key": "s5_young_fruits_p8"
+ },
+ {
+  "column": "EZ",
+  "n": "156",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#9",
+  "type": "int",
+  "key": "s5_young_fruits_p9"
+ },
+ {
+  "column": "FA",
+  "n": "157",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#10",
+  "type": "int",
+  "key": "s5_young_fruits_p10"
+ },
+ {
+  "column": "FB",
+  "n": "158",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#11",
+  "type": "int",
+  "key": "s5_young_fruits_p11"
+ },
+ {
+  "column": "FC",
+  "n": "159",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#12",
+  "type": "int",
+  "key": "s5_young_fruits_p12"
+ },
+ {
+  "column": "FD",
+  "n": "160",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#13",
+  "type": "int",
+  "key": "s5_young_fruits_p13"
+ },
+ {
+  "column": "FE",
+  "n": "161",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#14",
+  "type": "int",
+  "key": "s5_young_fruits_p14"
+ },
+ {
+  "column": "FF",
+  "n": "162",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#15",
+  "type": "int",
+  "key": "s5_young_fruits_p15"
+ },
+ {
+  "column": "FG",
+  "n": "163",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#16",
+  "type": "int",
+  "key": "s5_young_fruits_p16"
+ },
+ {
+  "column": "FH",
+  "n": "164",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#17",
+  "type": "int",
+  "key": "s5_young_fruits_p17"
+ },
+ {
+  "column": "FI",
+  "n": "165",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#18",
+  "type": "int",
+  "key": "s5_young_fruits_p18"
+ },
+ {
+  "column": "FJ",
+  "n": "166",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#19",
+  "type": "int",
+  "key": "s5_young_fruits_p19"
+ },
+ {
+  "column": "FK",
+  "n": "167",
+  "stage": "Stage 5 – Fruit Set (60 DAT)",
+  "group": "Young/Developing Fruits (No. fruits/plant)",
+  "field": "P#20",
+  "type": "int",
+  "key": "s5_young_fruits_p20"
+ },
+ {
+  "column": "FM",
+  "n": "169",
+  "stage": "Stage 5 – Fruit Set (60 DAT) (50 fruits)",
+  "group": "Fruit Orientation (No.)",
+  "field": "Upright",
+  "type": "int count",
+  "key": "s5_orient_upright"
+ },
+ {
+  "column": "FN",
+  "n": "170",
+  "stage": "Stage 5 – Fruit Set (60 DAT) (50 fruits)",
+  "group": "Fruit Orientation (No.)",
+  "field": "Mixed orientation",
+  "type": "int count",
+  "key": "s5_orient_mixed"
+ },
+ {
+  "column": "FO",
+  "n": "171",
+  "stage": "Stage 5 – Fruit Set (60 DAT) (50 fruits)",
+  "group": "Fruit Orientation (No.)",
+  "field": "Different orientation",
+  "type": "int count",
+  "key": "s5_orient_different"
+ },
+ {
+  "column": "FQ",
+  "n": "173",
+  "stage": "Stage 5 – Fruit Set (60 DAT) (50 fruits)",
+  "group": "Fruit Shape (No.)",
+  "field": "True-to-Type",
+  "type": "int count",
+  "key": "s5_shape_true_to_type"
+ },
+ {
+  "column": "FR",
+  "n": "174",
+  "stage": "Stage 5 – Fruit Set (60 DAT) (50 fruits)",
+  "group": "Fruit Shape (No.)",
+  "field": "Variability",
+  "type": "int count",
+  "key": "s5_shape_variability"
+ },
+ {
+  "column": "FS",
+  "n": "175",
+  "stage": "Stage 5 – Fruit Set (60 DAT) (50 fruits)",
+  "group": "Fruit Shape (No.)",
+  "field": "Off-type",
+  "type": "int count",
+  "key": "s5_shape_off_type"
+ },
+ {
+  "column": "FU",
+  "n": "177",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "75 DAT First Harvest",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s6_observed_date"
+ },
+ {
+  "column": "FV",
+  "n": "178",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "1st Harvest Trimming",
+  "field": "Harvest Date",
+  "type": "date",
+  "key": "s6_harvest_date"
+ },
+ {
+  "column": "FW",
+  "n": "179",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#1",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p1"
+ },
+ {
+  "column": "FX",
+  "n": "180",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#2",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p2"
+ },
+ {
+  "column": "FY",
+  "n": "181",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#3",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p3"
+ },
+ {
+  "column": "FZ",
+  "n": "182",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#4",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p4"
+ },
+ {
+  "column": "GA",
+  "n": "183",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#5",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p5"
+ },
+ {
+  "column": "GB",
+  "n": "184",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#6",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p6"
+ },
+ {
+  "column": "GC",
+  "n": "185",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#7",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p7"
+ },
+ {
+  "column": "GD",
+  "n": "186",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#8",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p8"
+ },
+ {
+  "column": "GE",
+  "n": "187",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#9",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p9"
+ },
+ {
+  "column": "GF",
+  "n": "188",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#10",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p10"
+ },
+ {
+  "column": "GG",
+  "n": "189",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#11",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p11"
+ },
+ {
+  "column": "GH",
+  "n": "190",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#12",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p12"
+ },
+ {
+  "column": "GI",
+  "n": "191",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#13",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p13"
+ },
+ {
+  "column": "GJ",
+  "n": "192",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#14",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p14"
+ },
+ {
+  "column": "GK",
+  "n": "193",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#15",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p15"
+ },
+ {
+  "column": "GL",
+  "n": "194",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#16",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p16"
+ },
+ {
+  "column": "GM",
+  "n": "195",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#17",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p17"
+ },
+ {
+  "column": "GN",
+  "n": "196",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#18",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p18"
+ },
+ {
+  "column": "GO",
+  "n": "197",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#19",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p19"
+ },
+ {
+  "column": "GP",
+  "n": "198",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Length (cm)",
+  "field": "P#20",
+  "type": "decimal cm",
+  "key": "s6_fruit_length_p20"
+ },
+ {
+  "column": "GR",
+  "n": "200",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#1",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p1"
+ },
+ {
+  "column": "GS",
+  "n": "201",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#2",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p2"
+ },
+ {
+  "column": "GT",
+  "n": "202",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#3",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p3"
+ },
+ {
+  "column": "GU",
+  "n": "203",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#4",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p4"
+ },
+ {
+  "column": "GV",
+  "n": "204",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#5",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p5"
+ },
+ {
+  "column": "GW",
+  "n": "205",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#6",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p6"
+ },
+ {
+  "column": "GX",
+  "n": "206",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#7",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p7"
+ },
+ {
+  "column": "GY",
+  "n": "207",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#8",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p8"
+ },
+ {
+  "column": "GZ",
+  "n": "208",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#9",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p9"
+ },
+ {
+  "column": "HA",
+  "n": "209",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#10",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p10"
+ },
+ {
+  "column": "HB",
+  "n": "210",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#11",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p11"
+ },
+ {
+  "column": "HC",
+  "n": "211",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#12",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p12"
+ },
+ {
+  "column": "HD",
+  "n": "212",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#13",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p13"
+ },
+ {
+  "column": "HE",
+  "n": "213",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#14",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p14"
+ },
+ {
+  "column": "HF",
+  "n": "214",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#15",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p15"
+ },
+ {
+  "column": "HG",
+  "n": "215",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#16",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p16"
+ },
+ {
+  "column": "HH",
+  "n": "216",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#17",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p17"
+ },
+ {
+  "column": "HI",
+  "n": "217",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#18",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p18"
+ },
+ {
+  "column": "HJ",
+  "n": "218",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#19",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p19"
+ },
+ {
+  "column": "HK",
+  "n": "219",
+  "stage": "Stage 6 – First Harvest (75 DAT)",
+  "group": "Fruit Diameter (cm)",
+  "field": "P#20",
+  "type": "decimal cm",
+  "key": "s6_fruit_diameter_p20"
+ },
+ {
+  "column": "HM",
+  "n": "221",
+  "stage": "Stage 7 – Maturity (75+ DAT)",
+  "group": "75 DAT+ Maturity",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s7_observed_date"
+ },
+ {
+  "column": "HN",
+  "n": "222",
+  "stage": "Stage 7 – Maturity (75+ DAT) (50 fruits)",
+  "group": "Fruit Color (No.)",
+  "field": "Green",
+  "type": "int count",
+  "key": "s7_color_green"
+ },
+ {
+  "column": "HO",
+  "n": "223",
+  "stage": "Stage 7 – Maturity (75+ DAT) (50 fruits)",
+  "group": "Fruit Color (No.)",
+  "field": "Turning",
+  "type": "int count",
+  "key": "s7_color_turning"
+ },
+ {
+  "column": "HP",
+  "n": "224",
+  "stage": "Stage 7 – Maturity (75+ DAT) (50 fruits)",
+  "group": "Fruit Color (No.)",
+  "field": "Red",
+  "type": "int count",
+  "key": "s7_color_red"
+ },
+ {
+  "column": "HR",
+  "n": "226",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "75–150 DAT Harvest",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s8_observed_date"
+ },
+ {
+  "column": "HS",
+  "n": "227",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Marketable Fruit (kg)",
+  "field": "Total",
+  "type": "decimal kg",
+  "key": "s8_total_kg"
+ },
+ {
+  "column": "HT",
+  "n": "228",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Marketable Fruit (kg)",
+  "field": "Marketable",
+  "type": "decimal kg",
+  "key": "s8_marketable_kg"
+ },
+ {
+  "column": "HV",
+  "n": "230",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Rejected Marketable Fruit (kg)",
+  "field": "Pest Damage",
+  "type": "decimal kg",
+  "key": "s8_reject_pest_kg"
+ },
+ {
+  "column": "HW",
+  "n": "231",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Rejected Marketable Fruit (kg)",
+  "field": "Disease",
+  "type": "decimal kg",
+  "key": "s8_reject_disease_kg"
+ },
+ {
+  "column": "HX",
+  "n": "232",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Rejected Marketable Fruit (kg)",
+  "field": "Too Small",
+  "type": "decimal kg",
+  "key": "s8_reject_too_small_kg"
+ },
+ {
+  "column": "HY",
+  "n": "233",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Rejected Marketable Fruit (kg)",
+  "field": "Deformed",
+  "type": "decimal kg",
+  "key": "s8_reject_deformed_kg"
+ },
+ {
+  "column": "HZ",
+  "n": "234",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Rejected Marketable Fruit (kg)",
+  "field": "Rot",
+  "type": "decimal kg",
+  "key": "s8_reject_rot_kg"
+ },
+ {
+  "column": "IA",
+  "n": "235",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Rejected Marketable Fruit (kg)",
+  "field": "Color Reject",
+  "type": "decimal kg",
+  "key": "s8_reject_color_kg"
+ },
+ {
+  "column": "IB",
+  "n": "236",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Rejected Marketable Fruit (kg)",
+  "field": "Total (kg)",
+  "type": "decimal kg (= sum of 6 reasons)",
+  "key": "s8_reject_total_kg"
+ },
+ {
+  "column": "ID",
+  "n": "238",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "Total Plant",
+  "type": "int",
+  "key": "s8_total_plants"
+ },
+ {
+  "column": "IE",
+  "n": "239",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "1st Date",
+  "type": "date",
+  "key": "s8_pick1_date"
+ },
+ {
+  "column": "IF",
+  "n": "240",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "1st Harvest",
+  "type": "decimal kg/plant",
+  "key": "s8_pick1_kg_per_plant"
+ },
+ {
+  "column": "IG",
+  "n": "241",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "2nd Date",
+  "type": "date",
+  "key": "s8_pick2_date"
+ },
+ {
+  "column": "IH",
+  "n": "242",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "2nd Harvest",
+  "type": "decimal kg/plant",
+  "key": "s8_pick2_kg_per_plant"
+ },
+ {
+  "column": "II",
+  "n": "243",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "3rd Date",
+  "type": "date",
+  "key": "s8_pick3_date"
+ },
+ {
+  "column": "IJ",
+  "n": "244",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "3rd Harvest",
+  "type": "decimal kg/plant",
+  "key": "s8_pick3_kg_per_plant"
+ },
+ {
+  "column": "IK",
+  "n": "245",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "4th Date",
+  "type": "date",
+  "key": "s8_pick4_date"
+ },
+ {
+  "column": "IL",
+  "n": "246",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "4th Harvest",
+  "type": "decimal kg/plant",
+  "key": "s8_pick4_kg_per_plant"
+ },
+ {
+  "column": "IM",
+  "n": "247",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "5th Date",
+  "type": "date",
+  "key": "s8_pick5_date"
+ },
+ {
+  "column": "IN",
+  "n": "248",
+  "stage": "Stage 8 – Harvest (75–150 DAT)",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "5th Harvest",
+  "type": "decimal kg/plant",
+  "key": "s8_pick5_kg_per_plant"
+ },
+ {
+  "column": "IP",
+  "n": "250",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "75–150 DAT Plant Health",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s9_observed_date"
+ },
+ {
+  "column": "IQ",
+  "n": "251",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W1 Date",
+  "type": "date",
+  "key": "s9_w1_date"
+ },
+ {
+  "column": "IR",
+  "n": "252",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W1",
+  "type": "int count",
+  "key": "s9_w1_count"
+ },
+ {
+  "column": "IS",
+  "n": "253",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W2 Date",
+  "type": "date",
+  "key": "s9_w2_date"
+ },
+ {
+  "column": "IT",
+  "n": "254",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W2",
+  "type": "int count",
+  "key": "s9_w2_count"
+ },
+ {
+  "column": "IU",
+  "n": "255",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W3 Date",
+  "type": "date",
+  "key": "s9_w3_date"
+ },
+ {
+  "column": "IV",
+  "n": "256",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W3",
+  "type": "int count",
+  "key": "s9_w3_count"
+ },
+ {
+  "column": "IW",
+  "n": "257",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W4 Date",
+  "type": "date",
+  "key": "s9_w4_date"
+ },
+ {
+  "column": "IX",
+  "n": "258",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W4",
+  "type": "int count",
+  "key": "s9_w4_count"
+ },
+ {
+  "column": "IY",
+  "n": "259",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W5 Date",
+  "type": "date",
+  "key": "s9_w5_date"
+ },
+ {
+  "column": "IZ",
+  "n": "260",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W5",
+  "type": "int count",
+  "key": "s9_w5_count"
+ },
+ {
+  "column": "JA",
+  "n": "261",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W6 Date",
+  "type": "date",
+  "key": "s9_w6_date"
+ },
+ {
+  "column": "JB",
+  "n": "262",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W6",
+  "type": "int count",
+  "key": "s9_w6_count"
+ },
+ {
+  "column": "JC",
+  "n": "263",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W7 Date",
+  "type": "date",
+  "key": "s9_w7_date"
+ },
+ {
+  "column": "JD",
+  "n": "264",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W7",
+  "type": "int count",
+  "key": "s9_w7_count"
+ },
+ {
+  "column": "JE",
+  "n": "265",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W8 Date",
+  "type": "date",
+  "key": "s9_w8_date"
+ },
+ {
+  "column": "JF",
+  "n": "266",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W8",
+  "type": "int count",
+  "key": "s9_w8_count"
+ },
+ {
+  "column": "JG",
+  "n": "267",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W9 Date",
+  "type": "date",
+  "key": "s9_w9_date"
+ },
+ {
+  "column": "JH",
+  "n": "268",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W9",
+  "type": "int count",
+  "key": "s9_w9_count"
+ },
+ {
+  "column": "JI",
+  "n": "269",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W10 Date",
+  "type": "date",
+  "key": "s9_w10_date"
+ },
+ {
+  "column": "JJ",
+  "n": "270",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+  "field": "W10",
+  "type": "int count",
+  "key": "s9_w10_count"
+ },
+ {
+  "column": "JL",
+  "n": "272",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W11 Date",
+  "type": "date",
+  "key": "s9_w11_date"
+ },
+ {
+  "column": "JM",
+  "n": "273",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W11",
+  "type": "int count",
+  "key": "s9_w11_count"
+ },
+ {
+  "column": "JN",
+  "n": "274",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W12 Date",
+  "type": "date",
+  "key": "s9_w12_date"
+ },
+ {
+  "column": "JO",
+  "n": "275",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W12",
+  "type": "int count",
+  "key": "s9_w12_count"
+ },
+ {
+  "column": "JP",
+  "n": "276",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W13 Date",
+  "type": "date",
+  "key": "s9_w13_date"
+ },
+ {
+  "column": "JQ",
+  "n": "277",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W13",
+  "type": "int count",
+  "key": "s9_w13_count"
+ },
+ {
+  "column": "JR",
+  "n": "278",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W14 Date",
+  "type": "date",
+  "key": "s9_w14_date"
+ },
+ {
+  "column": "JS",
+  "n": "279",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W14",
+  "type": "int count",
+  "key": "s9_w14_count"
+ },
+ {
+  "column": "JT",
+  "n": "280",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W15 Date",
+  "type": "date",
+  "key": "s9_w15_date"
+ },
+ {
+  "column": "JU",
+  "n": "281",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W15",
+  "type": "int count",
+  "key": "s9_w15_count"
+ },
+ {
+  "column": "JV",
+  "n": "282",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W16 Date",
+  "type": "date",
+  "key": "s9_w16_date"
+ },
+ {
+  "column": "JW",
+  "n": "283",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W16",
+  "type": "int count",
+  "key": "s9_w16_count"
+ },
+ {
+  "column": "JX",
+  "n": "284",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W17 Date",
+  "type": "date",
+  "key": "s9_w17_date"
+ },
+ {
+  "column": "JY",
+  "n": "285",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W17",
+  "type": "int count",
+  "key": "s9_w17_count"
+ },
+ {
+  "column": "JZ",
+  "n": "286",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W18 Date",
+  "type": "date",
+  "key": "s9_w18_date"
+ },
+ {
+  "column": "KA",
+  "n": "287",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W18",
+  "type": "int count",
+  "key": "s9_w18_count"
+ },
+ {
+  "column": "KB",
+  "n": "288",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W19 Date",
+  "type": "date",
+  "key": "s9_w19_date"
+ },
+ {
+  "column": "KC",
+  "n": "289",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W19",
+  "type": "int count",
+  "key": "s9_w19_count"
+ },
+ {
+  "column": "KD",
+  "n": "290",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W20 Date",
+  "type": "date",
+  "key": "s9_w20_date"
+ },
+ {
+  "column": "KE",
+  "n": "291",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W20",
+  "type": "int count",
+  "key": "s9_w20_count"
+ },
+ {
+  "column": "KF",
+  "n": "292",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W21 Date",
+  "type": "date",
+  "key": "s9_w21_date"
+ },
+ {
+  "column": "KG",
+  "n": "293",
+  "stage": "Stage 9 – Plant Health (75–150 DAT)",
+  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+  "field": "W21",
+  "type": "int count",
+  "key": "s9_w21_count"
+ },
+ {
+  "column": "KI",
+  "n": "295",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "End of Cycles",
+  "field": "Observation date*",
+  "type": "date",
+  "key": "s10_observed_date"
+ },
+ {
+  "column": "KJ",
+  "n": "296",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "Total Plant",
+  "type": "int",
+  "key": "s10_total_plants"
+ },
+ {
+  "column": "KK",
+  "n": "297",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "1st Date",
+  "type": "date",
+  "key": "s10_pick1_date"
+ },
+ {
+  "column": "KL",
+  "n": "298",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "1st Harvest",
+  "type": "decimal kg/plant",
+  "key": "s10_pick1_kg_per_plant"
+ },
+ {
+  "column": "KM",
+  "n": "299",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "2nd Date",
+  "type": "date",
+  "key": "s10_pick2_date"
+ },
+ {
+  "column": "KN",
+  "n": "300",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "2nd Harvest",
+  "type": "decimal kg/plant",
+  "key": "s10_pick2_kg_per_plant"
+ },
+ {
+  "column": "KO",
+  "n": "301",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "3rd Date",
+  "type": "date",
+  "key": "s10_pick3_date"
+ },
+ {
+  "column": "KP",
+  "n": "302",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "3rd Harvest",
+  "type": "decimal kg/plant",
+  "key": "s10_pick3_kg_per_plant"
+ },
+ {
+  "column": "KQ",
+  "n": "303",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "4th Date",
+  "type": "date",
+  "key": "s10_pick4_date"
+ },
+ {
+  "column": "KR",
+  "n": "304",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "4th Harvest",
+  "type": "decimal kg/plant",
+  "key": "s10_pick4_kg_per_plant"
+ },
+ {
+  "column": "KS",
+  "n": "305",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "5th Date",
+  "type": "date",
+  "key": "s10_pick5_date"
+ },
+ {
+  "column": "KT",
+  "n": "306",
+  "stage": "Stage 10 – End of Cycle",
+  "group": "Cumulative Yield (kg/plant)",
+  "field": "5th Harvest",
+  "type": "decimal kg/plant",
+  "key": "s10_pick5_kg_per_plant"
+ },
+ {
+  "column": "KV",
+  "n": "308",
+  "stage": "Other",
+  "group": "Other / Outside",
+  "field": "Notes",
+  "type": "text",
+  "key": "notes"
+ }
+]
