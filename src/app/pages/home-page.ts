@@ -2,21 +2,23 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { Router, RouterLink } from '@angular/router';
 
 import { Icon } from '../components/icon';
+import { LinkTablesDialog } from '../components/link-tables-dialog';
 import { MacDialog } from '../components/mac-dialog';
 import { UpdateButton } from '../components/update-button';
 import { Api, errorText } from '../core/api';
 import { Google } from '../core/google';
 import { MacList } from '../core/mac-list';
-import type { ImportedMac, Mac } from '../core/models';
+import type { ImportedMac, Mac, Workbook } from '../core/models';
 import { Toasts } from '../core/toast';
 import { WorkbookStore } from '../core/workbook-store';
+import { buildSyncWorkbook } from '../excel/sync-workbook';
 import { formatDate } from '../sheet/columns';
 import { baseName } from '../core/paths';
 
 /** Every MAC on this Mac, under its province (its location), and a new one. */
 @Component({
   selector: 'app-home-page',
-  imports: [RouterLink, Icon, MacDialog, UpdateButton],
+  imports: [RouterLink, Icon, MacDialog, LinkTablesDialog, UpdateButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="home">
@@ -64,7 +66,7 @@ import { baseName } from '../core/paths';
           <span class="empty-icon-wrap"><app-icon name="sprout" [size]="24" /></span>
           <strong>Start with your first MAC</strong>
           <p>
-            A new chili MAC comes with the chili tables — Zones, Nursery Batches, Zone Records, QA/QC Management and the rest.
+            A new chili MAC comes with the chili tables — Zones, Batch, Nursery Progress, Zone Records, QA/QC Management and the rest.
             Then download a table's Excel template, fill it in, and import it.
             Already have a MAC saved to a file on another computer? Import it here with its tables and rows.
           </p>
@@ -111,11 +113,14 @@ import { baseName } from '../core/paths';
         <button type="button" class="menu-item" (click)="open(menu.mac)"><app-icon name="table" /> Open</button>
         <button type="button" class="menu-item" (click)="edit(menu.mac)"><app-icon name="edit" /> Edit</button>
         <button type="button" class="menu-item" (click)="saveToFile(menu.mac)" title="Save this MAC's tables and their Google links to a file, with the Zone Map's plots. No other data is in it: that is read from Google when the file is opened"><app-icon name="download" /> Save a link file…</button>
+        <button type="button" class="menu-item" (click)="saveInputSheet(menu.mac)" title="An Excel workbook with a tab for each table that is not in Google yet (Zones aside), with the rows it holds now: upload it to Google Drive and open it as a Google Sheet"><app-icon name="table" /> Google Sheet for input…</button>
+        <button type="button" class="menu-item" (click)="openLinkTables(menu.mac)" title="Link those tables to the tabs of that Google Sheet, so importing this MAC's file reads all of them"><app-icon name="refresh" /> Link tables to a Google Sheet…</button>
         <div class="menu-divider"></div>
         <button type="button" class="menu-item danger" (click)="remove(menu.mac)"><app-icon name="trash" /> Delete</button>
       </div>
     }
 
+    <app-link-tables-dialog [open]="linkBook() !== null" [book]="linkBook()" (closed)="linkBook.set(null)" (linked)="afterLinked()" />
     <app-mac-dialog [open]="dialogOpen()" [mac]="editing()" (closed)="dialogOpen.set(false)" (saved)="saved($event)" />
   `,
   styles: `
@@ -175,6 +180,8 @@ export class HomePage {
   readonly menu = this.menu$.asReadonly();
   /** A file is being written or read. */
   readonly busy = signal(false);
+  /** The MAC whose tables are being linked to a Google Sheet, with its tables. */
+  readonly linkBook = signal<Workbook | null>(null);
 
 
   /** MACs by province: the first part of their location ("Battambang, Thma Koul" → Battambang). */
@@ -384,13 +391,15 @@ export class HomePage {
     let rows = 0;
     const refused = new Set<string>();
     const failed: string[] = [];
+    // Each Google Sheet is downloaded once, however many of the MAC's tables are tabs of it.
+    const results = await this.google.syncMany(links.map((link) => link.sheetId));
     for (const link of links) {
-      try {
-        const outcome = await this.google.sync(link.sheetId);
+      const outcome = results.get(link.sheetId);
+      if (outcome && !(outcome instanceof Error)) {
         tables++;
         rows += outcome.rows;
-      } catch (error) {
-        const text = errorText(error);
+      } else {
+        const text = errorText(outcome ?? 'It was not read.');
         if (NO_ACCESS.test(text)) refused.add(link.spreadsheetTitle || 'a Google Sheet');
         else failed.push(`${link.tableTitle}: ${text}`);
       }
@@ -406,6 +415,53 @@ export class HomePage {
       );
     }
     if (failed.length) this.toasts.error(`Not read: ${failed.join(' · ')}`);
+  }
+
+  /**
+   * An Excel workbook to make a Google Sheet from: a tab for each table of the MAC that is not in Google yet (Zones aside, the
+   * map travels in the file), headed as the app reads them and holding the rows each has now, so nothing typed so far is lost.
+   */
+  async saveInputSheet(mac: Mac) {
+    this.menu$.set(null);
+    try {
+      const book = await this.api.getWorkbook(mac.macId);
+      await this.google.refreshLinks();
+      const tables = this.google.inputTables(book);
+      if (!tables.length) {
+        this.toasts.show('Every table of this MAC is in a Google Sheet already, or is the map.', 'info');
+        return;
+      }
+      const name = mac.macName.replace(/[\\/:*?"<>|]+/g, ' ').trim() || mac.macCode;
+      const path = await this.api.pickSavePath(`${name} - Google Sheet for input.xlsx`);
+      if (!path) return;
+      const { bytes } = await buildSyncWorkbook(tables);
+      await this.api.writeFile(path, bytes);
+      this.toasts.show(
+        `${baseName(path)} has ${tables.length} tab${tables.length === 1 ? '' : 's'}. Upload it to Google Drive, open it as a Google Sheet and share it, then “Link tables to a Google Sheet”.`,
+        'ok',
+        { label: 'Open Google Drive', run: () => void this.api.openLink('https://drive.google.com/drive/my-drive') },
+        20000,
+      );
+    } catch (error) {
+      this.toasts.error(errorText(error));
+    }
+  }
+
+  /** Opens the window that links the MAC's tables to the tabs of a Google Sheet. */
+  async openLinkTables(mac: Mac) {
+    this.menu$.set(null);
+    try {
+      await this.google.refreshLinks();
+      this.linkBook.set(await this.api.getWorkbook(mac.macId));
+    } catch (error) {
+      this.toasts.error(errorText(error));
+    }
+  }
+
+  /** Tables were linked: the lists and the open MAC show it. */
+  afterLinked() {
+    void this.google.refreshLinks();
+    void this.macs.refresh();
   }
 
   async remove(mac: Mac) {

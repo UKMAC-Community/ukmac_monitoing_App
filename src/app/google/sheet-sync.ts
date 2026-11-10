@@ -39,7 +39,7 @@ export function matchHeaders(columns: Column[], headers: string[], remembered: R
   const workedOut = new Set(
     columns
       .filter((column) => column.type === 'formula')
-      .flatMap((column) => [column.name, columnLabel(column)])
+      .flatMap((column) => [column.name, columnLabel(column), ...(column.aliases ?? [])])
       .map(normalizeHeader),
   );
 

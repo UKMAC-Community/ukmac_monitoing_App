@@ -10,7 +10,7 @@ import { Api } from '../core/api';
 import { WorkbookStore } from '../core/workbook-store';
 import { formatDate } from '../sheet/columns';
 import { formOf, formProblem, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf, type PlotForm } from '../zonemap/zone-edit';
-import { buildZoneLayout, plotCard, plotShapes, usageWord, type Usage, type ZoneCell } from '../zonemap/zone-layout';
+import { buildZoneLayout, mapCentre, plotCard, plotShapes, usageWord, type Usage, type ZoneCell } from '../zonemap/zone-layout';
 
 export type ZoneMapView = 'farm' | 'satellite';
 
@@ -87,8 +87,8 @@ export type ZoneMapView = 'farm' | 'satellite';
               } @else if (hasMap(mac)) {
                 <div class="sat-box">
                   <app-mac-map-3d
-                    [latitude]="mac.latitude!"
-                    [longitude]="mac.longitude!"
+                    [latitude]="place(mac)!.lat"
+                    [longitude]="place(mac)!.lng"
                     [shapes]="shapes()"
                     [selected]="selectedId()"
                     [card]="editing() ? null : card()"
@@ -102,7 +102,7 @@ export type ZoneMapView = 'farm' | 'satellite';
                 <div class="no-place">
                   <app-icon name="pin" [size]="22" />
                   <strong>This MAC has no place on the map yet</strong>
-                  <p>Add its latitude and longitude to see the plots on the satellite map: on the home page, open the ⋮ on its card and choose Edit. The Farm view doesn't need it.</p>
+                  <p>Add its latitude and longitude, or plots with their shapes, to see them on the satellite map: on the home page, open the ⋮ on its card and choose Edit. The Farm view doesn't need it.</p>
                   <div class="no-place-actions">
                     <button type="button" class="btn btn-primary" (click)="setView('farm')">Show the Farm</button>
                     <a class="btn btn-secondary" routerLink="/">Open the home page</a>
@@ -268,8 +268,12 @@ export class ZoneMapPage {
   setView(view: ZoneMapView) {
     this.view.set(view);
   }
+  /** Where the satellite looks: the MAC's own place, else the middle of its plots (a MAC opened from a file has no place of its own). */
+  place(mac: { latitude: number | null; longitude: number | null }) {
+    return mapCentre(mac, this.shapes());
+  }
   hasMap(mac: { latitude: number | null; longitude: number | null }) {
-    return mac.latitude !== null && mac.longitude !== null;
+    return this.place(mac) !== null;
   }
 
   private readonly zonesSheet = computed(() => this.store.sheets().find((sheet) => sheet.templateKey === 'zones') ?? null);

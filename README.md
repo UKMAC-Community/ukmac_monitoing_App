@@ -5,8 +5,8 @@ SQLite file on this computer
 (`~/Library/Application Support/com.ukmac.monitoring/ukmac.db`).
 
 - **MACs**: make a farm (name, code, location, coordinates, dates). A new
-  chili MAC starts with the chili tables: Zones, Chili Varieties, Nursery
-  Batches, Zone Records, Soil Preparation, Irrigation, Fertigation, Pruning,
+  chili MAC starts with the chili tables: Zones, Batch, Nursery
+  Progress, Zone Records, Soil Preparation, Irrigation, Fertigation, Pruning,
   Pesticides, Harvest, QA/QC Management (the 10-stage QC form, 72 columns,
   23 formulas), Planting Date, Inventory Management, Finance & Accounting.
 - **Tables like a sheet**: none are fixed. Add, rename, move, resize or delete

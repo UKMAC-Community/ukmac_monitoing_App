@@ -338,17 +338,17 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
     }
     case 'nursery-batches': {
       const total = pick('Total number');
-      const healthy = pick('Healthy');
-      const notHealthy = pick('Not healthy');
+      // The names Nursery Progress has now, or the ones an older table still has.
+      const healthy = pick('Healthy number') ?? pick('Healthy');
       const percent = pick('Healthy %');
-      const type = pick('Plant type');
-      const supply = pick('Supply date');
+      const batch = pick('Batch number') ?? pick('Batch #');
+      const supply = pick('Supply date start') ?? pick('Supply date');
       kpis = [
         card('Batches', '', 'count'),
         card('Seedlings', total, 'sum'),
         card('Healthy seedlings', healthy, 'sum'),
         card('Healthy %', percent, 'average', { goal: 90, decimals: 1 }),
-        chart('Seedlings by plant type', 'column', total, 'sum', type),
+        chart('Seedlings by batch', 'column', total, 'sum', batch),
         chart('Seedlings by month', 'line', total, 'sum', supply, 'month'),
       ];
       break;

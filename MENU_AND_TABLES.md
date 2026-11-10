@@ -73,10 +73,31 @@ A page, not a table. It draws every plot of the farm at its place in its zone.
 
 ### Zone Measurement: table **Zone Measurement**
 
-The measured size of each plot (planned against actual).
+The measured size of each plot, as the farm's own design has it (zone → zone plot → zone measurement). The plot is the record that
+matters: its zone name and zone number are only the group it belongs to, so they are read from Zones here, never typed twice.
 
 | Column | Type | Notes |
 |---|---|---|
+| Zone plot | link → Zones[Plot] | required |
+| Zone | ƒ | the plot's zone name, read from Zones |
+| Zone number | ƒ | the plot's zone number, read from Zones (blank if it has none) |
+| Area in plan (m²) | number | not below 0 |
+| Actual width (m) | number | not below 0; also called *Width* |
+| Actual length (m) | number | not below 0; also called *Length* |
+| Actual area (m²) | ƒ | `Actual width × Actual length`, rounded to 2 places, blank until both are filled; also called *Area* |
+| Measure error (m²) | ƒ | `Actual area − Area in plan`: over the plan is positive, short of it negative |
+| Error % | ƒ | the error as a percentage of the plan, 2 places (blank if the plan is 0 or empty) |
+| Note | text | |
+
+This table departs from the web system's Excel template on purpose (the farm asked for its own design). The server's old
+**Width**, **Length** and **Area** headers still fill *Actual width*, *Actual length* and *Actual area*; the server's *Planned plot*,
+*Actual plot*, *Number each plot* and *Actual planting plot* are no longer columns. A table made before this change is brought up to
+date when it is opened: with no rows and nothing of your own it is done at once; otherwise it asks first, and an old column that
+holds values is kept for you to look at.
+
+**Features:** the standard table page (section 2) with a generated dashboard. Empty for now: import an Excel file or Open in sheet and type the rows.
+
+---|---|---|
 | Zone plot | link → Zones[Plot] | |
 | Planned plot | text | |
 | Actual plot | text | |

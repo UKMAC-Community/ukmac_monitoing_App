@@ -4,7 +4,7 @@ import { makeSheet } from '../test-helpers';
 import { formatFormulaValue } from './evaluate-formula';
 import { WorkbookFormulas } from './sheet-formulas';
 
-// The Nursery Batches columns exactly as the template makes them (a Rust test fails if this copy drifts).
+// The Nursery Progress columns exactly as the template makes them (a Rust test fails if this copy drifts).
 const nursery = columns as Column[];
 const key = (name: string) => nursery.find((column) => column.name === name)!.key;
 
@@ -14,16 +14,16 @@ function batch(counts: Record<string, string>) {
 }
 
 function check(counts: Record<string, string>) {
-  const sheet = makeSheet(3, 'Nursery Batches', nursery, [batch(counts)]);
+  const sheet = makeSheet(3, 'Nursery Progress', nursery, [batch(counts)]);
   const book = new WorkbookFormulas([sheet], '2026-11-10');
   const read = (name: string) => {
     const column = nursery.find((item) => item.name === name)!;
     return formatFormulaValue(book.value(sheet, sheet.rows[0], column));
   };
-  return { check: read('Count check'), unhealthy: read('Not healthy'), percent: read('Healthy %') };
+  return { check: read('Count check'), unhealthy: read('Total unhealthy'), percent: read('Healthy %') };
 }
 
-const sorted = { Healthy: '80', 'Stem rot': '5', 'Leaf rot': '5', Smaller: '5', Disease: '3', 'Physical damage': '2' };
+const sorted = { 'Healthy number': '80', 'Stem rot': '5', 'Leaf rot': '5', Smaller: '5', Disease: '3', 'Physical damage': '2' };
 
 describe('the nursery batch: healthy % and the count check', () => {
   it('works out the not healthy total and the healthy percentage by itself', () => {
@@ -43,7 +43,7 @@ describe('the nursery batch: healthy % and the count check', () => {
 
   it('says how many are over when the counts are more than the total', () => {
     expect(check({ 'Total number': '95', ...sorted }).check).toBe('5 over');
-    expect(check({ 'Total number': '100', ...sorted, Healthy: '90' }).check).toBe('10 over');
+    expect(check({ 'Total number': '100', ...sorted, 'Healthy number': '90' }).check).toBe('10 over');
   });
 
   it('stays blank until there is a total and at least one count to check', () => {
@@ -53,6 +53,6 @@ describe('the nursery batch: healthy % and the count check', () => {
   });
 
   it('counts a zero as entered', () => {
-    expect(check({ 'Total number': '0', Healthy: '0', 'Stem rot': '0' }).check).toBe('OK');
+    expect(check({ 'Total number': '0', 'Healthy number': '0', 'Stem rot': '0' }).check).toBe('OK');
   });
 });

@@ -3,11 +3,12 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { WorkbookFormulas } from '../formula/sheet-formulas';
 import type { FileLayout } from '../excel/file-layout';
 import { readExcelSheets, tableFromSheet, type ExcelSheetData } from '../excel/sheet-from-excel';
+import { planLinks } from '../google/link-plan';
 import { cellsFor, headerMapOf, matchHeaders, newColumns } from '../google/sheet-sync';
 import { parseLinkSource, todayIso } from '../sheet/columns';
 import { Api, errorText } from './api';
 import { MacList } from './mac-list';
-import type { DriveFile, GoogleLink, GoogleStatus, SheetWithRows } from './models';
+import type { DriveFile, GoogleLink, GoogleStatus, SheetWithRows, Workbook } from './models';
 import { PowerBi } from './powerbi';
 import { Toasts } from './toast';
 import { WorkbookStore } from './workbook-store';
@@ -21,6 +22,16 @@ export interface SyncOutcome {
   problems: number;
   /** The tab has more rows than the app takes. */
   truncated: boolean;
+}
+
+/** What linking a MAC's tables to a Google Sheet's tabs did. */
+export interface LinkReport {
+  /** Linked, with the rows the tab holds. */
+  linked: { sheetId: number; title: string; rows: number }[];
+  /** The tables the sheet has no tab for. */
+  noTab: string[];
+  /** The tables whose tab has headers the table doesn't (not linked): the extra ones. */
+  different: { title: string; extra: string[] }[];
 }
 
 /** A Google Sheet opened: its file and the tabs that have data. */
@@ -251,8 +262,8 @@ export class Google {
     }
   }
 
-  private async read(link: GoogleLink): Promise<SyncOutcome> {
-    const bytes = await this.api.googleDownload(link.spreadsheetId);
+  private async read(link: GoogleLink, shared?: ArrayBuffer): Promise<SyncOutcome> {
+    const bytes = shared ?? (await this.api.googleDownload(link.spreadsheetId));
     // Where the tab's names and data are, if the person said when it was connected; else found as for any tab.
     const tabs = await readExcelSheets(bytes, link.layout ? { tab: link.tabTitle, layout: link.layout } : undefined);
     const same = (name: string) => name.trim().toLowerCase() === link.tabTitle.trim().toLowerCase();
@@ -291,6 +302,73 @@ export class Google {
     void this.macList.refresh();
     this.powerBi.changed();
     return { rows: rows.length, added, problems, truncated: !!data.truncated };
+  }
+
+  /**
+   * Reads several tables, each Google Sheet downloaded once however many of its tabs are wanted (a MAC whose tables all sit
+   * in one sheet is one download, not one per table). A table that can't be read doesn't stop the others.
+   */
+  async syncMany(sheetIds: number[]): Promise<Map<number, SyncOutcome | Error>> {
+    const results = new Map<number, SyncOutcome | Error>();
+    const downloads = new Map<string, Promise<ArrayBuffer>>();
+    for (const sheetId of sheetIds) {
+      const link = this.linkOf(sheetId);
+      if (!link) {
+        results.set(sheetId, new Error("This table isn't linked to a Google Sheet."));
+        continue;
+      }
+      if (this.isSyncing(sheetId)) {
+        results.set(sheetId, new Error('This table is being read already.'));
+        continue;
+      }
+      this.syncing.update((set) => new Set(set).add(sheetId));
+      try {
+        let bytes = downloads.get(link.spreadsheetId);
+        if (!bytes) {
+          bytes = this.api.googleDownload(link.spreadsheetId);
+          downloads.set(link.spreadsheetId, bytes);
+        }
+        results.set(sheetId, await this.guard(async () => this.read(link, await bytes)));
+      } catch (error) {
+        results.set(sheetId, error instanceof Error ? error : new Error(errorText(error)));
+      } finally {
+        this.syncing.update((set) => {
+          const next = new Set(set);
+          next.delete(sheetId);
+          return next;
+        });
+      }
+    }
+    return results;
+  }
+
+  /** The MAC's tables that a Google Sheet for input is made for: not Zones (the map travels in the file) and not already linked. */
+  inputTables(book: Workbook): SheetWithRows[] {
+    return book.sheets.filter((sheet) => sheet.templateKey !== 'zones' && !this.linkOf(sheet.sheetId));
+  }
+
+  /**
+   * Links the MAC's tables to the tabs of a Google Sheet made from the input workbook: each table to the tab named as the
+   * workbook names it. A table is linked only if the tab's headers are all the table's own (else the next Sync would add
+   * columns), and one already linked, or Zones, is never touched. Nothing is read.
+   */
+  async linkTables(book: Workbook, opened: OpenedSheet): Promise<LinkReport> {
+    const plan = planLinks(this.inputTables(book), opened.tabs);
+    for (const { table, tab, headerMap } of plan.ready) {
+      await this.api.saveGoogleLink({
+        sheetId: table.sheetId,
+        spreadsheetId: opened.file.id,
+        spreadsheetTitle: opened.file.name,
+        tabTitle: tab.name,
+        headerMap,
+      });
+    }
+    await this.refreshLinks();
+    return {
+      linked: plan.ready.map(({ table, tab }) => ({ sheetId: table.sheetId, title: table.title, rows: tab.rows.length })),
+      noTab: plan.noTab.map((table) => table.title),
+      different: plan.different.map(({ table, extra }) => ({ title: table.title, extra })),
+    };
   }
 
   /** `sync`, with its result told to the user. */

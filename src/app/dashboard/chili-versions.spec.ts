@@ -84,7 +84,7 @@ describe('publishing a version (Export)', () => {
 
   it('exports the built-in suggested dashboard too', () => {
     const made = publish(emptyBook(), starterKpis(), '', '', makeClock('me'));
-    expect(made.version.kpis).toHaveLength(16);
+    expect(made.version.kpis).toHaveLength(15);
   });
 
   it('refuses to go past the most versions it keeps', () => {

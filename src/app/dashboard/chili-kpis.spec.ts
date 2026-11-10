@@ -24,9 +24,9 @@ const formulas = new WorkbookFormulas(sheets, '2026-11-08');
 const seedlings = (): ChiliKpi => starterKpis().find((kpi) => kpi.title === 'Seedlings')!;
 
 describe('the starter KPIs', () => {
-  it('is the system\'s Chili page: thirteen cards, then three charts of the years', () => {
+  it('is the system\'s Chili page: twelve cards, then three charts of the years', () => {
     const list = starterKpis();
-    expect(list.filter((kpi) => kpi.show === 'card')).toHaveLength(13);
+    expect(list.filter((kpi) => kpi.show === 'card')).toHaveLength(12);
     expect(list.filter((kpi) => kpi.show !== 'card').map((kpi) => [kpi.title, kpi.show])).toEqual([
       ['Seedlings by year', 'column'],
       ['Healthy % by year', 'line'],

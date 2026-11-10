@@ -46,13 +46,12 @@ const QC = 'qa-qc-management';
 type Starter = Omit<ChiliKpi, 'id' | 'show' | 'decimals'> & { decimals?: number };
 
 const CARDS: Starter[] = [
-  { title: 'Seedlings', table: NURSERY, column: 'Total number', aggregate: 'sum', year: 'Supply date' },
-  { title: 'Healthy %', table: NURSERY, column: 'Healthy %', aggregate: 'average', year: 'Supply date', decimals: 1 },
-  { title: 'Batches', table: NURSERY, column: '', aggregate: 'count', year: 'Supply date' },
-  { title: 'Healthy seedlings', table: NURSERY, column: 'Healthy', aggregate: 'sum', year: 'Supply date' },
-  { title: 'Not healthy', table: NURSERY, column: 'Not healthy', aggregate: 'sum', year: 'Supply date' },
-  { title: 'Stem rot', table: NURSERY, column: 'Stem rot', aggregate: 'sum', year: 'Supply date' },
-  { title: 'Average height (cm)', table: NURSERY, column: 'Mean height (cm)', aggregate: 'average', year: 'Supply date', decimals: 1 },
+  { title: 'Seedlings', table: NURSERY, column: 'Total number', aggregate: 'sum', year: 'Supply date start' },
+  { title: 'Healthy %', table: NURSERY, column: 'Healthy %', aggregate: 'average', year: 'Supply date start', decimals: 1 },
+  { title: 'Batches', table: NURSERY, column: '', aggregate: 'count', year: 'Supply date start' },
+  { title: 'Healthy seedlings', table: NURSERY, column: 'Healthy number', aggregate: 'sum', year: 'Supply date start' },
+  { title: 'Not healthy', table: NURSERY, column: 'Total unhealthy', aggregate: 'sum', year: 'Supply date start' },
+  { title: 'Stem rot', table: NURSERY, column: 'Stem rot', aggregate: 'sum', year: 'Supply date start' },
   { title: 'Plants planted', table: RECORDS, column: 'Plant count', aggregate: 'sum', year: 'Record date' },
   { title: 'Dead after planting', table: RECORDS, column: 'Dead plant', aggregate: 'sum', year: 'Record date' },
   { title: 'Harvest (kg)', table: QC, column: 'Harvested', box: '8 ·', aggregate: 'sum', year: 'Date', yearBox: '', decimals: 1 },
@@ -68,7 +67,7 @@ export function starterKpis(): ChiliKpi[] {
     ...CARDS.map((spec, index) => make(spec, `card-${index + 1}`, 'card')),
     make(CARDS[0], 'chart-1', 'column', 'Seedlings by year'),
     make(CARDS[1], 'chart-2', 'line', 'Healthy % by year'),
-    make(CARDS[7], 'chart-3', 'column', 'Plants planted by year'),
+    make(CARDS.find((spec) => spec.title === 'Plants planted')!, 'chart-3', 'column', 'Plants planted by year'),
   ];
 }
 
@@ -130,10 +129,15 @@ export function sheetOf(sheets: readonly SheetWithRows[], table: string) {
   return sheets.find((sheet) => sheet.templateKey === table) ?? sheets.find((sheet) => !sheet.templateKey && sheet.title === table);
 }
 
+/** What the nursery's columns were called before Nursery Progress followed the farm's note: a MAC still on them keeps its KPIs. */
+const OLD_NAMES: Record<string, string> = { 'healthy number': 'healthy', 'total unhealthy': 'not healthy', 'supply date start': 'supply date' };
+
 export function findColumn(sheet: SheetWithRows, name: string, box?: string): Column | undefined {
-  return sheet.columns.find(
-    (column) => clean(column.name) === clean(name) && (box === undefined ? true : box === '' ? !column.box : clean(column.box).startsWith(clean(box))),
-  );
+  const inBox = (column: Column) => (box === undefined ? true : box === '' ? !column.box : clean(column.box).startsWith(clean(box)));
+  // By its name, or a name the template also gives it (a KPI saved with the old name still finds the new column).
+  const named = (wanted: string) => sheet.columns.find((column) => (clean(column.name) === wanted || (column.aliases ?? []).some((alias) => clean(alias) === wanted)) && inBox(column));
+  const old = OLD_NAMES[clean(name)];
+  return named(clean(name)) ?? (old ? named(old) : undefined);
 }
 
 /** What picking a column stores: its name, and its box where the name alone would be ambiguous. */

@@ -1,0 +1,88 @@
+[
+  {
+    "key": "c1",
+    "name": "Zone plot",
+    "required": true,
+    "source": "'Zones'[Plot]",
+    "type": "link"
+  },
+  {
+    "formula": "=IF([Zone plot]=\"\",\"\",LOOKUP('Zones'[Zone],'Zones'[Plot],[Zone plot],\"\"))",
+    "key": "c2",
+    "name": "Zone",
+    "required": false,
+    "type": "formula"
+  },
+  {
+    "formula": "=IF([Zone plot]=\"\",\"\",LOOKUP('Zones'[Zone number],'Zones'[Plot],[Zone plot],\"\"))",
+    "key": "c3",
+    "name": "Zone number",
+    "required": false,
+    "type": "formula"
+  },
+  {
+    "key": "c4",
+    "min": 0.0,
+    "name": "Area in plan",
+    "required": false,
+    "type": "number",
+    "unit": "m²"
+  },
+  {
+    "aliases": [
+      "Width",
+      "Width (m)"
+    ],
+    "key": "c5",
+    "min": 0.0,
+    "name": "Actual width",
+    "required": false,
+    "type": "number",
+    "unit": "m"
+  },
+  {
+    "aliases": [
+      "Length",
+      "Length (m)"
+    ],
+    "key": "c6",
+    "min": 0.0,
+    "name": "Actual length",
+    "required": false,
+    "type": "number",
+    "unit": "m"
+  },
+  {
+    "aliases": [
+      "Area",
+      "Area (m²)"
+    ],
+    "formula": "=IF(OR([Actual width]=\"\",[Actual length]=\"\"),\"\",ROUND([Actual width]*[Actual length],2))",
+    "key": "c7",
+    "name": "Actual area",
+    "required": false,
+    "type": "formula",
+    "unit": "m²"
+  },
+  {
+    "formula": "=IF(OR([Actual width]=\"\",[Actual length]=\"\",[Area in plan]=\"\"),\"\",ROUND([Actual width]*[Actual length]-[Area in plan],2))",
+    "key": "c8",
+    "name": "Measure error",
+    "required": false,
+    "type": "formula",
+    "unit": "m²"
+  },
+  {
+    "formula": "=IF(OR([Actual width]=\"\",[Actual length]=\"\",[Area in plan]=\"\",[Area in plan]=0),\"\",ROUND((ROUND([Actual width]*[Actual length],2)-[Area in plan])/[Area in plan]*100,2))",
+    "key": "c9",
+    "name": "Error %",
+    "required": false,
+    "type": "formula"
+  },
+  {
+    "key": "c10",
+    "name": "Note",
+    "required": false,
+    "type": "text"
+  }
+]

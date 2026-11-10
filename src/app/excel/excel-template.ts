@@ -309,7 +309,7 @@ export async function readImport(
   const formulaNames = new Set(
     sheet.columns
       .filter((column) => column.type === 'formula')
-      .flatMap((column) => [column.name, columnLabel(column), column.box ? `${column.box} · ${columnLabel(column)}` : ''])
+      .flatMap((column) => [column.name, columnLabel(column), column.box ? `${column.box} · ${columnLabel(column)}` : '', ...(column.aliases ?? [])])
       .filter(Boolean)
       .map(normalizeHeader),
   );

@@ -1,187 +1,110 @@
 [
   {
+    "aliases": [
+      "Batch #",
+      "Batch",
+      "Batch no",
+      "Batch No."
+    ],
     "key": "c1",
-    "name": "Batch #",
-    "required": false,
-    "type": "text"
-  },
-  {
-    "key": "c2",
-    "name": "Plant type",
+    "name": "Batch number",
     "required": true,
-    "source": "'Chili Varieties'[Variety name]",
+    "source": "'Batch'[Batch number]",
     "type": "link"
   },
   {
-    "key": "c3",
-    "name": "Origin",
-    "required": false,
-    "type": "text"
-  },
-  {
-    "key": "c4",
-    "name": "Supply date",
-    "required": false,
-    "type": "date"
-  },
-  {
-    "key": "c5",
+    "key": "c2",
     "min": 0.0,
     "name": "Total number",
     "required": true,
     "type": "number"
   },
   {
-    "key": "c6",
+    "aliases": [
+      "Healthy"
+    ],
+    "key": "c3",
     "min": 0.0,
-    "name": "Healthy",
+    "name": "Healthy number",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c7",
+    "key": "c4",
     "min": 0.0,
     "name": "Stem rot",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c8",
+    "key": "c5",
     "min": 0.0,
     "name": "Leaf rot",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c9",
+    "key": "c6",
     "min": 0.0,
     "name": "Smaller",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c10",
+    "key": "c7",
     "min": 0.0,
     "name": "Disease",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c11",
+    "key": "c8",
     "min": 0.0,
     "name": "Physical damage",
     "required": false,
     "type": "number"
   },
   {
+    "aliases": [
+      "Not healthy"
+    ],
     "formula": "=IF(COUNT([Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])=0,\"\",SUM([Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage]))",
-    "key": "c12",
-    "name": "Not healthy",
+    "key": "c9",
+    "name": "Total unhealthy",
     "required": false,
     "type": "formula"
   },
   {
-    "formula": "=IF(OR([Healthy]=\"\",[Total number]=\"\",[Total number]=0),\"\",ROUND([Healthy]/[Total number]*100,2))",
-    "key": "c13",
+    "formula": "=IF(OR([Healthy number]=\"\",[Total number]=\"\",[Total number]=0),\"\",ROUND([Healthy number]/[Total number]*100,2))",
+    "key": "c10",
     "name": "Healthy %",
     "required": false,
     "type": "formula"
   },
   {
-    "formula": "=IF(OR([Total number]=\"\",COUNT([Healthy],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])=0),\"\",IF(SUM([Healthy],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])=[Total number],\"OK\",IF(SUM([Healthy],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])<[Total number],([Total number]-SUM([Healthy],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage]))&\" missing\",(SUM([Healthy],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])-[Total number])&\" over\")))",
-    "key": "c14",
+    "formula": "=IF(OR([Total number]=\"\",COUNT([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])=0),\"\",IF(SUM([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])=[Total number],\"OK\",IF(SUM([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])<[Total number],([Total number]-SUM([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage]))&\" missing\",(SUM([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])-[Total number])&\" over\")))",
+    "key": "c11",
     "name": "Count check",
     "required": false,
     "type": "formula"
   },
   {
-    "key": "c15",
-    "name": "Planting start date",
+    "aliases": [
+      "Supply date",
+      "Supply start"
+    ],
+    "key": "c12",
+    "name": "Supply date start",
     "required": false,
     "type": "date"
   },
   {
-    "key": "c16",
-    "name": "Planting end date",
+    "aliases": [
+      "Supply end"
+    ],
+    "key": "c13",
+    "name": "Supply date end",
     "required": false,
     "type": "date"
-  },
-  {
-    "key": "c17",
-    "name": "Min height (cm)",
-    "required": false,
-    "type": "number"
-  },
-  {
-    "key": "c18",
-    "name": "Min height (%)",
-    "required": false,
-    "type": "number"
-  },
-  {
-    "key": "c19",
-    "name": "Max height (cm)",
-    "required": false,
-    "type": "number"
-  },
-  {
-    "key": "c20",
-    "name": "Max height (%)",
-    "required": false,
-    "type": "number"
-  },
-  {
-    "key": "c21",
-    "name": "Mean height (cm)",
-    "required": false,
-    "type": "number"
-  },
-  {
-    "key": "c22",
-    "name": "Mean height (%)",
-    "required": false,
-    "type": "number"
-  },
-  {
-    "key": "c23",
-    "name": "Leaf #/plant",
-    "required": false,
-    "type": "text"
-  },
-  {
-    "key": "c24",
-    "name": "Fertilizer name",
-    "required": false,
-    "type": "text"
-  },
-  {
-    "key": "c25",
-    "name": "Fertilizer concentration",
-    "required": false,
-    "type": "text"
-  },
-  {
-    "key": "c26",
-    "name": "Pesticide name",
-    "required": false,
-    "type": "text"
-  },
-  {
-    "key": "c27",
-    "name": "Pesticide concentration",
-    "required": false,
-    "type": "text"
-  },
-  {
-    "key": "c28",
-    "name": "Watering (times/day)",
-    "required": false,
-    "type": "number"
-  },
-  {
-    "key": "c29",
-    "name": "Note",
-    "required": false,
-    "type": "text"
   }
 ]

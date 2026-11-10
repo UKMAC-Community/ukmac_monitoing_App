@@ -3,7 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { Icon } from '../components/icon';
 import { MacMap3d } from '../components/mac-map-3d';
-import { buildZoneLayout, plotCard, plotShapes } from '../zonemap/zone-layout';
+import { buildZoneLayout, mapCentre, plotCard, plotShapes } from '../zonemap/zone-layout';
 import { ChiliDashboard } from '../dashboard/chili-dashboard';
 import { ChiliDashboardExport } from '../dashboard/chili-dashboard-export';
 import { ChiliDashboardVersions } from '../dashboard/chili-dashboard-versions';
@@ -61,11 +61,11 @@ const HEADING_ICONS: Record<string, string> = {
           </div>
         </header>
 
-        @if (mac.latitude !== null && mac.longitude !== null) {
+        @if (place(mac); as at) {
           <section class="card map-card" aria-label="Where this MAC is">
             <app-mac-map-3d
-              [latitude]="mac.latitude"
-              [longitude]="mac.longitude"
+              [latitude]="at.lat"
+              [longitude]="at.lng"
               [name]="mac.macName"
               [shapes]="shapes()"
               [selected]="pickedPlot()"
@@ -209,6 +209,10 @@ export class MacPage {
   );
   /** The plots drawn on the satellite, as the Zone Map shows them. */
   readonly shapes = computed(() => plotShapes(this.layout()));
+  /** Where the map looks: the MAC's own place, else the middle of its plots (a MAC opened from a file has no place of its own). */
+  place(mac: { latitude: number | null; longitude: number | null }) {
+    return mapCentre(mac, this.shapes());
+  }
   /** The plot picked on the map: the camera goes to it, its card over it (as on the Zone Map). */
   readonly pickedPlot = signal<string | null>(null);
   readonly plotCard = computed(() => {

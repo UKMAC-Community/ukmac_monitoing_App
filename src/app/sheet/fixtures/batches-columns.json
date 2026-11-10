@@ -1,0 +1,32 @@
+[
+  {
+    "aliases": [
+      "Batch #",
+      "Batch",
+      "Batch no",
+      "Batch No."
+    ],
+    "key": "c1",
+    "name": "Batch number",
+    "required": true,
+    "type": "text"
+  },
+  {
+    "aliases": [
+      "Plant type",
+      "Variety",
+      "Variety Name"
+    ],
+    "key": "c2",
+    "name": "Variety name",
+    "required": true,
+    "type": "text"
+  },
+  {
+    "formula": "=IF([Batch number]=\"\",\"\",IF(NOT(AND(LEFT([Batch number],1)=\"B\",LEN([Batch number])>1,IFERROR(RIGHT([Batch number],LEN([Batch number])-1)+0>=0,FALSE))),\"Use B and a number\",IF(COUNTIF('Batch'[Batch number],[Batch number])>1,\"Repeated\",\"OK\")))",
+    "key": "c3",
+    "name": "Batch check",
+    "required": false,
+    "type": "formula"
+  }
+]

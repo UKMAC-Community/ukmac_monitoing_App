@@ -217,6 +217,22 @@ export function plotShapes(layout: ZoneLayout): MapShape[] {
     }));
 }
 
+/**
+ * Where the satellite map looks: the MAC's own latitude and longitude when it has them; else the middle of the plots' outlines, so
+ * a MAC opened from a file (which leaves the farm's own place out) still shows its map. Null when there is neither.
+ */
+export function mapCentre(
+  mac: { latitude: number | null; longitude: number | null },
+  shapes: readonly MapShape[],
+): { lat: number; lng: number } | null {
+  if (mac.latitude !== null && mac.longitude !== null) return { lat: mac.latitude, lng: mac.longitude };
+  const points = shapes.filter((shape) => shape.points.length >= 3).flatMap((shape) => shape.points);
+  if (!points.length) return null;
+  const lats = points.map((point) => point[0]);
+  const lngs = points.map((point) => point[1]);
+  return { lat: (Math.min(...lats) + Math.max(...lats)) / 2, lng: (Math.min(...lngs) + Math.max(...lngs)) / 2 };
+}
+
 /** What a plot is used for, in a word. */
 export function usageWord(cell: ZoneCell) {
   return cell.usage === 'water' ? 'Water' : cell.usage === 'unused' ? 'Not in use' : cell.planted ? 'Planted' : 'Not planted yet';
