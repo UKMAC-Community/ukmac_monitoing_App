@@ -108,6 +108,69 @@ describe('AppUpdater', () => {
       vi.useRealTimers();
     }
   });
+
+  it('keeps a version already found when a later quiet look fails', async () => {
+    let answer: PendingUpdate | Error = pending();
+    const made = setup(null);
+    made.updater.backend = {
+      version: async () => '0.1.0',
+      check: async () => {
+        if (answer instanceof Error) throw answer;
+        return answer;
+      },
+      relaunch: made.relaunch,
+    };
+    await made.updater.check(true);
+    expect(made.updater.offered()).toBe(true);
+    answer = new Error('error sending request for url');
+    await made.updater.check(true);
+    expect(made.updater.offered()).toBe(true);
+    expect(made.updater.state()).toBe('available');
+    expect(made.updater.error()).toBeNull();
+    await made.updater.check(); // asked for by hand: now it says so
+    expect(made.updater.state()).toBe('error');
+    expect(made.updater.offered()).toBe(false);
+  });
+
+  it('looks again while the app stays open, and says so once per version', async () => {
+    vi.useFakeTimers();
+    try {
+      let version = '0.2.0';
+      const made = setup(null);
+      made.updater.backend = {
+        version: async () => '0.1.0',
+        check: async () => ({ ...pending(), version }),
+        relaunch: made.relaunch,
+      };
+      const first = made.updater.checkOnStart(10, 1000);
+      await vi.advanceTimersByTimeAsync(20);
+      await first;
+      expect(made.toasts.items()).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1000); // the same version again: no second message
+      expect(made.toasts.items()).toHaveLength(1);
+      version = '0.3.0';
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(made.toasts.items().map((toast) => toast.text)).toEqual(['Version 0.2.0 is ready.', 'Version 0.3.0 is ready.']);
+      expect(made.updater.update()?.version).toBe('0.3.0');
+      await vi.advanceTimersByTimeAsync(20000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits for a save to finish before it restarts', async () => {
+    let writing = true;
+    const made = setup(pending());
+    made.updater.writing = () => writing;
+    await made.updater.check();
+    const done = made.updater.install();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(made.relaunch).not.toHaveBeenCalled();
+    expect(made.updater.state()).toBe('installed');
+    writing = false;
+    await done;
+    expect(made.relaunch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('baseName', () => {

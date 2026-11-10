@@ -56,7 +56,13 @@ export class AppUpdater {
     return total ? Math.min(100, Math.round((this.downloaded() / total) * 100)) : null;
   });
   readonly busy = computed(() => this.state() === 'checking' || this.state() === 'downloading' || this.state() === 'installed');
+  /** A new version is waiting: what the "Update" buttons around the app show. */
+  readonly offered = computed(() => this.update() !== null);
+  /** Set by the shell: true while something is being written to the database (an edit, a Google read), so a restart never cuts it off. */
+  writing: () => boolean = () => false;
   private started = false;
+  /** The version a message was already shown for, so a later look does not repeat it. */
+  private told: string | null = null;
 
   /** The running version, shown on the settings page. */
   async loadVersion() {
@@ -67,14 +73,23 @@ export class AppUpdater {
     }
   }
 
-  /** A quiet look a little after start: it says something only when there is a new version. */
-  async checkOnStart(delayMs = 4000) {
+  /**
+   * A quiet look a little after start, and again every few hours (a farm computer stays open for days): it
+   * says something only when there is a new version, and once per version. The Update buttons stay until it is installed.
+   */
+  async checkOnStart(delayMs = 4000, everyMs = RECHECK_MS) {
     if (this.started) return;
     this.started = true;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
+    await this.lookAndTell();
+    if (everyMs > 0) setInterval(() => void this.lookAndTell(), everyMs);
+  }
+
+  private async lookAndTell() {
     await this.check(true);
     const found = this.update();
-    if (found) {
+    if (found && found.version !== this.told) {
+      this.told = found.version;
       this.toasts.show(`Version ${found.version} is ready.`, 'info', { label: 'Update', run: () => void this.install() }, 15000);
     }
   }
@@ -90,10 +105,11 @@ export class AppUpdater {
       this.update.set(found);
       this.state.set(found ? 'available' : 'current');
     } catch (error) {
-      this.update.set(null);
       if (quiet) {
-        this.state.set('idle');
+        // A look nobody asked for that fails (no network for a moment) must not take back a version already found.
+        this.state.set(this.update() ? 'available' : 'idle');
       } else {
+        this.update.set(null);
         this.error.set(friendly(errorText(error)));
         this.state.set('error');
       }
@@ -114,13 +130,23 @@ export class AppUpdater {
         else if (event.event === 'Progress') this.downloaded.update((bytes) => bytes + event.data.chunkLength);
       });
       this.state.set('installed');
+      await this.untilQuiet();
       await this.backend.relaunch();
     } catch (error) {
       this.error.set(friendly(errorText(error)));
       this.state.set('error');
     }
   }
+
+  /** The restart waits (a few seconds at most) for an edit being saved or a Google read to finish. */
+  private async untilQuiet(maxMs = 10000) {
+    const end = Date.now() + maxMs;
+    while (this.writing() && Date.now() < end) await new Promise((resolve) => setTimeout(resolve, 150));
+  }
 }
+
+/** How often a running app looks again for a new version. */
+const RECHECK_MS = 3 * 60 * 60 * 1000;
 
 /** The plugin's own messages are terse; say what to try. */
 function friendly(text: string) {

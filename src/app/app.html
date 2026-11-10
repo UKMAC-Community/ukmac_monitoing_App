@@ -188,6 +188,7 @@
       </nav>
     </div>
     <div class="topbar-right">
+      <app-update-button />
       <span class="sync" [class.is-busy]="store.saving() > 0">
         @if (store.saving() > 0) {
           <span class="spinner-sm"></span> Saving…

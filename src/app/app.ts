@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 
 import { Icon } from './components/icon';
+import { UpdateButton } from './components/update-button';
 import { Google } from './core/google';
 import { MacList } from './core/mac-list';
 import { PowerBi } from './core/powerbi';
@@ -28,7 +29,7 @@ interface Crumb {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, UpdateButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -134,6 +135,8 @@ export class App implements OnInit {
     void this.macs.refresh();
     void this.powerBi.init();
     void this.google.init();
+    // A restart for an update waits while an edit is being saved or a Google sheet is being read.
+    this.updater.writing = () => this.store.saving() > 0 || this.google.syncing().size > 0;
     void this.updater.checkOnStart();
   }
 

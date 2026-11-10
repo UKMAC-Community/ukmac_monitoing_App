@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { Icon } from '../components/icon';
 import { MacDialog } from '../components/mac-dialog';
+import { UpdateButton } from '../components/update-button';
 import { Api, errorText } from '../core/api';
 import { Google } from '../core/google';
 import { MacList } from '../core/mac-list';
@@ -15,7 +16,7 @@ import { baseName } from '../core/paths';
 /** Every MAC on this Mac, under its province (its location), and a new one. */
 @Component({
   selector: 'app-home-page',
-  imports: [RouterLink, Icon, MacDialog],
+  imports: [RouterLink, Icon, MacDialog, UpdateButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="home">
@@ -27,7 +28,10 @@ import { baseName } from '../core/paths';
             <p>Monitoring · kept on this Mac, no server needed</p>
           </div>
         </div>
-        <a class="btn btn-plain" routerLink="/settings"><app-icon name="chart" [size]="15" /> Power BI &amp; backup</a>
+        <div class="hero-actions">
+          <app-update-button />
+          <a class="btn btn-plain" routerLink="/settings"><app-icon name="chart" [size]="15" /> Power BI &amp; backup</a>
+        </div>
       </header>
 
       <div class="toolbar">
@@ -119,6 +123,7 @@ import { baseName } from '../core/paths';
     .home { max-width: 1120px; margin: 0 auto; padding: 44px 32px 64px; display: flex; flex-direction: column; gap: 28px; }
     .hero { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
     .hero-brand { display: flex; align-items: center; gap: 16px; }
+    .hero-actions { display: flex; align-items: center; gap: 8px; }
     .hero-brand img { width: 52px; height: 52px; border-radius: 14px; box-shadow: var(--shadow-card); background: var(--surface); }
     .hero h1 { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
     .hero p { margin: 4px 0 0; font-size: 0.9375rem; color: var(--text-muted); }
