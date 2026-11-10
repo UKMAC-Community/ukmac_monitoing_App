@@ -194,6 +194,15 @@ impl GoogleState {
         }
     }
 
+    /// The signed-in account's address (lower case), or None when nobody is signed in.
+    pub fn account(&self) -> Option<String> {
+        let stored = self.stored();
+        if stored.refresh_token.is_empty() {
+            return None;
+        }
+        non_empty(&stored.email).map(|email| email.to_lowercase())
+    }
+
     fn stored(&self) -> Stored {
         self.stored.lock().map(|s| s.clone()).unwrap_or_default()
     }

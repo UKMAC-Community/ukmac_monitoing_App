@@ -7,7 +7,7 @@ import { UpdateButton } from '../components/update-button';
 import { Api, errorText } from '../core/api';
 import { Google } from '../core/google';
 import { MacList } from '../core/mac-list';
-import type { Mac } from '../core/models';
+import type { ImportedMac, Mac } from '../core/models';
 import { Toasts } from '../core/toast';
 import { WorkbookStore } from '../core/workbook-store';
 import { formatDate } from '../sheet/columns';
@@ -40,7 +40,7 @@ import { baseName } from '../core/paths';
           <input class="input-field has-prefix" type="search" placeholder="Search MACs" [value]="search()" (input)="search.set($any($event.target).value)" />
         </label>
         <div class="toolbar-actions">
-          <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="importFromFile()" title="Add a MAC saved to a file, from this or another computer">
+          <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="importFromFile()" title="Add a MAC saved to a file. Its data is read from Google, for accounts that can open the sheets">
             <app-icon name="upload" /> Import MAC
           </button>
           <button type="button" class="btn btn-primary" (click)="openNew()"><app-icon name="plus" /> Create MAC</button>
@@ -110,7 +110,7 @@ import { baseName } from '../core/paths';
       <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
         <button type="button" class="menu-item" (click)="open(menu.mac)"><app-icon name="table" /> Open</button>
         <button type="button" class="menu-item" (click)="edit(menu.mac)"><app-icon name="edit" /> Edit</button>
-        <button type="button" class="menu-item" (click)="saveToFile(menu.mac)" title="Save this MAC, its tables and rows to a file you can open on another computer"><app-icon name="download" /> Save to a file…</button>
+        <button type="button" class="menu-item" (click)="saveToFile(menu.mac)" title="Save this MAC's tables and their Google links to a file. The file holds no data: it is read from Google when the file is opened"><app-icon name="download" /> Save a link file…</button>
         <div class="menu-divider"></div>
         <button type="button" class="menu-item danger" (click)="remove(menu.mac)"><app-icon name="trash" /> Delete</button>
       </div>
@@ -239,7 +239,7 @@ export class HomePage {
     }
   }
 
-  /** The MAC, its tables and its rows in one `.ukmac` file, to open on another computer. */
+  /** The MAC's tables and their Google links in one `.ukmac` file: no rows, so the file can't leak the farm's data. */
   async saveToFile(mac: Mac) {
     this.menu$.set(null);
     const stamp = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
@@ -249,7 +249,17 @@ export class HomePage {
     this.busy.set(true);
     try {
       const saved = await this.api.exportMacFile(mac.macId, path);
-      this.toasts.show(`${mac.macName} saved to ${baseName(path)}: ${saved.sheets} tables, ${saved.rows} rows (${size(saved.bytes)})`);
+      this.toasts.show(
+        `${mac.macName} saved to ${baseName(path)}: ${saved.sheets} tables and ${saved.linked} Google link${saved.linked === 1 ? '' : 's'}, no data in the file (${size(saved.bytes)})`,
+      );
+      if (saved.emptyOnOpen.length) {
+        this.toasts.show(
+          `Not linked to Google, so empty when the file is opened: ${saved.emptyOnOpen.join(', ')}. Link a table to a Google Sheet for its data to follow.`,
+          'info',
+          undefined,
+          14000,
+        );
+      }
     } catch (error) {
       this.toasts.error(errorText(error));
     } finally {
@@ -257,7 +267,11 @@ export class HomePage {
     }
   }
 
-  /** Adds the MAC from a `.ukmac` file with its tables and rows; if this computer has that MAC already, asks whether to replace it or keep both. */
+  /**
+   * Adds the MAC from a `.ukmac` file. A link file has no rows: its tables are made, linked to their Google Sheets, and read
+   * from there with the signed-in account; where that account can't open a sheet, the tables stay empty. If this computer has
+   * that MAC already, asks whether to replace it or keep both.
+   */
   async importFromFile() {
     if (this.busy()) return;
     const path = await this.api.pickMacFile();
@@ -265,15 +279,25 @@ export class HomePage {
     this.busy.set(true);
     try {
       const peek = await this.api.peekMacFile(path);
+      // The file adds nothing unless this account can open every Google Sheet it points at: no MAC, no table, no zone.
+      const refused = await this.refusedSheets(peek.spreadsheets);
+      if (refused) {
+        this.toasts.show(refused, 'error', undefined, 14000);
+        return;
+      }
       let replace = false;
       if (peek.sameMac) {
         const here = peek.sameMac;
         // Keep both is the first button (what Return picks): replacing is the one that loses data.
         const answer = await this.api.choose(
           `${here.macName} (${here.macCode}) is already on this computer: ${here.sheetCount} tables, ${here.rowCount} rows, last changed ${here.updatedAt.slice(0, 10)}.\n\n` +
-            `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.rows} rows.\n\n` +
-            `Keep both: the file's copy is added next to it, with a new code.\n` +
-            `Replace: the one here is taken out and the file's copy takes its place, so anything changed here since is lost.`,
+            (peek.linksOnly
+              ? `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, no data (${peek.linkedTables} linked to Google).\n\n` +
+                `Keep both: the file's copy is added next to it, with a new code, and read from Google.\n` +
+                `Replace: the one here is taken out, with every row in it (also tables that aren't linked to Google, which can't be read back), and the file's copy takes its place.`
+              : `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.rows} rows.\n\n` +
+                `Keep both: the file's copy is added next to it, with a new code.\n` +
+                `Replace: the one here is taken out and the file's copy takes its place, so anything changed here since is lost.`),
           'This MAC is already here',
           'Keep both',
           'Replace',
@@ -285,13 +309,94 @@ export class HomePage {
       if (done.replacedMacId !== null && this.store.mac()?.macId === done.replacedMacId) this.store.workbook.set(null);
       await this.google.refreshLinks();
       const code = done.codeChanged ? ` · code ${done.mac.macCode}, the file's was taken here` : '';
-      this.toasts.show(`${done.mac.macName} added: ${done.sheets} tables, ${done.rows} rows${code}`);
-      void this.router.navigate(['/mac', done.mac.macId]);
+      if (done.linked > 0 || done.rows === 0) {
+        this.toasts.show(`${done.mac.macName} added: ${done.sheets} tables${code}`);
+        void this.router.navigate(['/mac', done.mac.macId]);
+        await this.loadFromGoogle(done);
+      } else {
+        this.toasts.show(`${done.mac.macName} added: ${done.sheets} tables, ${done.rows} rows${code}`);
+        void this.router.navigate(['/mac', done.mac.macId]);
+      }
     } catch (error) {
       this.toasts.error(errorText(error));
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /**
+   * Asks Google, with the signed-in account, whether it can open each of the file's sheets. Returns the message to show when it
+   * can't (or can't tell), and nothing when all can be opened.
+   */
+  private async refusedSheets(sheets: { id: string; title: string }[]): Promise<string | null> {
+    const who = this.google.status()?.email;
+    for (const sheet of sheets) {
+      try {
+        await this.api.googleFileInfo(sheet.id);
+      } catch (error) {
+        const text = errorText(error);
+        const account = who ? `The Google account ${who}` : 'This Google account';
+        return NO_ACCESS.test(text)
+          ? `${account} can't open the Google Sheet “${sheet.title}”, so nothing was added. Ask the owner to share it with this account, then open the file again.`
+          : `Could not check the Google Sheet “${sheet.title}”, so nothing was added: ${text}`;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Reads a just-opened link file's tables from their Google Sheets with the signed-in account. A table whose sheet this
+   * account can't open stays empty (nothing of it is read), and the person is told whose sheet it was; tables that were
+   * never linked have no data to come from and are empty too.
+   */
+  private async loadFromGoogle(done: ImportedMac) {
+    const name = done.mac.macName;
+    const links = this.google.links().filter((link) => link.macId === done.mac.macId);
+    const notLinked = done.sheets - done.linked;
+    const unlinkedNote = notLinked > 0 ? ` ${notLinked} table${notLinked === 1 ? ' isn’t' : 's aren’t'} linked to Google, so ${notLinked === 1 ? 'it is' : 'they are'} empty.` : '';
+    if (!links.length) {
+      this.toasts.show(`${name} has no data in its file and no table is linked to Google, so every table is empty.`, 'info', undefined, 9000);
+      return;
+    }
+    if (!this.google.signedIn()) {
+      const answer = await this.api.choose(
+        `${name}'s data is in Google Sheets, not in the file.\n\nSign in with Google to read it. If the account you sign in with can't open those sheets, the tables stay empty.`,
+        'Read the data from Google',
+        'Sign in',
+        'Not now',
+      );
+      if (answer === 'yes') await this.google.signIn();
+    }
+    if (!this.google.signedIn()) {
+      this.toasts.show(`${name} is empty until you sign in with Google (Settings) and press Sync on each table.${unlinkedNote}`, 'info', undefined, 10000);
+      return;
+    }
+    let tables = 0;
+    let rows = 0;
+    const refused = new Set<string>();
+    const failed: string[] = [];
+    for (const link of links) {
+      try {
+        const outcome = await this.google.sync(link.sheetId);
+        tables++;
+        rows += outcome.rows;
+      } catch (error) {
+        const text = errorText(error);
+        if (NO_ACCESS.test(text)) refused.add(link.spreadsheetTitle || 'a Google Sheet');
+        else failed.push(`${link.tableTitle}: ${text}`);
+      }
+    }
+    if (tables) this.toasts.show(`${name}: ${tables} table${tables === 1 ? '' : 's'} read from Google (${rows} rows).${unlinkedNote}`);
+    if (refused.size) {
+      const who = this.google.status()?.email;
+      this.toasts.show(
+        `${who ? `The Google account ${who}` : 'This Google account'} can't open ${[...refused].map((title) => `“${title}”`).join(', ')}, so those tables are empty. Ask the owner to share the sheet, then press Sync.`,
+        'error',
+        undefined,
+        12000,
+      );
+    }
+    if (failed.length) this.toasts.error(`Not read: ${failed.join(' · ')}`);
   }
 
   async remove(mac: Mac) {
@@ -311,6 +416,9 @@ export class HomePage {
     }
   }
 }
+
+/** Google's answers when the signed-in account may not open a sheet. */
+const NO_ACCESS = /can't open it|didn't let this account|share it with you|can't find that sheet/i;
 
 function size(bytes: number) {
   return bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;

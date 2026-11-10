@@ -24,6 +24,7 @@ import type {
   SheetWithRows,
   Workbook,
   TemplateColumns,
+  UnownedMac,
 } from './models';
 
 /** The local backend (src-tauri/src/commands.rs): the SQLite file on this Mac. */
@@ -68,6 +69,14 @@ export class Api {
   /** Adds the file's MAC (`replace`: in place of the same MAC here). */
   importMacFile(path: string, replace: boolean) {
     return invoke<ImportedMac>('import_mac_file', { path, replace });
+  }
+  /** MACs nobody has yet (made before accounts), with the Google Sheets they are linked to. */
+  unownedMacs() {
+    return invoke<UnownedMac[]>('unowned_macs');
+  }
+  /** The signed-in account takes these MACs, where nobody has them yet. */
+  claimMacs(macIds: number[]) {
+    return invoke<number>('claim_macs', { macIds });
   }
 
   createSheet(

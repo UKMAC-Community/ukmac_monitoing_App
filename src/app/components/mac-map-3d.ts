@@ -1,4 +1,4 @@
-import { afterRenderEffect, ChangeDetectionStrategy, Component, computed, effect, ElementRef, input, OnDestroy, output, signal, viewChild, ViewEncapsulation } from '@angular/core';
+import { afterRenderEffect, ChangeDetectionStrategy, Component, computed, effect, ElementRef, input, OnDestroy, output, signal, untracked, viewChild, ViewEncapsulation } from '@angular/core';
 import * as maplibregl from 'maplibre-gl';
 import { getVersion, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
 
@@ -27,7 +27,20 @@ const TOUR_RISE = 1400;
 /** How high a plot stands (m), and the picked one, raised out of the rest. */
 const PLOT_HEIGHT = 3;
 const PICKED_HEIGHT = 14;
+/** Edited from above, the plots lie flat (as the web turns its 3D off while editing). */
+const FLAT_HEIGHT = 0.3;
 /** The picked plot's card, named over it on the map: what it is and its latest record. */
+interface PlotFeature {
+  type: 'Feature';
+  properties: Record<string, unknown>;
+  geometry: { type: 'Polygon'; coordinates: number[][][] };
+}
+
+export interface Reshaped {
+  id: string;
+  points: [number, number][];
+}
+
 export interface PlotCard {
   title: string;
   lines: string[];
@@ -68,18 +81,20 @@ export interface PlotCard {
       </div>
     }
     <div class="m3-view" role="group" aria-label="Camera">
-      <button type="button" [class.on]="!tilted()" (click)="setTilt(false)"><app-icon name="grid" [size]="13" /> Top</button>
-      <button type="button" [class.on]="tilted()" (click)="setTilt(true)"><app-icon name="cube" [size]="13" /> 3D</button>
-      <span class="m3-sep"></span>
-      <button
-        type="button"
-        [class.on]="touring()"
-        [attr.aria-pressed]="touring()"
-        [disabled]="!shown() || still || !shapes().length"
-        [title]="still ? 'Off: your Mac is set to reduce motion' : touring() ? 'Stop the tour' : 'Play the 3D tour: the camera goes round the farm'"
-        (click)="toggleTour()"
-      ><app-icon [name]="touring() ? 'pause' : 'play'" [size]="13" /> {{ touring() ? 'Stop' : 'Tour' }}</button>
-      <span class="m3-sep"></span>
+      @if (!editable()) {
+        <button type="button" [class.on]="!tilted()" (click)="setTilt(false)"><app-icon name="grid" [size]="13" /> Top</button>
+        <button type="button" [class.on]="tilted()" (click)="setTilt(true)"><app-icon name="cube" [size]="13" /> 3D</button>
+        <span class="m3-sep"></span>
+        <button
+          type="button"
+          [class.on]="touring()"
+          [attr.aria-pressed]="touring()"
+          [disabled]="!shown() || still || !shapes().length"
+          [title]="still ? 'Off: your Mac is set to reduce motion' : touring() ? 'Stop the tour' : 'Play the 3D tour: the camera goes round the farm'"
+          (click)="toggleTour()"
+        ><app-icon [name]="touring() ? 'pause' : 'play'" [size]="13" /> {{ touring() ? 'Stop' : 'Tour' }}</button>
+        <span class="m3-sep"></span>
+      }
       <button type="button" (click)="expanded.set(!expanded())" [attr.aria-label]="expanded() ? 'Close the big map' : 'Open the map bigger'"><app-icon [name]="expanded() ? 'x' : 'expand'" [size]="13" /> {{ expanded() ? 'Close' : 'Open' }}</button>
     </div>
     <!-- Move tools, as the web map's: zoom, turn and Fit along the foot's right. -->
@@ -115,6 +130,10 @@ export interface PlotCard {
     .m3-legend { position: absolute; left: 12px; bottom: 16px; z-index: 5; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px; overflow-x: auto; scrollbar-width: none; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; width: fit-content; max-width: calc(100% - 12px - 250px); }
     .m3-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
     .m3-legend i { width: 12px; height: 12px; border-radius: 3px; }
+    /* Editing a plot: a square at each corner to drag, and a round one in the middle to move the whole plot (as the web's). */
+    .m3-handle { display: block; width: 14px; height: 14px; box-sizing: border-box; border: 2px solid var(--accent-solid, #0066d9); border-radius: 3px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); cursor: move; }
+    .m3-handle:hover { background: #e6f0ff; }
+    .m3-handle.m3-move { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: var(--accent-solid, #0066d9); }
     .m3-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
     .plot-tag { pointer-events: none; font-weight: 700; font-size: 12px; line-height: 1.25; letter-spacing: 0.01em; color: #fff; background: rgba(48, 48, 52, 0.82); padding: 2px 6px; border-radius: 5px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
     /* A section's name, as the web map's: white, its colour round the edge and in its dot and text, easy to read over the imagery. */
@@ -145,6 +164,10 @@ export class MacMap3d implements OnDestroy {
   readonly selected = input<string | null>(null);
   /** The picked plot's card (none: no card). */
   readonly card = input<PlotCard | null>(null);
+  /** Reshape the picked plot: flat from above, a handle at each corner and one to move it whole. Off, the map is as the dashboard's. */
+  readonly editable = input(false);
+  /** A plot's corner or the plot itself was let go: its new outline (nothing is saved here). */
+  readonly reshaped = output<Reshaped>();
   readonly picked = output<string>();
   /** The picked plot let go: its card closed, or the map clicked off the plots. */
   readonly cleared = output<void>();
@@ -168,6 +191,11 @@ export class MacMap3d implements OnDestroy {
   private readonly box = viewChild.required<ElementRef<HTMLElement>>('box');
   private map: maplibregl.Map | null = null;
   private tags: maplibregl.Marker[] = [];
+  private handles: maplibregl.Marker[] = [];
+  /** What the plots source holds now, so a drag can redraw just the plot being edited. */
+  private features: PlotFeature[] = [];
+  /** The camera the map had before editing (3D or from above), to go back to. */
+  private tiltBeforeEdit: boolean | null = null;
   private pin: maplibregl.Marker | null = null;
   private ready = false;
   private fitted = false;
@@ -268,7 +296,26 @@ export class MacMap3d implements OnDestroy {
     effect(() => {
       this.shapes();
       this.selected();
+      this.editable();
       if (this.ready) this.draw();
+    });
+
+    // Editing is done from above: the camera goes flat and the tour stops; on leaving it goes back as it was.
+    effect(() => {
+      const editing = this.editable();
+      untracked(() => {
+        if (editing) {
+          this.stopTour();
+          this.tiltBeforeEdit = this.wantTilt;
+          if (this.map && this.revealed) this.setTilt(false);
+          else this.wantTilt = false;
+        } else if (this.tiltBeforeEdit !== null) {
+          const back = this.tiltBeforeEdit;
+          this.tiltBeforeEdit = null;
+          if (this.map && this.revealed) this.setTilt(back);
+          else this.wantTilt = back;
+        }
+      });
     });
 
     // The card drawn (or its text changed): put over its plot.
@@ -360,13 +407,16 @@ export class MacMap3d implements OnDestroy {
     if (!map) return;
     const selected = this.selected();
     const shapes = this.shapes();
+    const editing = this.editable();
     const features = shapes.map((shape) => ({
       type: 'Feature' as const,
-      // The picked plot stands out of the rest, outlined in white.
-      properties: { id: shape.id, fill: shape.fill, stroke: shape.id === selected ? '#ffffff' : shape.stroke, sel: shape.id === selected, top: shape.id === selected ? PICKED_HEIGHT : PLOT_HEIGHT },
+      // The picked plot stands out of the rest, outlined in white (edited from above, every plot lies flat).
+      properties: { id: shape.id, fill: shape.fill, stroke: shape.id === selected ? '#ffffff' : shape.stroke, sel: shape.id === selected, top: editing ? FLAT_HEIGHT : shape.id === selected ? PICKED_HEIGHT : PLOT_HEIGHT },
       geometry: { type: 'Polygon' as const, coordinates: [[...shape.points.map(([lat, lng]) => [lng, lat]), [shape.points[0][1], shape.points[0][0]]]] },
     }));
+    this.features = features;
     (map.getSource('plots') as GeoJSONSource).setData({ type: 'FeatureCollection', features });
+    this.drawHandles(editing ? this.selectedShape() : null);
 
     this.tags.forEach((tag) => tag.remove());
     this.pin?.remove();
@@ -440,6 +490,70 @@ export class MacMap3d implements OnDestroy {
       this.focusPlot(shape);
     }
     this.placeCard();
+  }
+
+  /** One plot's outline redrawn while it is dragged (the page hears of it only once it is let go). */
+  private preview(id: string, ring: [number, number][]) {
+    const map = this.map;
+    const feature = this.features.find((item) => item.properties?.['id'] === id);
+    if (!map || !feature) return;
+    feature.geometry = { type: 'Polygon' as const, coordinates: [[...ring.map(([lat, lng]) => [lng, lat]), [ring[0][1], ring[0][0]]]] };
+    (map.getSource('plots') as GeoJSONSource).setData({ type: 'FeatureCollection', features: this.features });
+  }
+
+  /** The picked plot's handles: a square at each corner (one moves that corner), a round one in the middle (moves the plot whole). */
+  private drawHandles(shape: MapShape | null) {
+    this.handles.forEach((handle) => handle.remove());
+    this.handles = [];
+    const map = this.map;
+    if (!map || !shape) return;
+    const id = shape.id;
+    let ring: [number, number][] = shape.points.map(([lat, lng]) => [lat, lng]);
+    const centreOf = (points: [number, number][]) => [points.reduce((sum, p) => sum + p[0], 0) / points.length, points.reduce((sum, p) => sum + p[1], 0) / points.length] as [number, number];
+    const handle = (className: string, title: string, at: [number, number]) => {
+      const el = document.createElement('span');
+      el.className = className;
+      el.title = title;
+      return new maplibregl.Marker({ element: el, draggable: true }).setLngLat([at[1], at[0]]).addTo(map);
+    };
+
+    const middle = handle('m3-handle m3-move', 'Drag to move the whole plot', centreOf(ring));
+    middle.getElement().innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M2 12h20"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/><path d="m5 9-3 3 3 3"/><path d="m9 5 3-3 3 3"/></svg>';
+    const corners = ring.map((point) => handle('m3-handle', 'Drag this corner', point));
+    this.handles = [middle, ...corners];
+
+    let moved = false;
+    const done = () => {
+      if (!moved) return;
+      moved = false;
+      this.reshaped.emit({ id, points: ring.map(([lat, lng]) => [lat, lng]) });
+    };
+    corners.forEach((corner, index) => {
+      corner.on('drag', () => {
+        moved = true;
+        const at = corner.getLngLat();
+        ring = ring.map((point, i) => (i === index ? ([at.lat, at.lng] as [number, number]) : point));
+        const centre = centreOf(ring);
+        middle.setLngLat([centre[1], centre[0]]);
+        this.preview(id, ring);
+      });
+      corner.on('dragend', done);
+    });
+    let start = ring;
+    let from = centreOf(ring);
+    middle.on('dragstart', () => {
+      start = ring;
+      from = centreOf(ring);
+    });
+    middle.on('drag', () => {
+      moved = true;
+      const at = middle.getLngLat();
+      const [dLat, dLng] = [at.lat - from[0], at.lng - from[1]];
+      ring = start.map(([lat, lng]) => [lat + dLat, lng + dLng] as [number, number]);
+      corners.forEach((corner, i) => corner.setLngLat([ring[i][1], ring[i][0]]));
+      this.preview(id, ring);
+    });
+    middle.on('dragend', done);
   }
 
   private sectionTagsFit(map: maplibregl.Map) {
@@ -604,6 +718,7 @@ export class MacMap3d implements OnDestroy {
 
   ngOnDestroy() {
     cancelAnimationFrame(this.tourFrame);
+    this.handles.forEach((handle) => handle.remove());
     this.map?.remove();
     this.map = null;
   }

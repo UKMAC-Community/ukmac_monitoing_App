@@ -1,3 +1,4 @@
+mod access;
 mod ai;
 mod client_seal;
 mod commands;
@@ -32,17 +33,24 @@ pub fn run() {
             std::fs::create_dir_all(&folder)?;
             let path = folder.join("ukmac.db");
             let conn = db::open(&path)?;
+            // Google sign-in: its client and tokens are kept beside the database, not in it.
+            let google = google::GoogleState::load(&folder);
+            // MACs from before accounts existed go to the account signed in on this computer now.
+            if let Some(email) = google.account() {
+                access::adopt_unowned(&conn, &email)?;
+            }
             app.manage(commands::Db {
                 conn: Mutex::new(conn),
                 path,
             });
-            // Google sign-in: its client and tokens are kept beside the database, not in it.
-            app.manage(google::GoogleState::load(&folder));
+            app.manage(google);
             // Optional AI connection: keys stay outside the database and its backups.
             app.manage(ai::AiState::load(&folder));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            access::unowned_macs,
+            access::claim_macs,
             commands::list_macs,
             commands::create_mac,
             commands::update_mac,

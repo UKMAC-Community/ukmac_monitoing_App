@@ -143,22 +143,42 @@ export interface MacFilePeek {
   exportedAt: string;
   sheets: number;
   rows: number;
+  /** The file has no rows: its tables are read from Google once it is opened. */
+  linksOnly: boolean;
+  /** How many of its tables are linked to a Google Sheet. */
+  linkedTables: number;
+  /** The Google Sheets it points at, each once. */
+  spreadsheets: { id: string; title: string }[];
   /** The MAC here that this file is a copy of (the same MAC, saved before). */
   sameMac: { macId: number; macName: string; macCode: string; sheetCount: number; rowCount: number; updatedAt: string } | null;
   /** Another MAC here has this file's code, so a copy gets a new one. */
   codeTaken: boolean;
 }
 
+/** A MAC nobody has yet (made before accounts), and the Google Sheets its tables are linked to. */
+export interface UnownedMac {
+  macId: number;
+  macName: string;
+  spreadsheetIds: string[];
+}
+
 export interface SavedMacFile {
   sheets: number;
+  /** Always 0: a saved file has no rows. */
   rows: number;
   bytes: number;
+  /** Tables linked to a Google Sheet (read from there when the file is opened). */
+  linked: number;
+  /** Tables that hold rows here but aren't linked to Google, so they arrive empty. */
+  emptyOnOpen: string[];
 }
 
 export interface ImportedMac {
   mac: Mac;
   sheets: number;
   rows: number;
+  /** Tables linked to a Google Sheet: their rows are read from there next. */
+  linked: number;
   /** The file's code was another MAC's here, so this one got `mac.macCode`. */
   codeChanged: boolean;
   /** With replace: the MAC here that was taken out. */

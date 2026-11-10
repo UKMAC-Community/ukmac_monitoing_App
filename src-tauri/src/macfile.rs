@@ -1,12 +1,18 @@
 //! A MAC saved to one file, and read back on this or another computer (`.ukmac`).
 //!
-//! The file is JSON: the MAC, each of its tables (columns with their keys, the dashboard, the
-//! view settings kept for it here, the Google Sheet it is linked to) and every row. It is a copy
-//! at the moment it was saved, not a live link: the other computer gets its own database.
+//! The file is JSON: the MAC, and each of its tables (columns with their keys, the dashboard, the
+//! view settings kept for it here, the Google Sheet it is linked to). **It carries no rows**
+//! (version 2, `links_only`): a file that gets copied or sent must not be a copy of the farm's
+//! data. The data stays in Google, which decides who may read it: opening the file on another
+//! computer links each table to its sheet and reads it from there, and a Google account that
+//! can't open the sheet gets empty tables. Tables that are not linked to a Google Sheet have no
+//! data to travel and arrive empty. The MAC's location and coordinates are left out too.
 //!
-//! What is left out on purpose: Google sign-in (tokens and the client secret live outside the
-//! database, so they never travel; the other computer signs in itself), global settings such as
-//! the Power BI path, and the Excel import history.
+//! Version 1 files (saved with every row) still open, as copies of what they hold.
+//!
+//! What is left out on purpose: rows, the farm's location, Google sign-in (tokens and the client
+//! secret live outside the database, so they never travel; the other computer signs in itself),
+//! global settings such as the Power BI path, and the Excel import history.
 
 use std::collections::BTreeMap;
 
@@ -23,7 +29,8 @@ use crate::links;
 use crate::model::{Column, Mac, MacInput};
 
 pub const FORMAT: &str = "ukmac-mac";
-pub const VERSION: u32 = 1;
+/// What this app writes. It still reads version 1 (a copy with every row).
+pub const VERSION: u32 = 2;
 /// The settings kept per table (`sheet.<id>.<name>`) that travel with it.
 const SHEET_SETTINGS: &[&str] = &["frozenColumns", "conditionalFormats"];
 const MAX_FILE: u64 = 300 * 1024 * 1024;
@@ -37,6 +44,9 @@ pub struct MacFile {
     pub exported_at: String,
     #[serde(default)]
     pub app: String,
+    /// The file has no rows: the data is read from the linked Google Sheets (version 2).
+    #[serde(default)]
+    pub links_only: bool,
     pub mac: FileMac,
     #[serde(default)]
     pub sheets: Vec<FileSheet>,
@@ -122,8 +132,18 @@ pub struct FileLink {
 
 // ------------------------------------------------------------------ save
 
-/// A MAC as a file's content.
+/// A MAC as a file's content, as it is saved: no rows, no location, each table's Google link kept.
 pub fn build(conn: &Connection, mac_id: i64) -> CmdResult<MacFile> {
+    assemble(conn, mac_id, true)
+}
+
+/// A MAC with every row, the way version 1 files were saved (kept to prove those still open).
+#[cfg(test)]
+pub fn build_full(conn: &Connection, mac_id: i64) -> CmdResult<MacFile> {
+    assemble(conn, mac_id, false)
+}
+
+fn assemble(conn: &Connection, mac_id: i64, links_only: bool) -> CmdResult<MacFile> {
     let mac = load_mac(conn, mac_id)?;
     let links = links::list(conn, Some(mac_id))?;
     let exported_at: String = conn
@@ -138,13 +158,17 @@ pub fn build(conn: &Connection, mac_id: i64) -> CmdResult<MacFile> {
                 |row| row.get(0),
             )
             .map_err(err)?;
-        let rows = load_rows(conn, sheet.sheet_id)?
-            .into_iter()
-            .map(|row| FileRow {
-                position: row.position,
-                data: row.data,
-            })
-            .collect();
+        let rows = if links_only {
+            Vec::new()
+        } else {
+            load_rows(conn, sheet.sheet_id)?
+                .into_iter()
+                .map(|row| FileRow {
+                    position: row.position,
+                    data: row.data,
+                })
+                .collect()
+        };
         let mut settings = BTreeMap::new();
         for name in SHEET_SETTINGS {
             let value: Option<String> = conn
@@ -167,8 +191,9 @@ pub fn build(conn: &Connection, mac_id: i64) -> CmdResult<MacFile> {
                 spreadsheet_title: link.spreadsheet_title.clone(),
                 tab_title: link.tab_title.clone(),
                 header_map: link.header_map.clone(),
-                last_synced_at: link.last_synced_at.clone(),
-                last_row_count: link.last_row_count,
+                // Nothing has been read on the other computer yet.
+                last_synced_at: (!links_only).then(|| link.last_synced_at.clone()).flatten(),
+                last_row_count: if links_only { 0 } else { link.last_row_count },
                 layout: link.layout.clone(),
             });
         sheets.push(FileSheet {
@@ -188,16 +213,18 @@ pub fn build(conn: &Connection, mac_id: i64) -> CmdResult<MacFile> {
     }
     Ok(MacFile {
         format: FORMAT.into(),
-        version: VERSION,
+        version: if links_only { VERSION } else { 1 },
         exported_at,
         app: format!("UKMAC Monitoring {}", env!("CARGO_PKG_VERSION")),
+        links_only,
         mac: FileMac {
             uuid: mac.mac_uuid,
             name: mac.mac_name,
             code: mac.mac_code,
-            location: mac.mac_location,
-            latitude: mac.latitude,
-            longitude: mac.longitude,
+            // Where the farm is does not travel in a file that anyone can open.
+            location: if links_only { None } else { mac.mac_location },
+            latitude: if links_only { None } else { mac.latitude },
+            longitude: if links_only { None } else { mac.longitude },
             start_date: mac.start_date,
             end_date: mac.end_date,
             crop: mac.crop,
@@ -258,6 +285,13 @@ pub struct Existing {
     pub updated_at: String,
 }
 
+#[derive(Debug, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PeekSheet {
+    pub id: String,
+    pub title: String,
+}
+
 /// What a file holds, and whether this computer already has that MAC.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -268,28 +302,58 @@ pub struct Peek {
     pub exported_at: String,
     pub sheets: usize,
     pub rows: usize,
+    /// The file has no rows: its tables are read from Google after it is opened.
+    pub links_only: bool,
+    /// How many of its tables are linked to a Google Sheet.
+    pub linked_tables: usize,
+    /// The Google Sheets it points at, each once.
+    pub spreadsheets: Vec<PeekSheet>,
     /// The MAC here that this file is a copy of (the same MAC saved before).
     pub same_mac: Option<Existing>,
     /// Another MAC here already has this file's code (so a copy gets a new one).
     pub code_taken: bool,
 }
 
-fn existing_with_uuid(conn: &Connection, uuid: &str) -> CmdResult<Option<i64>> {
+/// The MAC here that has this id inside the file: when `account` is given, only one that account has (another
+/// account's copy is not this person's to see, replace or learn about).
+fn existing_with_uuid(
+    conn: &Connection,
+    uuid: &str,
+    account: Option<&str>,
+) -> CmdResult<Option<i64>> {
     if uuid.is_empty() {
         return Ok(None);
     }
-    conn.query_row(
-        "SELECT mac_id FROM macs WHERE mac_uuid = ?1",
-        [uuid],
-        |row| row.get(0),
-    )
+    match account {
+        Some(email) => conn.query_row(
+            "SELECT m.mac_id FROM macs m JOIN mac_access a ON a.mac_id = m.mac_id
+             WHERE m.mac_uuid = ?1 AND a.email = ?2",
+            params![uuid, crate::access::normalize(email)],
+            |row| row.get(0),
+        ),
+        None => conn.query_row(
+            "SELECT mac_id FROM macs WHERE mac_uuid = ?1",
+            [uuid],
+            |row| row.get(0),
+        ),
+    }
     .optional()
     .map_err(err)
 }
 
-pub fn peek(conn: &Connection, file: &MacFile) -> CmdResult<Peek> {
+/// Any MAC here, of any account, has this id.
+fn uuid_in_use(conn: &Connection, uuid: &str) -> CmdResult<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM macs WHERE mac_uuid = ?1)",
+        [uuid],
+        |row| row.get(0),
+    )
+    .map_err(err)
+}
+
+pub fn peek(conn: &Connection, file: &MacFile, account: Option<&str>) -> CmdResult<Peek> {
     let (_, code) = check_mac(&mac_input(&file.mac))?;
-    let same_mac = match existing_with_uuid(conn, &file.mac.uuid)? {
+    let same_mac = match existing_with_uuid(conn, &file.mac.uuid, account)? {
         Some(mac_id) => {
             let mac = load_mac(conn, mac_id)?;
             Some(Existing {
@@ -308,6 +372,24 @@ pub fn peek(conn: &Connection, file: &MacFile) -> CmdResult<Peek> {
         &code,
         same_mac.as_ref().map(|existing| existing.mac_id),
     )?;
+    let linked: Vec<&FileLink> = file
+        .sheets
+        .iter()
+        .filter_map(|sheet| sheet.google_link.as_ref())
+        .filter(|link| !link.spreadsheet_id.trim().is_empty())
+        .collect();
+    let mut spreadsheets: Vec<PeekSheet> = Vec::new();
+    for link in &linked {
+        let id = link.spreadsheet_id.trim().to_string();
+        let title = if link.spreadsheet_title.trim().is_empty() {
+            "a Google Sheet".to_string()
+        } else {
+            link.spreadsheet_title.trim().to_string()
+        };
+        if !spreadsheets.iter().any(|sheet| sheet.id == id) {
+            spreadsheets.push(PeekSheet { id, title });
+        }
+    }
     Ok(Peek {
         mac_name: file.mac.name.trim().to_string(),
         mac_code: code,
@@ -315,6 +397,9 @@ pub fn peek(conn: &Connection, file: &MacFile) -> CmdResult<Peek> {
         exported_at: file.exported_at.clone(),
         sheets: file.sheets.len(),
         rows: file.sheets.iter().map(|sheet| sheet.rows.len()).sum(),
+        links_only: file.links_only,
+        linked_tables: linked.len(),
+        spreadsheets,
         same_mac,
         code_taken: taken,
     })
@@ -341,6 +426,8 @@ pub struct Imported {
     pub mac: Mac,
     pub sheets: usize,
     pub rows: usize,
+    /// Tables linked to a Google Sheet: their rows are read from there next.
+    pub linked: usize,
     /// This computer already had the file's code on another MAC, so the MAC got `mac.mac_code`.
     pub code_changed: bool,
     /// With `replace`: the MAC here that was taken out for it.
@@ -361,11 +448,24 @@ fn free_code(conn: &Connection, code: &str) -> CmdResult<String> {
 /// it is taken out and the file's copy goes in its place; otherwise the file's MAC is added next
 /// to what is here (a new code if its code is taken). All or nothing.
 pub fn import(conn: &mut Connection, file: MacFile, replace: bool) -> CmdResult<Imported> {
+    import_as(conn, file, replace, None)
+}
+
+/// `import`, for a signed-in account: only that account's own copy of the MAC can be replaced, and the new MAC is the
+/// account's. (`None`: no accounts, as in tests.)
+pub fn import_as(
+    conn: &mut Connection,
+    file: MacFile,
+    replace: bool,
+    account: Option<&str>,
+) -> CmdResult<Imported> {
     check_header(&file)?;
     let (name, code) = check_mac(&mac_input(&file.mac))?;
     let tx = conn.transaction().map_err(err)?;
 
-    let existing = existing_with_uuid(&tx, &file.mac.uuid)?;
+    let existing = existing_with_uuid(&tx, &file.mac.uuid, account)?;
+    // Another account's MAC may have this id: this one is then a different MAC.
+    let id_elsewhere = existing.is_none() && uuid_in_use(&tx, &file.mac.uuid)?;
     let mut replaced_mac_id = None;
     if let (true, Some(old)) = (replace, existing) {
         // Its view settings are keyed by table id; the cascade takes the tables themselves.
@@ -381,7 +481,7 @@ pub fn import(conn: &mut Connection, file: MacFile, replace: bool) -> CmdResult<
             .map_err(err)?;
         replaced_mac_id = Some(old);
     }
-    let uuid = if file.mac.uuid.is_empty() || (existing.is_some() && !replace) {
+    let uuid = if file.mac.uuid.is_empty() || (existing.is_some() && !replace) || id_elsewhere {
         uuid::Uuid::new_v4().to_string()
     } else {
         file.mac.uuid.clone()
@@ -415,8 +515,13 @@ pub fn import(conn: &mut Connection, file: MacFile, replace: bool) -> CmdResult<
     )
     .map_err(err)?;
     let mac_id = tx.last_insert_rowid();
+    if let Some(email) = account {
+        crate::access::grant(&tx, mac_id, email)?;
+    }
 
     let mut row_total = 0;
+    let mut linked_total = 0;
+    let links_only = file.links_only;
     let sheet_total = file.sheets.len();
     for sheet in file.sheets {
         let title = check_title(&sheet.title)?;
@@ -445,7 +550,8 @@ pub fn import(conn: &mut Connection, file: MacFile, replace: bool) -> CmdResult<
             )
             .map_err(err)?;
         }
-        let mut rows = sheet.rows;
+        // A links-only file brings no rows, whatever it holds: the data comes from Google.
+        let mut rows = if links_only { Vec::new() } else { sheet.rows };
         rows.sort_by(|a, b| a.position.total_cmp(&b.position));
         row_total += rows.len();
         insert_rows(
@@ -493,12 +599,13 @@ pub fn import(conn: &mut Connection, file: MacFile, replace: bool) -> CmdResult<
                     link.spreadsheet_title,
                     link.tab_title,
                     serde_json::to_string(&link.header_map).map_err(err)?,
-                    link.last_synced_at,
-                    link.last_row_count,
+                    if links_only { None } else { link.last_synced_at },
+                    if links_only { 0 } else { link.last_row_count },
                     layout,
                 ],
             )
             .map_err(err)?;
+            linked_total += 1;
         }
     }
     tx.commit().map_err(err)?;
@@ -506,6 +613,7 @@ pub fn import(conn: &mut Connection, file: MacFile, replace: bool) -> CmdResult<
         mac: load_mac(conn, mac_id)?,
         sheets: sheet_total,
         rows: row_total,
+        linked: linked_total,
         code_changed,
         replaced_mac_id,
     })
@@ -523,16 +631,46 @@ fn clean(text: &Option<String>) -> Option<String> {
 #[serde(rename_all = "camelCase")]
 pub struct Saved {
     pub sheets: usize,
+    /// Always 0: a saved file has no rows.
     pub rows: usize,
     pub bytes: u64,
+    /// Tables in the file that are linked to a Google Sheet (read from there when it is opened).
+    pub linked: usize,
+    /// Tables that hold rows here but are not linked to Google: they arrive empty.
+    pub empty_on_open: Vec<String>,
 }
 
-/// Writes a MAC, with its tables and rows, to `path`.
+/// The tables of a MAC that have rows here and no Google link: a file can't carry them.
+fn unlinked_with_rows(conn: &Connection, mac_id: i64) -> CmdResult<Vec<String>> {
+    let mut statement = conn
+        .prepare(
+            "SELECT s.title FROM sheets s
+             WHERE s.mac_id = ?1
+               AND NOT EXISTS (SELECT 1 FROM google_links l WHERE l.sheet_id = s.sheet_id)
+               AND EXISTS (SELECT 1 FROM sheet_rows r WHERE r.sheet_id = s.sheet_id)
+             ORDER BY s.display_order, s.sheet_id",
+        )
+        .map_err(err)?;
+    let titles = statement
+        .query_map([mac_id], |row| row.get::<_, String>(0))
+        .map_err(err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(err)?;
+    Ok(titles)
+}
+
+/// Writes a MAC's tables and their Google links, with no rows, to `path`.
 #[tauri::command]
-pub fn export_mac_file(db: State<'_, Db>, mac_id: i64, path: String) -> CmdResult<Saved> {
-    let file = {
+pub fn export_mac_file(
+    db: State<'_, Db>,
+    google: State<'_, crate::google::GoogleState>,
+    mac_id: i64,
+    path: String,
+) -> CmdResult<Saved> {
+    let (file, empty_on_open) = {
         let conn = db.conn.lock().map_err(err)?;
-        build(&conn, mac_id)?
+        crate::access::guard_mac(&conn, &google, mac_id)?;
+        (build(&conn, mac_id)?, unlinked_with_rows(&conn, mac_id)?)
     };
     let bytes = serde_json::to_vec(&file).map_err(err)?;
     // Written beside it first, so a failure never leaves half a file where the old one was.
@@ -546,23 +684,36 @@ pub fn export_mac_file(db: State<'_, Db>, mac_id: i64, path: String) -> CmdResul
         sheets: file.sheets.len(),
         rows: file.sheets.iter().map(|sheet| sheet.rows.len()).sum(),
         bytes: bytes.len() as u64,
+        linked: file.sheets.iter().filter(|sheet| sheet.google_link.is_some()).count(),
+        empty_on_open,
     })
 }
 
 /// Reads a MAC file's header: what it holds, and whether this computer already has that MAC.
 #[tauri::command]
-pub fn peek_mac_file(db: State<'_, Db>, path: String) -> CmdResult<Peek> {
+pub fn peek_mac_file(
+    db: State<'_, Db>,
+    google: State<'_, crate::google::GoogleState>,
+    path: String,
+) -> CmdResult<Peek> {
+    let email = crate::access::require(&google)?;
     let file = read(&path)?;
     let conn = db.conn.lock().map_err(err)?;
-    peek(&conn, &file)
+    peek(&conn, &file, Some(&email))
 }
 
 /// Adds the MAC in the file (see `import`).
 #[tauri::command]
-pub fn import_mac_file(db: State<'_, Db>, path: String, replace: bool) -> CmdResult<Imported> {
+pub fn import_mac_file(
+    db: State<'_, Db>,
+    google: State<'_, crate::google::GoogleState>,
+    path: String,
+    replace: bool,
+) -> CmdResult<Imported> {
+    let email = crate::access::require(&google)?;
     let file = read(&path)?;
     let mut conn = db.conn.lock().map_err(err)?;
-    import(&mut conn, file, replace)
+    import_as(&mut conn, file, replace, Some(&email))
 }
 
 #[cfg(test)]
@@ -666,7 +817,7 @@ mod tests {
     }
 
     fn saved(conn: &Connection, mac_id: i64) -> MacFile {
-        through_a_file(&build(conn, mac_id).unwrap())
+        through_a_file(&build_full(conn, mac_id).unwrap())
     }
 
     fn through_a_file(file: &MacFile) -> MacFile {
@@ -686,7 +837,7 @@ mod tests {
     fn a_mac_comes_back_whole_on_another_computer() {
         let mut here = memory();
         let mac_id = farm(&mut here);
-        let file = through_a_file(&build(&here, mac_id).unwrap());
+        let file = through_a_file(&build_full(&here, mac_id).unwrap());
         assert_eq!(file.sheets.len(), 15);
 
         let mut there = memory();
@@ -817,7 +968,7 @@ mod tests {
         let mac_id = farm(&mut here);
 
         // A file saved before layouts has no such field.
-        let mut text = serde_json::to_value(build(&here, mac_id).unwrap()).unwrap();
+        let mut text = serde_json::to_value(build_full(&here, mac_id).unwrap()).unwrap();
         for sheet in text["sheets"].as_array_mut().unwrap() {
             if let Some(link) = sheet
                 .get_mut("googleLink")
@@ -862,6 +1013,7 @@ mod tests {
             version: VERSION,
             exported_at: String::new(),
             app: String::new(),
+            links_only: false,
             mac: FileMac {
                 uuid: String::new(),
                 name: "Farm".into(),
@@ -918,7 +1070,7 @@ mod tests {
         let mut conn = memory();
         let mac_id = farm(&mut conn);
 
-        let peeked = peek(&conn, &saved(&conn, mac_id)).unwrap();
+        let peeked = peek(&conn, &saved(&conn, mac_id), None).unwrap();
         assert_eq!(peeked.same_mac.as_ref().map(|m| m.mac_id), Some(mac_id));
         assert!(!peeked.code_taken, "its own code is not a clash");
 
@@ -975,7 +1127,7 @@ mod tests {
         let path = std::env::temp_dir().join(format!("ukmac-{}.ukmac", uuid::Uuid::new_v4()));
         std::fs::write(
             &path,
-            serde_json::to_vec(&build(&here, mac_id).unwrap()).unwrap(),
+            serde_json::to_vec(&build_full(&here, mac_id).unwrap()).unwrap(),
         )
         .unwrap();
 
@@ -999,7 +1151,7 @@ mod tests {
     fn a_bad_file_is_refused_and_nothing_is_half_imported() {
         let mut conn = memory();
         let mac_id = farm(&mut conn);
-        let mut file = through_a_file(&build(&conn, mac_id).unwrap());
+        let mut file = through_a_file(&build_full(&conn, mac_id).unwrap());
         file.format = "something-else".into();
         assert!(
             import(&mut conn, file, false)
@@ -1007,7 +1159,7 @@ mod tests {
                 .contains("isn't a MAC file")
         );
 
-        let mut newer = through_a_file(&build(&conn, mac_id).unwrap());
+        let mut newer = through_a_file(&build_full(&conn, mac_id).unwrap());
         newer.version = VERSION + 1;
         assert!(
             import(&mut conn, newer, false)
@@ -1016,7 +1168,7 @@ mod tests {
         );
 
         // The third table's name is bad: the MAC and the two tables before it must not stay.
-        let mut broken = through_a_file(&build(&conn, mac_id).unwrap());
+        let mut broken = through_a_file(&build_full(&conn, mac_id).unwrap());
         broken.mac.uuid = "uuid-2".into();
         broken.mac.code = "MAC-002".into();
         broken.sheets[2].title = "Bad [name]".into();
@@ -1025,5 +1177,111 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM macs", [], |row| row.get(0))
             .unwrap();
         assert_eq!(macs, 1);
+    }
+
+    #[test]
+    fn a_saved_file_carries_no_rows_and_no_location() {
+        let mut here = memory();
+        let mac_id = farm(&mut here);
+        let file = build(&here, mac_id).unwrap();
+        assert_eq!(file.version, VERSION);
+        assert!(file.links_only);
+        assert!(file.sheets.iter().all(|sheet| sheet.rows.is_empty()));
+        assert_eq!(
+            (file.mac.location.clone(), file.mac.latitude, file.mac.longitude),
+            (None, None, None)
+        );
+        // Nothing of the farm's data is anywhere in the bytes: not a plot name, not the place.
+        let text = String::from_utf8(serde_json::to_vec(&file).unwrap()).unwrap();
+        for secret in ["\"A1\"", "\"A2\"", "\"A3\"", "12.5", "103.9", "Pursat\"", "2026-11-05"] {
+            assert!(
+                !text.contains(&secret.replace("Pursat\"", "\"location\":\"Pursat\"")),
+                "the file holds {secret}"
+            );
+        }
+        // The Google link is what travels, without when it was last read.
+        let zones = file
+            .sheets
+            .iter()
+            .find(|sheet| sheet.template_key.as_deref() == Some("zones"))
+            .unwrap();
+        let link = zones.google_link.as_ref().unwrap();
+        assert_eq!(link.spreadsheet_id, "sheet-abc");
+        assert_eq!((link.last_synced_at.clone(), link.last_row_count), (None, 0));
+        assert!(link.layout.is_some());
+    }
+
+    #[test]
+    fn opening_a_link_file_brings_the_tables_and_links_but_never_rows() {
+        let mut here = memory();
+        let mac_id = farm(&mut here);
+        let mut file = through_a_file(&build(&here, mac_id).unwrap());
+        // Even a file that was tampered with to hold rows gets none in.
+        let mut data = Map::new();
+        data.insert("c1".into(), Value::String("smuggled".into()));
+        file.sheets[0].rows.push(FileRow { position: 1.0, data });
+        let peek_here = memory();
+        let peek = peek(&peek_here, &file, None).unwrap();
+        assert!(peek.links_only);
+        assert_eq!(
+            (peek.linked_tables, peek.spreadsheets.clone()),
+            (1, vec![PeekSheet { id: "sheet-abc".into(), title: "Farm sheet".into() }])
+        );
+
+        let mut there = memory();
+        let done = import(&mut there, file, false).unwrap();
+        assert_eq!((done.sheets, done.rows, done.linked), (15, 0, 1));
+        let rows: i64 = there
+            .query_row("SELECT COUNT(*) FROM sheet_rows", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 0);
+        let (synced, count): (Option<String>, i64) = there
+            .query_row(
+                "SELECT last_synced_at, last_row_count FROM google_links",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((synced, count), (None, 0));
+        // Zone Map still finds its table.
+        assert_eq!(zones_of(&there, done.mac.mac_id) > 0, true);
+    }
+
+    #[test]
+    fn it_says_which_tables_with_data_will_arrive_empty() {
+        let mut here = memory();
+        let mac_id = farm(&mut here);
+        // Zones has rows and a link here: nothing is lost. Take the link off and it is listed.
+        assert!(unlinked_with_rows(&here, mac_id).unwrap().is_empty());
+        here.execute("DELETE FROM google_links", []).unwrap();
+        assert_eq!(unlinked_with_rows(&here, mac_id).unwrap(), vec!["Zones".to_string()]);
+    }
+
+    #[test]
+    fn another_account_never_sees_or_replaces_the_first_accounts_copy() {
+        let mut here = memory();
+        let mac_id = farm(&mut here);
+        crate::access::grant(&here, mac_id, "owner@gmail.com").unwrap();
+        let file = through_a_file(&build(&here, mac_id).unwrap());
+
+        // The owner's own copy is found, and Replace is theirs to choose.
+        let own = peek(&here, &file, Some("Owner@gmail.com")).unwrap();
+        assert_eq!(own.same_mac.map(|existing| existing.mac_id), Some(mac_id));
+        // Another account on this computer is told nothing of it.
+        let other = peek(&here, &file, Some("other@gmail.com")).unwrap();
+        assert!(other.same_mac.is_none());
+
+        // Its import, even asking for Replace, adds a separate MAC of its own and leaves the owner's alone.
+        let done = import_as(&mut here, file, true, Some("other@gmail.com")).unwrap();
+        assert_eq!(done.replaced_mac_id, None);
+        assert_ne!(done.mac.mac_id, mac_id);
+        assert_ne!(done.mac.mac_uuid, "uuid-1");
+        assert!(crate::access::owns(&here, "other@gmail.com", done.mac.mac_id).unwrap());
+        assert!(!crate::access::owns(&here, "other@gmail.com", mac_id).unwrap());
+        assert!(crate::access::owns(&here, "owner@gmail.com", mac_id).unwrap());
+        let still: i64 = here
+            .query_row("SELECT COUNT(*) FROM sheets WHERE mac_id = ?1", [mac_id], |row| row.get(0))
+            .unwrap();
+        assert_eq!(still, 15);
     }
 }

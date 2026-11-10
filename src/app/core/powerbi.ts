@@ -8,6 +8,8 @@ import { baseName } from './paths';
 
 const PATH_KEY = 'powerbi.path';
 const AUTO_KEY = 'powerbi.auto';
+/** The Google account whose MACs the file shows: another account never rewrites it. */
+const ACCOUNT_KEY = 'powerbi.account';
 
 /**
  * The Power BI file: every MAC's tables in one .xlsx (see
@@ -40,6 +42,9 @@ export class PowerBi {
     try {
       this.path.set(await this.api.getSetting(PATH_KEY));
       this.auto.set((await this.api.getSetting(AUTO_KEY)) === 'true');
+      // A file made before accounts existed belongs to whoever is signed in now.
+      const who = await this.account();
+      if (who && this.path() && !(await this.api.getSetting(ACCOUNT_KEY))) await this.api.setSetting(ACCOUNT_KEY, who);
     } catch {
       /* no settings yet */
     }
@@ -75,13 +80,31 @@ export class PowerBi {
     return ok ? path : null;
   }
 
+  /** The signed-in Google account, or null. */
+  private async account(): Promise<string | null> {
+    try {
+      const status = await this.api.googleStatus();
+      return status.signedIn ? (status.email ?? '').trim().toLowerCase() || null : null;
+    } catch {
+      return null;
+    }
+  }
+
   async exportTo(path: string, quiet: boolean): Promise<boolean> {
     if (this.exporting()) return false;
     this.exporting.set(true);
     try {
+      const who = await this.account();
+      const owner = await this.api.getSetting(ACCOUNT_KEY);
+      if (!who || (owner && owner !== who)) {
+        // Nobody signed in, or the file is another account's: it is left as it is.
+        if (!quiet) this.toasts.error(!who ? 'Sign in with Google first.' : 'This Power BI file belongs to another Google account, so it was not changed.');
+        return false;
+      }
       const books = await this.api.getAllWorkbooks();
       const bytes = await buildPowerBiWorkbook(books);
       await this.api.writeFile(path, bytes);
+      if (!owner) await this.api.setSetting(ACCOUNT_KEY, who);
       this.lastExport.set(new Date());
       if (!quiet) this.toasts.show(`Power BI file saved: ${baseName(path)}`);
       return true;

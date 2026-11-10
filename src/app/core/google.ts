@@ -84,6 +84,34 @@ export class Google {
     return this.syncing().has(sheetId);
   }
 
+  /**
+   * MACs nobody has yet (made before accounts existed) go to the account that signs in, but one linked to Google Sheets
+   * only if that account can open every one of them; a MAC nobody else could be checked for is taken by the first account.
+   */
+  async claimUnowned(): Promise<void> {
+    try {
+      const claimed: number[] = [];
+      for (const mac of await this.api.unownedMacs()) {
+        let open = true;
+        for (const id of mac.spreadsheetIds) {
+          try {
+            await this.api.googleFileInfo(id);
+          } catch {
+            open = false;
+            break;
+          }
+        }
+        if (open) claimed.push(mac.macId);
+      }
+      if (claimed.length && (await this.api.claimMacs(claimed)) > 0) {
+        await this.macList.refresh();
+        await this.refreshLinks();
+      }
+    } catch {
+      /* nothing to take, or Google can't be reached: they stay unowned and are tried at the next sign-in */
+    }
+  }
+
   async saveClient(clientId: string, clientSecret: string) {
     this.status.set(await this.api.googleSaveClient(clientId, clientSecret));
   }

@@ -94,6 +94,16 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE google_links ADD COLUMN layout TEXT;
     "#,
+    // 5: which Google accounts have which MAC (src/access.rs): a MAC shows only for them.
+    r#"
+    CREATE TABLE mac_access (
+        mac_id     INTEGER NOT NULL REFERENCES macs(mac_id) ON DELETE CASCADE,
+        email      TEXT NOT NULL,
+        granted_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (mac_id, email)
+    );
+    CREATE INDEX ix_mac_access_email ON mac_access(email);
+    "#,
 ];
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {

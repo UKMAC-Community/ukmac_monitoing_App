@@ -13,6 +13,8 @@ use crate::model::{
     CellChange, Column, ImportInfo, ImportRecord, Mac, MacInput, Row, Sheet, SheetWithRows,
     Workbook,
 };
+use crate::access;
+use crate::google::GoogleState;
 use crate::template;
 
 pub struct Db {
@@ -238,13 +240,20 @@ pub(crate) fn code_taken(conn: &Connection, code: &str, except: Option<i64>) -> 
 }
 
 #[tauri::command]
-pub fn list_macs(db: State<'_, Db>) -> CmdResult<Vec<Mac>> {
+pub fn list_macs(db: State<'_, Db>, google: State<'_, GoogleState>) -> CmdResult<Vec<Mac>> {
+    // Nobody signed in, nothing shown; a signed-in account sees only its own MACs.
+    let Some(email) = google.account() else {
+        return Ok(Vec::new());
+    };
     let conn = db.conn.lock().map_err(err)?;
     let mut statement = conn
-        .prepare(&format!("{MAC_SELECT} ORDER BY m.mac_name COLLATE NOCASE"))
+        .prepare(&format!(
+            "{MAC_SELECT} WHERE m.mac_id IN (SELECT mac_id FROM mac_access WHERE email = ?1)
+             ORDER BY m.mac_name COLLATE NOCASE"
+        ))
         .map_err(err)?;
     let macs = statement
-        .query_map([], mac_from_row)
+        .query_map([email], mac_from_row)
         .map_err(err)?
         .collect::<Result<Vec<_>, _>>()
         .map_err(err);
@@ -252,7 +261,8 @@ pub fn list_macs(db: State<'_, Db>) -> CmdResult<Vec<Mac>> {
 }
 
 #[tauri::command]
-pub fn create_mac(db: State<'_, Db>, input: MacInput) -> CmdResult<Mac> {
+pub fn create_mac(db: State<'_, Db>, google: State<'_, GoogleState>, input: MacInput) -> CmdResult<Mac> {
+    let email = access::require(&google)?;
     let (name, code) = check_mac(&input)?;
     let mut conn = db.conn.lock().map_err(err)?;
     if code_taken(&conn, &code, None)? {
@@ -279,6 +289,7 @@ pub fn create_mac(db: State<'_, Db>, input: MacInput) -> CmdResult<Mac> {
     )
     .map_err(err)?;
     let mac_id = tx.last_insert_rowid();
+    access::grant(&tx, mac_id, &email)?;
     if input.use_template.unwrap_or(true) && crop == "chili" {
         for (order, sheet) in template::chili_template().into_iter().enumerate() {
             insert_sheet(
@@ -299,9 +310,10 @@ pub fn create_mac(db: State<'_, Db>, input: MacInput) -> CmdResult<Mac> {
 }
 
 #[tauri::command]
-pub fn update_mac(db: State<'_, Db>, mac_id: i64, input: MacInput) -> CmdResult<Mac> {
+pub fn update_mac(db: State<'_, Db>, google: State<'_, GoogleState>, mac_id: i64, input: MacInput) -> CmdResult<Mac> {
     let (name, code) = check_mac(&input)?;
     let conn = db.conn.lock().map_err(err)?;
+    access::guard_mac(&conn, &google, mac_id)?;
     if code_taken(&conn, &code, Some(mac_id))? {
         return Err(format!("Another MAC already has the code {code}"));
     }
@@ -328,29 +340,35 @@ pub fn update_mac(db: State<'_, Db>, mac_id: i64, input: MacInput) -> CmdResult<
 }
 
 #[tauri::command]
-pub fn delete_mac(db: State<'_, Db>, mac_id: i64) -> CmdResult<()> {
+pub fn delete_mac(db: State<'_, Db>, google: State<'_, GoogleState>, mac_id: i64) -> CmdResult<()> {
     let conn = db.conn.lock().map_err(err)?;
+    access::guard_mac(&conn, &google, mac_id)?;
     conn.execute("DELETE FROM macs WHERE mac_id = ?1", [mac_id])
         .map_err(err)?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_workbook(db: State<'_, Db>, mac_id: i64) -> CmdResult<Workbook> {
+pub fn get_workbook(db: State<'_, Db>, google: State<'_, GoogleState>, mac_id: i64) -> CmdResult<Workbook> {
     let conn = db.conn.lock().map_err(err)?;
+    access::guard_mac(&conn, &google, mac_id)?;
     workbook(&conn, mac_id)
 }
 
 /// Every MAC's tables and rows (the Power BI export of all farms).
 #[tauri::command]
-pub fn get_all_workbooks(db: State<'_, Db>) -> CmdResult<Vec<Workbook>> {
+pub fn get_all_workbooks(db: State<'_, Db>, google: State<'_, GoogleState>) -> CmdResult<Vec<Workbook>> {
+    let Some(email) = google.account() else {
+        return Ok(Vec::new());
+    };
     let conn = db.conn.lock().map_err(err)?;
     let ids = {
         let mut statement = conn
-            .prepare("SELECT mac_id FROM macs ORDER BY mac_name COLLATE NOCASE")
+            .prepare("SELECT mac_id FROM macs WHERE mac_id IN (SELECT mac_id FROM mac_access WHERE email = ?1)
+                 ORDER BY mac_name COLLATE NOCASE")
             .map_err(err)?;
         statement
-            .query_map([], |row| row.get::<_, i64>(0))
+            .query_map([email], |row| row.get::<_, i64>(0))
             .map_err(err)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(err)?
@@ -515,6 +533,7 @@ pub(crate) fn check_title(title: &str) -> CmdResult<String> {
 #[allow(clippy::too_many_arguments)]
 pub fn create_sheet(
     db: State<'_, Db>,
+    google: State<'_, GoogleState>,
     mac_id: i64,
     title: String,
     heading: Option<String>,
@@ -526,6 +545,7 @@ pub fn create_sheet(
     let title = check_title(&title)?;
     let heading = clean(heading).unwrap_or_else(|| "My tables".into());
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_mac(&conn, &google, mac_id)?;
     let order: i64 = conn
         .query_row(
             "SELECT COALESCE(MAX(display_order), -1) + 1 FROM sheets WHERE mac_id = ?1",
@@ -594,6 +614,7 @@ fn store_columns(conn: &Connection, sheet_id: i64, columns: &[Column]) -> CmdRes
 #[tauri::command]
 pub fn update_sheet(
     db: State<'_, Db>,
+    google: State<'_, GoogleState>,
     sheet_id: i64,
     title: String,
     heading: Option<String>,
@@ -602,6 +623,7 @@ pub fn update_sheet(
 ) -> CmdResult<Sheet> {
     let title = check_title(&title)?;
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     let before = load_sheet(&conn, sheet_id)?;
     let tx = conn.transaction().map_err(err)?;
     tx.execute(
@@ -682,8 +704,9 @@ pub fn template_columns(template_key: String) -> TemplateColumns {
 /// column left out is deleted with its cells, a renamed one's formulas and
 /// links follow it.
 #[tauri::command]
-pub fn save_columns(db: State<'_, Db>, sheet_id: i64, columns: Vec<Column>) -> CmdResult<Sheet> {
+pub fn save_columns(db: State<'_, Db>, google: State<'_, GoogleState>, sheet_id: i64, columns: Vec<Column>) -> CmdResult<Sheet> {
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     let before = load_sheet(&conn, sheet_id)?;
     let next_key: i64 = conn
         .query_row(
@@ -789,10 +812,12 @@ pub fn save_columns(db: State<'_, Db>, sheet_id: i64, columns: Vec<Column>) -> C
 #[tauri::command]
 pub fn save_dashboard(
     db: State<'_, Db>,
+    google: State<'_, GoogleState>,
     sheet_id: i64,
     dashboard: Option<Value>,
 ) -> CmdResult<Sheet> {
     let conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     let text = match &dashboard {
         Some(value) => Some(serde_json::to_string(value).map_err(err)?),
         None => None,
@@ -806,16 +831,18 @@ pub fn save_dashboard(
 }
 
 #[tauri::command]
-pub fn delete_sheet(db: State<'_, Db>, sheet_id: i64) -> CmdResult<()> {
+pub fn delete_sheet(db: State<'_, Db>, google: State<'_, GoogleState>, sheet_id: i64) -> CmdResult<()> {
     let conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     conn.execute("DELETE FROM sheets WHERE sheet_id = ?1", [sheet_id])
         .map_err(err)?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn reorder_sheets(db: State<'_, Db>, mac_id: i64, sheet_ids: Vec<i64>) -> CmdResult<()> {
+pub fn reorder_sheets(db: State<'_, Db>, google: State<'_, GoogleState>, mac_id: i64, sheet_ids: Vec<i64>) -> CmdResult<()> {
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_mac(&conn, &google, mac_id)?;
     let tx = conn.transaction().map_err(err)?;
     for (order, sheet_id) in sheet_ids.iter().enumerate() {
         tx.execute(
@@ -923,12 +950,14 @@ pub(crate) fn insert_rows(
 #[tauri::command]
 pub fn add_rows(
     db: State<'_, Db>,
+    google: State<'_, GoogleState>,
     sheet_id: i64,
     rows: Vec<Map<String, Value>>,
     after_row_id: Option<i64>,
     import: Option<ImportInfo>,
 ) -> CmdResult<Vec<Row>> {
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     let tx = conn.transaction().map_err(err)?;
     let import_id = match &import {
         Some(info) => {
@@ -958,10 +987,12 @@ pub fn add_rows(
 #[tauri::command]
 pub fn update_cells(
     db: State<'_, Db>,
+    google: State<'_, GoogleState>,
     sheet_id: i64,
     changes: Vec<CellChange>,
 ) -> CmdResult<Vec<Row>> {
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     let tx = conn.transaction().map_err(err)?;
     let mut by_row: HashMap<i64, Vec<CellChange>> = HashMap::new();
     for change in changes {
@@ -1036,8 +1067,9 @@ fn set_row_order(tx: &Transaction, sheet_id: i64, row_ids: &[i64]) -> CmdResult<
 }
 
 #[tauri::command]
-pub fn reorder_rows(db: State<'_, Db>, sheet_id: i64, row_ids: Vec<i64>) -> CmdResult<()> {
+pub fn reorder_rows(db: State<'_, Db>, google: State<'_, GoogleState>, sheet_id: i64, row_ids: Vec<i64>) -> CmdResult<()> {
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     let tx = conn.transaction().map_err(err)?;
     set_row_order(&tx, sheet_id, &row_ids)?;
     tx.execute(
@@ -1050,8 +1082,9 @@ pub fn reorder_rows(db: State<'_, Db>, sheet_id: i64, row_ids: Vec<i64>) -> CmdR
 }
 
 #[tauri::command]
-pub fn delete_rows(db: State<'_, Db>, sheet_id: i64, row_ids: Vec<i64>) -> CmdResult<()> {
+pub fn delete_rows(db: State<'_, Db>, google: State<'_, GoogleState>, sheet_id: i64, row_ids: Vec<i64>) -> CmdResult<()> {
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     let tx = conn.transaction().map_err(err)?;
     for row_id in row_ids {
         tx.execute(
@@ -1065,8 +1098,9 @@ pub fn delete_rows(db: State<'_, Db>, sheet_id: i64, row_ids: Vec<i64>) -> CmdRe
 }
 
 #[tauri::command]
-pub fn list_imports(db: State<'_, Db>, sheet_id: i64) -> CmdResult<Vec<ImportRecord>> {
+pub fn list_imports(db: State<'_, Db>, google: State<'_, GoogleState>, sheet_id: i64) -> CmdResult<Vec<ImportRecord>> {
     let conn = db.conn.lock().map_err(err)?;
+    access::guard_sheet(&conn, &google, sheet_id)?;
     let mut statement = conn
         .prepare(
             "SELECT i.import_id, i.sheet_id, i.file_name, i.mode, i.row_count,
@@ -1095,8 +1129,9 @@ pub fn list_imports(db: State<'_, Db>, sheet_id: i64) -> CmdResult<Vec<ImportRec
 
 /// Takes out the rows an import brought (those still there).
 #[tauri::command]
-pub fn undo_import(db: State<'_, Db>, import_id: i64) -> CmdResult<i64> {
+pub fn undo_import(db: State<'_, Db>, google: State<'_, GoogleState>, import_id: i64) -> CmdResult<i64> {
     let mut conn = db.conn.lock().map_err(err)?;
+    access::guard_import(&conn, &google, import_id)?;
     let tx = conn.transaction().map_err(err)?;
     let removed = tx
         .execute("DELETE FROM sheet_rows WHERE import_id = ?1", [import_id])
@@ -1202,7 +1237,14 @@ pub fn database_info(db: State<'_, Db>) -> CmdResult<DatabaseInfo> {
 
 /// A copy of the whole database, safe to take while the app runs.
 #[tauri::command]
-pub fn backup_database(db: State<'_, Db>, path: String) -> CmdResult<()> {
+pub fn backup_database(db: State<'_, Db>, google: State<'_, GoogleState>, path: String) -> CmdResult<()> {
+    let email = access::require(&google)?;
+    {
+        let conn = db.conn.lock().map_err(err)?;
+        if access::others_exist(&conn, &email)? {
+            return Err("This computer also holds MACs of other Google accounts, and a backup is a copy of the whole database, so it would copy their data. Sign in with the account that owns this computer's data, or remove the other MACs first.".into());
+        }
+    }
     if std::path::Path::new(&path).exists() {
         std::fs::remove_file(&path).map_err(err)?;
     }

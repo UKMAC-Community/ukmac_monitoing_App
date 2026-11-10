@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, OnInit, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
 import { Icon } from './components/icon';
+import { SignInGate } from './components/sign-in-gate';
 import { UpdateButton } from './components/update-button';
 import { Google } from './core/google';
 import { MacList } from './core/mac-list';
@@ -29,7 +30,7 @@ interface Crumb {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, UpdateButton],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, SignInGate, UpdateButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -39,10 +40,17 @@ export class App implements OnInit {
   readonly store = inject(WorkbookStore);
   readonly toasts = inject(Toasts);
   readonly powerBi = inject(PowerBi);
-  private readonly google = inject(Google);
+  readonly google = inject(Google);
   private readonly updater = inject(AppUpdater);
   readonly shell = inject(Shell);
   private readonly router = inject(Router);
+
+  /** Who is signed in; undefined until Google has been asked. */
+  private account: string | null | undefined;
+
+  /** Until the sign-in is known nothing is shown; signed out, only the sign-in screen (Settings stays reachable to set Google up). */
+  readonly ready = computed(() => this.google.status() !== null);
+  readonly gated = computed(() => this.ready() && !this.google.signedIn() && !this.url().startsWith('/settings'));
 
   readonly find = signal('');
   readonly url = toSignal(
@@ -130,6 +138,27 @@ export class App implements OnInit {
     }
     return crumbs;
   });
+
+  constructor() {
+    // Another account (or none) sees another set of MACs: nothing of the last one stays on screen.
+    effect(() => {
+      const status = this.google.status();
+      if (!status) return;
+      const account = status.signedIn ? (status.email ?? '').trim().toLowerCase() || null : null;
+      untracked(() => this.accountChanged(account));
+    });
+  }
+
+  private accountChanged(account: string | null) {
+    if (this.account === account) return;
+    const first = this.account === undefined;
+    this.account = account;
+    this.store.workbook.set(null);
+    void this.macs.refresh();
+    void this.google.refreshLinks();
+    if (account) void this.google.claimUnowned();
+    if (!first && !this.onHome()) void this.router.navigate(['/']);
+  }
 
   ngOnInit() {
     void this.macs.refresh();

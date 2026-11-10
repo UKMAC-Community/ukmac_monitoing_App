@@ -3,11 +3,14 @@ import { RouterLink } from '@angular/router';
 
 import { Farm3d } from '../components/farm-3d';
 import { Icon } from '../components/icon';
-import { MacMap3d, type PlotCard } from '../components/mac-map-3d';
+import { MacMap3d, type PlotCard, type Reshaped } from '../components/mac-map-3d';
 import type { MapShape } from '../components/mac-map';
+import { Modal } from '../components/modal';
+import { Api } from '../core/api';
 import { WorkbookStore } from '../core/workbook-store';
 import { formatDate } from '../sheet/columns';
-import { buildZoneLayout, plotCard, plotShapes, usageWord, type ZoneCell } from '../zonemap/zone-layout';
+import { formOf, formProblem, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf, type PlotForm } from '../zonemap/zone-edit';
+import { buildZoneLayout, plotCard, plotShapes, usageWord, type Usage, type ZoneCell } from '../zonemap/zone-layout';
 
 export type ZoneMapView = 'farm' | 'satellite';
 
@@ -18,7 +21,7 @@ export type ZoneMapView = 'farm' | 'satellite';
  */
 @Component({
   selector: 'app-zone-map-page',
-  imports: [RouterLink, Icon, MacMap3d, Farm3d],
+  imports: [RouterLink, Icon, MacMap3d, Farm3d, Modal],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.mac(); as mac) {
@@ -26,7 +29,7 @@ export type ZoneMapView = 'farm' | 'satellite';
         <a class="page-back-icon" [routerLink]="['/mac', mac.macId]" title="Back to the dashboard" aria-label="Back"><app-icon name="arrow-left" [size]="16" /></a>
         <h1>Zone Map</h1>
         <span class="badge neutral">{{ mac.macName }}</span>
-        <p class="zm-desc">Every plot at its place in its zone. Click a plot for its details.</p>
+        <p class="zm-desc">Every plot at its place in its zone. Click a plot for its details, then edit it, or edit its shape on the satellite.</p>
       </header>
 
       <div class="page">
@@ -50,18 +53,31 @@ export type ZoneMapView = 'farm' | 'satellite';
         } @else {
           <section class="card layout-card">
             <div class="view-row">
-              @if (view() === 'satellite') {
+              @if (editing()) {
+                <div class="edit-bar" role="group" aria-label="Edit the plot shapes">
+                  <span class="edit-hint"><app-icon name="edit" [size]="14" /> {{ editHint() }}</span>
+                  <button type="button" class="btn btn-secondary btn-sm" [disabled]="!canUndo()" (click)="undo()"><app-icon name="undo" [size]="13" /> Undo</button>
+                  <button type="button" class="btn btn-secondary btn-sm" [disabled]="!canRedo()" (click)="redo()"><app-icon name="redo" [size]="13" /> Redo</button>
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="cancelEdit()">Cancel</button>
+                  <button type="button" class="btn btn-primary btn-sm" [disabled]="!changedCount()" (click)="saveEdit()"><app-icon name="check" [size]="13" /> Save{{ changedCount() ? ' · ' + changedCount() : '' }}</button>
+                </div>
+              } @else if (view() === 'satellite') {
                 <div class="legend">
-                  <span><i class="sw planted"></i> Planted</span>
+                  <span><i class="sw planted"></i> Planted (dark edge)</span>
                   <span><i class="sw pale"></i> Not planted yet</span>
                   <span><i class="sw unused"></i> Not in use</span>
                   <span><i class="sw water"></i> Water</span>
                 </div>
               }
-              <div class="segmented is-sm view-switch" role="group" aria-label="How to see the plots">
-                <button type="button" class="segment" [attr.aria-pressed]="view() === 'satellite'" (click)="setView('satellite')"><app-icon name="map" [size]="13" /> Satellite</button>
-                <button type="button" class="segment" [attr.aria-pressed]="view() === 'farm'" (click)="setView('farm')"><app-icon name="sprout" [size]="13" /> Farm</button>
-              </div>
+              @if (!editing()) {
+                @if (canReshape(mac)) {
+                  <button type="button" class="btn btn-secondary btn-sm edit-shapes" title="Drag a plot's corners, or move it whole, on the satellite" (click)="startEdit()"><app-icon name="edit" [size]="13" /> Edit shapes</button>
+                }
+                <div class="segmented is-sm view-switch" role="group" aria-label="How to see the plots">
+                  <button type="button" class="segment" [attr.aria-pressed]="view() === 'satellite'" (click)="setView('satellite')"><app-icon name="map" [size]="13" /> Satellite</button>
+                  <button type="button" class="segment" [attr.aria-pressed]="view() === 'farm'" (click)="setView('farm')"><app-icon name="sprout" [size]="13" /> Farm</button>
+                </div>
+              }
             </div>
             <div class="layout-body">
               @if (view() === 'farm') {
@@ -75,8 +91,10 @@ export type ZoneMapView = 'farm' | 'satellite';
                     [longitude]="mac.longitude!"
                     [shapes]="shapes()"
                     [selected]="selectedId()"
-                    [card]="card()"
-                    (picked)="pick($event)"
+                    [card]="editing() ? null : card()"
+                    [editable]="editing()"
+                    (reshaped)="reshaped($event)"
+                    (picked)="select($event)"
                     (cleared)="selectedId.set(null)"
                   />
                 </div>
@@ -94,7 +112,15 @@ export type ZoneMapView = 'farm' | 'satellite';
               <!-- Only once a plot is picked; until then the map takes the whole width. -->
               @if (selected(); as cell) {
                 <aside class="details" aria-live="polite">
-                  <h3>{{ cell.usage === 'normal' ? cell.plot : cell.label }}</h3>
+                  <div class="details-head">
+                    <h3>{{ cell.usage === 'normal' ? cell.plot : cell.label }}</h3>
+                    @if (!editing()) {
+                      <button type="button" class="btn btn-secondary btn-sm" (click)="openForm(cell)"><app-icon name="edit" [size]="13" /> Edit plot</button>
+                    }
+                  </div>
+                  @if (editing() && !cell.outline.length) {
+                    <p class="muted">This plot has no shape on the map to edit.</p>
+                  }
                   <dl>
                     <dt>Zone</dt><dd>{{ cell.zone }}{{ cell.section ? ' · ' + cell.section : '' }}</dd>
                     <dt>Place</dt><dd>Row {{ cell.row }}, column {{ cell.column }}</dd>
@@ -122,6 +148,69 @@ export type ZoneMapView = 'farm' | 'satellite';
 
         }
       </div>
+
+      @if (formCell(); as cell) {
+        <app-modal [open]="true" [title]="'Edit plot ' + (cell.plot || cell.label)" [subtitle]="'Zone ' + cell.zone + ' · saved into the Zones table'" (closed)="formCell.set(null)">
+          <form id="plot-form" class="form-stack" (submit)="$event.preventDefault(); saveForm(cell)">
+            <div class="form-grid">
+              <label class="form-group">
+                <span class="form-label">Zone *</span>
+                <input class="input-field" [value]="form().zone" (input)="set('zone', $event)" />
+              </label>
+              <label class="form-group">
+                <span class="form-label">Zone number</span>
+                <input class="input-field" inputmode="numeric" [value]="form().section" (input)="set('section', $event)" placeholder="e.g. 3" />
+              </label>
+            </div>
+            <div class="form-grid">
+              <label class="form-group">
+                <span class="form-label">Row *</span>
+                <input class="input-field" inputmode="numeric" [value]="form().row" (input)="set('row', $event)" />
+              </label>
+              <label class="form-group">
+                <span class="form-label">Column *</span>
+                <input class="input-field" inputmode="numeric" [value]="form().column" (input)="set('column', $event)" />
+              </label>
+            </div>
+            @if (taken(); as other) {
+              <div class="alert-box warning">{{ other }} is already at this row and column of this zone. You can still save.</div>
+            }
+            <div class="form-grid">
+              <label class="form-group">
+                <span class="form-label">Use</span>
+                <select class="input-field" [value]="form().usage" (change)="setUsage($event)">
+                  <option value="normal">In use (plants)</option>
+                  <option value="unused">Not in use</option>
+                  <option value="water">Water</option>
+                </select>
+              </label>
+              @if (form().usage === 'normal') {
+                <label class="form-group">
+                  <span class="form-label">Plant capacity</span>
+                  <input class="input-field" inputmode="numeric" [value]="form().capacity" (input)="set('capacity', $event)" />
+                </label>
+              } @else {
+                <label class="form-group">
+                  <span class="form-label">Name on the map</span>
+                  <input class="input-field" [value]="form().statusName" (input)="set('statusName', $event)" [placeholder]="form().usage === 'water' ? 'Pond, River…' : 'Forest, Town…'" />
+                </label>
+              }
+            </div>
+            <label class="form-group">
+              <span class="form-label">Note</span>
+              <textarea class="input-field" rows="2" [value]="form().note" (input)="set('note', $event)"></textarea>
+            </label>
+            <small class="form-hint">The plot's code ({{ cell.plot }}) stays: the records and other tables find the plot by it. {{ cell.outline.length ? '' : 'It has no shape on the map yet.' }}</small>
+            @if (problem()) {
+              <div class="alert-box error">{{ problem() }}</div>
+            }
+          </form>
+          <ng-container footer>
+            <button type="button" class="btn btn-secondary" (click)="formCell.set(null)">Cancel</button>
+            <button type="submit" form="plot-form" class="btn btn-primary" [disabled]="!!problem()">Save</button>
+          </ng-container>
+        </app-modal>
+      }
     }
   `,
   styles: `
@@ -143,8 +232,8 @@ export type ZoneMapView = 'farm' | 'satellite';
     .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.8125rem; color: var(--text-muted); }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; }
-    .sw.planted { background: #B9EFB9; border-color: #6fbf6f; }
-    .sw.pale { background: #f4fdf4; border-color: #d7f6d7; }
+    .sw.planted { background: linear-gradient(90deg, #F2A03D, #5B86E0, #FFF04D, #7BF542); border: 2px solid #5b4a2a; }
+    .sw.pale { background: linear-gradient(90deg, #F2A03D, #5B86E0, #FFF04D, #7BF542); border-color: #c9c9c9; }
     .sw.unused { background: #f7f8f7; border-color: #d7dbd8; }
     .sw.water { background: #dbeafe; border-color: #60a5fa; }
     .sat-box { flex: 1; min-width: 0; position: relative; min-height: 420px; border-radius: var(--radius-md); overflow: hidden; }
@@ -155,7 +244,11 @@ export type ZoneMapView = 'farm' | 'satellite';
     .no-place p { max-width: 420px; margin: 0 0 6px; font-size: 0.875rem; line-height: 1.5; }
     .no-place-actions { display: flex; gap: 8px; }
     .details { flex: none; align-self: flex-start; width: 240px; padding: 14px 16px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid); }
-    .details h3 { font-size: 1.0625rem; font-weight: 700; margin-bottom: 8px; }
+    .details-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .details h3 { font-size: 1.0625rem; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+    .edit-shapes { margin-left: auto; margin-right: 8px; }
+    .edit-bar { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .edit-hint { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: 0.8125rem; color: var(--text-muted); }
     .details h4 { margin: 14px 0 6px; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
     dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.8125rem; }
     dt { color: var(--text-muted); }
@@ -202,7 +295,14 @@ export class ZoneMapPage {
     };
   });
 
-  readonly shapes = computed<MapShape[]>(() => plotShapes(this.layout()));
+  /** The plots as drawn: while editing, each reshaped one at its new outline. */
+  readonly shapes = computed<MapShape[]>(() => {
+    const shapes = plotShapes(this.layout());
+    if (!this.editing()) return shapes;
+    this.step();
+    const changed = this.history.now;
+    return shapes.map((shape) => (changed[shape.id] ? { ...shape, points: changed[shape.id] } : shape));
+  });
 
   /** The picked plot's card on the map (the open map covers the details beside it): its zone, its use, its latest record. */
   readonly card = computed<PlotCard | null>(() => {
@@ -212,6 +312,93 @@ export class ZoneMapPage {
 
   pick(id: string) {
     this.selectedId.set(this.selectedId() === id ? null : id);
+  }
+
+  // ---- Edit a plot's details (saved into the Zones table) ----
+  readonly formCell = signal<ZoneCell | null>(null);
+  readonly form = signal<PlotForm>({ zone: '', section: '', row: '', column: '', usage: 'normal', statusName: '', capacity: '', note: '' });
+  readonly problem = computed(() => formProblem(this.form()));
+  readonly taken = computed(() => {
+    const cell = this.formCell();
+    return cell && !this.problem() ? placeTakenBy(this.layout().cells, cell, this.form()) : null;
+  });
+
+  openForm(cell: ZoneCell) {
+    const sheet = this.zonesSheet();
+    if (!sheet) return;
+    this.form.set(formOf(cell, statusNameOf(sheet, Number(cell.id))));
+    this.formCell.set(cell);
+  }
+  set(field: keyof PlotForm, event: Event) {
+    const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value;
+    this.form.update((form) => ({ ...form, [field]: value }));
+  }
+  setUsage(event: Event) {
+    this.form.update((form) => ({ ...form, usage: (event.target as HTMLSelectElement).value as Usage }));
+  }
+  async saveForm(cell: ZoneCell) {
+    const sheet = this.zonesSheet();
+    if (!sheet || this.problem()) return;
+    this.formCell.set(null);
+    await this.store.updateCells(sheet.sheetId, plotChanges(sheet, Number(cell.id), this.form()));
+  }
+
+  // ---- Edit shapes on the satellite: corners and whole plots, then Save ----
+  private readonly api = inject(Api);
+  readonly editing = signal(false);
+  private readonly history = new ReshapeHistory();
+  /** Bumped on each step so the shapes, the buttons and the count follow the history. */
+  private readonly step = signal(0);
+  readonly canUndo = computed(() => (this.step(), this.history.canUndo));
+  readonly canRedo = computed(() => (this.step(), this.history.canRedo));
+  readonly changedCount = computed(() => (this.step(), Object.keys(this.history.now).length));
+  readonly editHint = computed(() => {
+    const cell = this.selected();
+    if (!cell) return 'Click a plot, then drag a corner, or the round handle to move it.';
+    if (!cell.outline.length) return `${cell.plot || cell.label} has no shape on the map to edit.`;
+    return `Editing ${cell.plot || cell.label}: drag a corner, or the round handle to move it whole.`;
+  });
+
+  canReshape(mac: { latitude: number | null; longitude: number | null }) {
+    return this.view() === 'satellite' && this.hasMap(mac) && this.layout().cells.some((cell) => cell.outline.length >= 3);
+  }
+  startEdit() {
+    this.history.reset();
+    this.step.update((n) => n + 1);
+    this.editing.set(true);
+  }
+  select(id: string) {
+    // Editing, a click on another plot picks it for editing; it never lets go of the one picked.
+    if (this.editing()) this.selectedId.set(id);
+    else this.pick(id);
+  }
+  reshaped(change: Reshaped) {
+    this.history.push(change.id, change.points);
+    this.step.update((n) => n + 1);
+  }
+  undo() {
+    this.history.undo();
+    this.step.update((n) => n + 1);
+  }
+  redo() {
+    this.history.redo();
+    this.step.update((n) => n + 1);
+  }
+  async cancelEdit() {
+    if (this.history.changed && !(await this.api.confirm('Leave without saving the changes to the shapes?', 'Edit shapes', 'Discard'))) return;
+    this.editing.set(false);
+  }
+  async saveEdit() {
+    const sheet = this.zonesSheet();
+    if (!sheet) return;
+    const changes = outlineChanges(sheet, this.history.now);
+    this.editing.set(false);
+    await this.store.updateCells(sheet.sheetId, changes);
+  }
+  /** Leaving the page (the route guard): ask first if shapes were changed and not saved. */
+  async canLeave() {
+    if (!this.editing() || !this.history.changed) return true;
+    return this.api.confirm('You have changes to the shapes that are not saved. Leave and lose them?', 'Edit shapes', 'Leave');
   }
 
   usageWord(cell: ZoneCell) {

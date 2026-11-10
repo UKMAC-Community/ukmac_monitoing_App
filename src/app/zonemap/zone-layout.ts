@@ -3,18 +3,22 @@ import type { PlotCard } from '../components/mac-map-3d';
 import type { SheetWithRows } from '../core/models';
 import { formatDate } from '../sheet/columns';
 
-/** The colours of a numbered section, as the system's Zone Map gives them (its `getSectionNumberPalette`). */
-const SECTION_PALETTE = [
-  { bg: '#E3F9E3', border: '#B9EFB9', text: '#1F7A1F' },
-  { bg: '#FBE6FB', border: '#F0B8F0', text: '#8A1F8A' },
-  { bg: '#FBE6E2', border: '#F3B8AC', text: '#8C2410' },
-  { bg: '#E1FBFB', border: '#AEF0F0', text: '#0E7A7A' },
-  { bg: '#FCFBD9', border: '#F2EFA0', text: '#7A7500' },
-  { bg: '#F2F2F2', border: '#DADADA', text: '#5C5C5C' },
-  { bg: '#E4EFFC', border: '#AFCEF5', text: '#1B4E91' },
-  { bg: '#bababa', border: '#C9C9C9', text: '#4D4D4D' },
-  { bg: '#FEF1E1', border: '#FBD8AC', text: '#8A4E0F' },
-  { bg: '#E8F3E4', border: '#C3E0B9', text: '#2F5C23' },
+/**
+ * The colour of each numbered section, as the farm's own Farm Update sheet colours it: Zone A's sections
+ * 1, 3, 5, 7, 9 are orange, blue, yellow, brick red and light green; Zone B's 2, 4, 6, 8, 10 are green,
+ * dark grey, light grey, cyan and magenta.
+ */
+const SECTION_COLORS = [
+  '#F2A03D', // 1 orange
+  '#5BAD5B', // 2 green
+  '#5B86E0', // 3 blue
+  '#999999', // 4 dark grey
+  '#FFF04D', // 5 yellow
+  '#D9D9D9', // 6 light grey
+  '#BF4E33', // 7 brick red
+  '#80FFFF', // 8 cyan
+  '#7BF542', // 9 light green
+  '#E83CF5', // 10 magenta
 ];
 const UNNUMBERED = { bg: '#eef0ee', border: '#c7ccc8', text: '#5b615c' };
 const UNUSED = { bg: '#f7f8f7', border: '#d7dbd8', text: '#8a928e' };
@@ -73,7 +77,9 @@ export interface ZoneLayout {
 }
 
 export function sectionPalette(section: number | null): Palette {
-  return section == null ? UNNUMBERED : SECTION_PALETTE[Math.max(0, section - 1) % SECTION_PALETTE.length];
+  if (section == null) return UNNUMBERED;
+  const color = SECTION_COLORS[Math.max(0, section - 1) % SECTION_COLORS.length];
+  return { bg: color, border: mix(color, 0.22, 0), text: mix(color, 0.6, 0) };
 }
 
 function mix(hex: string, ratio: number, to: number): string {
@@ -85,22 +91,30 @@ function mix(hex: string, ratio: number, to: number): string {
   return `#${channel(16)}${channel(8)}${channel(0)}`;
 }
 
-/** A plot with a plant record fills with the section's stronger shade; one without stays pale (as the system draws it). */
+/** A plot is its section's colour from the sheet; one with a plant record is outlined darker. */
 function paletteFor(usage: Usage, section: number | null, planted: boolean): Palette {
   if (usage === 'water') return WATER;
   if (usage === 'unused') return UNUSED;
   const base = sectionPalette(section);
-  return planted
-    ? { bg: base.border, border: mix(base.border, 0.25, 0), text: mix(base.text, 0.25, 0) }
-    : { ...base, bg: mix(base.bg, 0.55, 255), border: mix(base.border, 0.4, 255) };
+  return planted ? { ...base, border: mix(base.bg, 0.55, 0) } : base;
 }
 
-function parseOutline(text: string): [number, number][] {
+export function parseOutline(text: string): [number, number][] {
   return text
     .split(';')
     .map((pair) => pair.split(',').map(Number))
     .filter((pair) => pair.length === 2 && pair.every(Number.isFinite))
     .map((pair) => [pair[0], pair[1]] as [number, number]);
+}
+
+/** An outline as the Zones table keeps it: "lat,lng;lat,lng", 7 decimals (about a centimetre), no closing point. */
+export function formatOutline(points: [number, number][]): string {
+  return points.map(([lat, lng]) => `${lat.toFixed(7)},${lng.toFixed(7)}`).join(';');
+}
+
+/** An outline moved whole, by this much north and east. */
+export function moveOutline(points: [number, number][], dLat: number, dLng: number): [number, number][] {
+  return points.map(([lat, lng]) => [lat + dLat, lng + dLng] as [number, number]);
 }
 
 function usageOf(text: string): Usage {

@@ -1,6 +1,6 @@
 [package]
 name = "ukmac-monitoring"
-version = "0.1.2"
+version = "0.1.3"
 description = "UKMAC Monitoring: chili farm (MAC) tables on this computer"
 authors = ["UKMAC"]
 license = ""
