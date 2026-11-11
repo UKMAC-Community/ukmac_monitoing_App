@@ -130,6 +130,28 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
       }
     } @else if (!points().length) {
       <p class="none">No rows to chart yet.</p>
+    } @else if (visual() === 'pie' && labelled()) {
+      <!-- A pie as Google's: each slice's amount inside it, its name and share outside on a line to it. -->
+      <svg class="pie" [attr.width]="width()" [attr.height]="pie().height" [attr.viewBox]="'0 0 ' + width() + ' ' + pie().height" role="img" [attr.aria-label]="label()">
+        <g [attr.transform]="'translate(' + pie().cx + ' ' + pie().cy + ') scale(' + pie().r + ')'">
+          @for (item of pie().items; track item.label; let i = $index) {
+            <path [attr.d]="item.path" [attr.fill]="sliceColour(item.label, i)" stroke="#fff" stroke-width="0.012" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)">
+              <title>{{ sliceName(item.label) }}: {{ format(item.value) }} ({{ item.share }}%)</title>
+            </path>
+          }
+        </g>
+        @for (item of pie().items; track item.label; let i = $index) {
+          @if (item.showValue) {
+            <text class="pie-value" [attr.x]="item.inside.x" [attr.y]="item.inside.y" text-anchor="middle" dominant-baseline="middle" [attr.fill]="item.ink" [class.dim]="dim(item.key)">{{ format(item.value) }}</text>
+          }
+          <polyline [attr.points]="item.leader" fill="none" stroke="#9aa0a6" stroke-width="1" [class.dim]="dim(item.key)" />
+          <circle [attr.cx]="item.dot.x" [attr.cy]="item.dot.y" r="2.5" fill="#9aa0a6" [class.dim]="dim(item.key)" />
+          <g [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)">
+            <text class="pie-name" [attr.x]="item.text.x" [attr.y]="item.text.y - 6" [attr.text-anchor]="item.text.anchor">{{ sliceName(item.label) }}</text>
+            <text class="pie-share" [attr.x]="item.text.x" [attr.y]="item.text.y + 15" [attr.text-anchor]="item.text.anchor">{{ item.share }}%</text>
+          </g>
+        }
+      </svg>
     } @else if (visual() === 'pie' || visual() === 'donut') {
       <div class="round">
         <svg [attr.width]="pieSize" [attr.height]="pieSize" [attr.viewBox]="'0 0 ' + pieSize + ' ' + pieSize" role="img" [attr.aria-label]="label()">
@@ -469,6 +491,12 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
     .series-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0 44px; font-size: 12px; color: #252423; }
     .series-legend li { display: inline-flex; align-items: center; gap: 6px; }
     .none { font-size: 0.8125rem; color: #605e5c; padding: 40px 0; text-align: center; }
+    .pie { display: block; margin: 0 auto; }
+    .pie-value { font-size: 12px; font-weight: 500; }
+    .pie-name { font-size: 14px; fill: #252423; }
+    .pie-share { font-size: 13px; fill: #8a8886; font-variant-numeric: tabular-nums; }
+    .pie path.hit, .pie g.hit { cursor: pointer; }
+    .pie .dim { opacity: 0.35; }
     .pie-percent { font-size: 13px; font-weight: 600; pointer-events: none; }
     .round { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px; min-height: 220px; }
     .legend { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow: auto; }
@@ -853,6 +881,56 @@ export class KpiChart {
         share >= 0.9999 ? 'M 1 0 A 1 1 0 1 1 -1 0 A 1 1 0 1 1 1 0 Z' : `M 0 0 L ${x1} ${y1} A 1 1 0 ${large} 1 ${x2} ${y2} Z`;
       return { ...point, path, percent: (share * 100).toFixed(share < 0.1 ? 1 : 0), share: (share * 100).toFixed(1), fraction: share, mid: (start + end) / 2 };
     });
+  });
+
+  /** A pie is drawn with its names round it (Google's) when the tile is wide enough for them; narrower, with the list beside it. */
+  readonly labelled = computed(() => this.width() >= 400);
+
+  /** The labelled pie worked out in pixels: its slices, each slice's amount (inside it, when it has room), and its name and share on a line from it to the side. */
+  readonly pie = computed(() => {
+    const width = this.width();
+    const r = Math.max(70, Math.min(135, (width - 230) / 2));
+    const height = Math.round(r * 2 + 84);
+    const cx = width / 2;
+    const cy = height / 2;
+    const items = this.slices().map((slice, index) => {
+      const cos = Math.cos(slice.mid);
+      const sin = Math.sin(slice.mid);
+      const side = cos >= 0 ? 1 : -1;
+      return {
+        ...slice,
+        side,
+        dot: { x: cx + cos * r * 0.9, y: cy + sin * r * 0.9 },
+        inside: { x: cx + cos * r * 0.7, y: cy + sin * r * 0.7 },
+        // (the amount goes inside a slice only when it fits along it)
+        showValue: slice.fraction * Math.PI * 2 * r * 0.7 >= this.format(slice.value).length * 6.6 - 6,
+        ink: inkOn(this.sliceColour(slice.label, index)),
+        line: cy + sin * (r + 12),
+        leader: '',
+        text: { x: 0, y: 0, anchor: side > 0 ? 'start' : 'end' },
+      };
+    });
+    // The names of each side keep apart, top to bottom, and inside the tile.
+    for (const side of [1, -1]) {
+      const column = items.filter((item) => item.side === side).sort((a, b) => a.line - b.line);
+      const gap = 46;
+      column.forEach((item, index) => {
+        item.line = index ? Math.max(item.line, column[index - 1].line + gap) : Math.max(item.line, 22);
+      });
+      for (let index = column.length - 1; index >= 0; index--) {
+        const room = height - 22 - (index === column.length - 1 ? 0 : (column.length - 1 - index) * gap);
+        column[index].line = Math.min(column[index].line, room);
+      }
+    }
+    for (const item of items) {
+      const cos = Math.cos(item.mid);
+      const sin = Math.sin(item.mid);
+      const elbow = cx + item.side * (r + 18);
+      const far = elbow + item.side * 92;
+      item.leader = `${item.dot.x},${item.dot.y} ${cx + cos * (r + 6)},${cy + sin * (r + 6)} ${elbow},${item.line} ${far},${item.line}`;
+      item.text = { x: elbow + item.side * 4, y: item.line, anchor: item.text.anchor };
+    }
+    return { r, cx, cy, height, items };
   });
 
   /** Signed comparisons retain a zero baseline. Unlike sums/shares, omitted averages must not be added as Other. */
