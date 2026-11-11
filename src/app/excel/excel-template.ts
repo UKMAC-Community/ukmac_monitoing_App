@@ -9,6 +9,7 @@ import {
   normalizeHeader,
   parseLinkSource,
   PATH_SEPARATOR,
+  plotColumnKey,
   rangeText,
   typeLabel,
 } from '../sheet/columns';
@@ -461,6 +462,7 @@ export async function readImport(
   for (const column of entry.filter((item) => item.type === 'link')) linkOptions.set(column.key, ctx.linkOptions(column));
   const missingLinks = new Map<string, Set<string>>();
 
+  const plotKey = plotColumnKey(sheet);
   const rows: ImportRow[] = [];
   if (!issues.length) {
     for (let at = layout.dataFrom; at <= worksheet.rowCount; at += 1) {
@@ -492,6 +494,8 @@ export async function readImport(
         }
       }
       if (!filled) continue;
+      // A row with no zone plot (a Zone Measurement row) isn't brought in at all.
+      if (plotKey && !cells[plotKey] && [...columnAt.values()].some((column) => column.key === plotKey)) continue;
       for (const column of entry) {
         if (column.required && !cells[column.key] && !errors.some((error) => error.key === column.key)) {
           errors.push({ key: column.key, header: headers.get(column.key)!, message: 'This column needs a value' });

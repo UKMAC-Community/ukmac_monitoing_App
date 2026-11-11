@@ -604,6 +604,7 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
           higherIsBetter: false,
           decimals: 0,
           percentOf: [plants, replant].flatMap((column) => (column ? [column.key] : [])),
+          percentLabel: 'plants used',
         }),
         card('Average Plant a Day', plants, 'average', { decimals: 2, perGroup: perDay }),
         card('Minimum Plants a Day', plants, 'min', { perGroup: perDay }),
@@ -677,15 +678,18 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
         // How much each zone number gave over all the days, a line of its own with the total of the chart in a box beside it
         // (a table with no Zone number column has no such chart).
         (() => {
-          // The ripe and the unripe kilos stacked in each zone number, the total of the two (the harvest yield) as a line over them.
-          const stacked = ripe && unripe ? { visual: 'stacked' as const, more: [{ column: unripe.key, aggregate: 'sum' as const }], totalLine: true } : {};
-          const byZone = chart('Harvest yield by zone number (kg)', 'column', ripe && unripe ? ripe : total, 'sum', zoneNumber, 'value', { decimals: 1, ...stacked });
+          // The ripe and the unripe kilos stacked in each zone number; the total of the two is written above each stack and is a chart of its own beside it (no line over the stacks).
+          // The unripe kilos at the bottom and the ripe on top of them, each written in its part, as the farm's own chart draws them.
+          const stacked = ripe && unripe ? { visual: 'stacked' as const, more: [{ column: ripe.key, aggregate: 'sum' as const }] } : {};
+          const byZone = chart('Harvest yield by zone number (kg)', 'column', ripe && unripe ? unripe : total, 'sum', zoneNumber, 'value', { decimals: 1, ...stacked });
           return byZone ? { ...byZone, wide: true, total: 'Total yield (kg)' } : null;
         })(),
       ];
       // What the farm asks of them: on a day, how much and from which plots; in a zone number, how much and from which plots.
       const measures = [measure(plot, 'list', 'Zone plots'), measure(total, 'sum', 'Total yield (kg)'), measure(ripe, 'sum', 'Ripe (kg)'), measure(unripe, 'sum', 'Unripe (kg)')];
-      summaries = [summary('By date', harvestDate, 'value', measures), summary('By zone number', zoneNumber, 'value', measures)];
+      // A zone number also lists every day it was harvested (all its dates, once each, oldest first).
+      const zoneMeasures = [measure(plot, 'list', 'Zone plots'), measure(harvestDate, 'list', 'Harvest dates'), ...measures.slice(1)];
+      summaries = [summary('By date', harvestDate, 'value', measures), summary('By zone number', zoneNumber, 'value', zoneMeasures)];
       break;
     }
     case 'zones': {

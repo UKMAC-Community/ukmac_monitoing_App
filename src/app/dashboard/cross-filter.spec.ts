@@ -48,9 +48,15 @@ describe('clicking a group filters the other visuals (as Power BI does)', () => 
     // used, planted, replanted, dead, then the plants a day (average, smallest, largest of the two days)
     expect(big()).toEqual(['2,000', '2,000', '0', '23', '1,000.00', '700', '1,300']);
     // ... each saying how it is worked out from the records
-    expect(foot()[0]).toBe('Sum · Plant count + Replant count');
-    expect(foot()[3]).toContain('1.15% of Plant count + Replant count');
-    expect(foot()[4]).toContain('each Day number');
+    expect(foot()[0]).toBe('Plant count + Replant count');
+    expect(foot()[3]).toContain('1.15% of plants used');
+    expect(foot()[4]).toContain('per Day number');
+  });
+
+  it('seven cards sit in two even rows, four then three', () => {
+    const { el } = mount(null);
+    const spans = [...el.querySelectorAll<HTMLElement>('.kpi-card')].map((card) => card.style.gridColumn);
+    expect(spans).toEqual(['span 15', 'span 15', 'span 15', 'span 15', 'span 20', 'span 20', 'span 20']);
   });
 
   it('keeps only zone 1 in the cards, the other chart and the table, but all the bars in the chart clicked', () => {

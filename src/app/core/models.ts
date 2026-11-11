@@ -290,6 +290,8 @@ export interface Kpi {
   perGroup?: { groupBy: string; groupPart: GroupPart };
   /** A card also says what percent its value is of these columns' sum (their keys), in its foot. */
   percentOf?: string[];
+  /** What that sum is called in the foot ("plants used"): "0.00% of plants used". */
+  percentLabel?: string;
 }
 
 

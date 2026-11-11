@@ -265,3 +265,12 @@ export function alignsRight(column: Column) {
   // An ID the app numbers lines up left, as a label does, not right as a measure does.
   return !column.auto && (column.type === 'number' || column.type === 'percentage');
 }
+
+/**
+ * The column a row of this table can't do without: a Zone Measurement row with no Zone plot says nothing about any
+ * plot, so it isn't brought in (from a Google Sheet or a file). Null: every row is kept as it is.
+ */
+export function plotColumnKey(sheet: { templateKey: string | null; columns: readonly Column[] }): string | null {
+  if (sheet.templateKey !== 'zone-measurement') return null;
+  return sheet.columns.find((column) => column.name === 'Zone plot' && isEntryColumn(column))?.key ?? null;
+}

@@ -131,24 +131,21 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
     } @else if (!points().length) {
       <p class="none">No rows to chart yet.</p>
     } @else if (visual() === 'pie' && labelled()) {
-      <!-- A pie as Google's: each slice's amount inside it, its name and share outside on a line to it. -->
+      <!-- A pie as Google's: each slice drawn plain, its name and amount outside on a line to it. -->
       <svg class="pie" [attr.width]="width()" [attr.height]="pie().height" [attr.viewBox]="'0 0 ' + width() + ' ' + pie().height" role="img" [attr.aria-label]="label()">
         <g [attr.transform]="'translate(' + pie().cx + ' ' + pie().cy + ') scale(' + pie().r + ')'">
           @for (item of pie().items; track item.label; let i = $index) {
-            <path [attr.d]="item.path" [attr.fill]="sliceColour(item.label, i)" stroke="#fff" stroke-width="0.012" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)">
+            <path [attr.d]="item.path" [attr.fill]="sliceColour(item.label, i)" stroke="#fff" stroke-width="0.03" stroke-linejoin="round" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)">
               <title>{{ sliceName(item.label) }}: {{ format(item.value) }} ({{ item.share }}%)</title>
             </path>
           }
         </g>
         @for (item of pie().items; track item.label; let i = $index) {
-          @if (item.showValue) {
-            <text class="pie-value" [attr.x]="item.inside.x" [attr.y]="item.inside.y" text-anchor="middle" dominant-baseline="middle" [attr.fill]="item.ink" [class.dim]="dim(item.key)">{{ format(item.value) }}</text>
-          }
-          <polyline [attr.points]="item.leader" fill="none" stroke="#9aa0a6" stroke-width="1" [class.dim]="dim(item.key)" />
-          <circle [attr.cx]="item.dot.x" [attr.cy]="item.dot.y" r="2.5" fill="#9aa0a6" [class.dim]="dim(item.key)" />
+          <polyline [attr.points]="item.leader" fill="none" stroke="#c4c8cc" stroke-width="1" [class.dim]="dim(item.key)" />
+          <circle [attr.cx]="item.dot.x" [attr.cy]="item.dot.y" r="2" fill="#fff" stroke="#9aa0a6" stroke-width="1.25" [class.dim]="dim(item.key)" />
           <g [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)">
-            <text class="pie-name" [attr.x]="item.text.x" [attr.y]="item.text.y - 6" [attr.text-anchor]="item.text.anchor">{{ sliceName(item.label) }}</text>
-            <text class="pie-share" [attr.x]="item.text.x" [attr.y]="item.text.y + 15" [attr.text-anchor]="item.text.anchor">{{ item.share }}%</text>
+            <text class="pie-name" [attr.x]="item.text.x" [attr.y]="item.text.y - 5" [attr.text-anchor]="item.text.anchor">{{ sliceName(item.label) }}</text>
+            <text class="pie-share" [attr.x]="item.text.x" [attr.y]="item.text.y + 13" [attr.text-anchor]="item.text.anchor">{{ format(item.value) }}</text>
           </g>
         }
       </svg>
@@ -201,6 +198,10 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
                     <rect [attr.x]="column.x" [attr.y]="part.y" [attr.width]="column.w" [attr.height]="part.h" [attr.fill]="seriesColour(part.name, part.series)">
                       <title>{{ column.label }} · {{ part.name }}: {{ format(part.value) }}</title>
                     </rect>
+                    <!-- Each part's amount, written in it when it is big enough to hold it. -->
+                    @if (part.h >= 16 && column.w >= 34) {
+                      <text class="segment" [attr.x]="column.x + column.w / 2" [attr.y]="part.y + part.h / 2" text-anchor="middle" dominant-baseline="middle">{{ format(part.value) }}</text>
+                    }
                   }
                 }
                 @if (column.w > 22) {
@@ -210,9 +211,9 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
                 </g>
               }
               @if (totalLine() && s.columns.length) {
-                <polyline class="total-line" [attr.points]="s.line" fill="none" [attr.stroke]="totalColour" stroke-width="2.5" stroke-linejoin="round" />
+                <polyline class="total-line" [attr.points]="s.line" fill="none" [attr.stroke]="totalColour" stroke-width="2" stroke-dasharray="7 5" stroke-linecap="round" stroke-linejoin="round" />
                 @for (column of s.columns; track column.label) {
-                  <circle class="total-line" [attr.cx]="column.x + column.w / 2" [attr.cy]="column.top" r="3.5" [attr.fill]="totalColour" />
+                  <circle class="total-line" [attr.cx]="column.x + column.w / 2" [attr.cy]="column.top" r="4" fill="#fff" [attr.stroke]="totalColour" stroke-width="2" />
                 }
               }
             </svg>
@@ -221,7 +222,7 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
                 <li><span class="dot" [style.background]="seriesColour(name, i)"></span>{{ name }}</li>
               }
               @if (totalLine()) {
-                <li><span class="dot" [style.background]="totalColour"></span>Total</li>
+                <li><span class="dash" [style.borderColor]="totalColour"></span>Total</li>
               }
             </ul>
           } @else { <p class="none">Nothing to stack yet.</p> }
@@ -484,17 +485,17 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
     .zero { stroke: #8b9390; stroke-width: 1; }
     .chart-note { font-size: 11px; color: #605e5c; line-height: 1.45; margin: 6px 0 0; }
     .axis { font-size: 11px; fill: #605e5c; }
-    .value { font-size: 11px; fill: #252423; font-weight: 600; }
+    .value { font-size: 11px; fill: #252423; font-weight: 600; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
     .big-value { font-size: 30px; fill: #252423; font-weight: 600; font-variant-numeric: tabular-nums; }
     .tile-label { font-size: 11px; fill: #fff; font-weight: 600; }
     .tile-value { font-size: 11px; fill: #fff; opacity: 0.85; }
     .series-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0 44px; font-size: 12px; color: #252423; }
     .series-legend li { display: inline-flex; align-items: center; gap: 6px; }
+    .segment { font-size: 11px; font-weight: 600; fill: #fff; pointer-events: none; }
     .none { font-size: 0.8125rem; color: #605e5c; padding: 40px 0; text-align: center; }
     .pie { display: block; margin: 0 auto; }
-    .pie-value { font-size: 12px; font-weight: 500; }
-    .pie-name { font-size: 14px; fill: #252423; }
-    .pie-share { font-size: 13px; fill: #8a8886; font-variant-numeric: tabular-nums; }
+    .pie-name { font-size: 13px; font-weight: 500; fill: #252423; letter-spacing: 0.01em; }
+    .pie-share { font-size: 12px; fill: #8a8886; font-variant-numeric: tabular-nums; }
     .pie path.hit, .pie g.hit { cursor: pointer; }
     .pie .dim { opacity: 0.35; }
     .pie-percent { font-size: 13px; font-weight: 600; pointer-events: none; }
@@ -502,6 +503,8 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
     .legend { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow: auto; }
     .legend li { display: flex; align-items: center; gap: 10px; padding: 3px 4px; border-radius: 6px; font-size: 14px; color: #252423; }
     .legend .share { width: 46px; text-align: right; color: #8a8886; font-variant-numeric: tabular-nums; }
+    /* The total line's key: a short dashed line, as it is drawn. */
+    .dash { width: 18px; height: 0; border-top: 2px dashed; flex: none; }
     .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
     .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .num { color: #605e5c; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -527,7 +530,8 @@ export class KpiChart {
   readonly totalLine = input(false);
   /** Columns and bars named by a zone number take that zone's colour from the Zone Map. */
   readonly zoneColours = input(false);
-  readonly totalColour = KPI_PALETTE[2];
+  /** The total line over the stacks: a dashed dark line with open dots, apart from the red and green parts it adds up. */
+  readonly totalColour = '#323130';
   /** A group was clicked; `additive`: with Ctrl / ⌘ / Shift held, to add it to the ones lit. */
   readonly groupClick = output<{ key: string; label: string; additive: boolean }>();
 
@@ -676,7 +680,7 @@ export class KpiChart {
     const top = niceMax(Math.max(0, ...totals));
     const plot = HEIGHT - 28 - 16;
     const slot = (this.width() - this.left - 8) / labels.length;
-    const w = Math.max(4, Math.min(64, slot * 0.62));
+    const w = Math.max(4, Math.min(labels.length === 1 ? 110 : 64, slot * 0.62));
     const chars = Math.max(4, Math.floor(slot / 6.5));
     const ticks = [0, 1, 2, 3, 4].map((step) => ({
       y: 16 + plot - (plot * step) / 4,
@@ -886,14 +890,14 @@ export class KpiChart {
   /** A pie is drawn with its names round it (Google's) when the tile is wide enough for them; narrower, with the list beside it. */
   readonly labelled = computed(() => this.width() >= 400);
 
-  /** The labelled pie worked out in pixels: its slices, each slice's amount (inside it, when it has room), and its name and share on a line from it to the side. */
+  /** The labelled pie worked out in pixels: its slices, each slice, and its name and amount on a line from it to the side. */
   readonly pie = computed(() => {
     const width = this.width();
-    const r = Math.max(70, Math.min(135, (width - 230) / 2));
-    const height = Math.round(r * 2 + 84);
+    const r = Math.max(60, Math.min(100, (width - 260) / 2));
+    const height = Math.round(r * 2 + 76);
     const cx = width / 2;
     const cy = height / 2;
-    const items = this.slices().map((slice, index) => {
+    const items = this.slices().map((slice) => {
       const cos = Math.cos(slice.mid);
       const sin = Math.sin(slice.mid);
       const side = cos >= 0 ? 1 : -1;
@@ -901,10 +905,6 @@ export class KpiChart {
         ...slice,
         side,
         dot: { x: cx + cos * r * 0.9, y: cy + sin * r * 0.9 },
-        inside: { x: cx + cos * r * 0.7, y: cy + sin * r * 0.7 },
-        // (the amount goes inside a slice only when it fits along it)
-        showValue: slice.fraction * Math.PI * 2 * r * 0.7 >= this.format(slice.value).length * 6.6 - 6,
-        ink: inkOn(this.sliceColour(slice.label, index)),
         line: cy + sin * (r + 12),
         leader: '',
         text: { x: 0, y: 0, anchor: side > 0 ? 'start' : 'end' },
@@ -913,7 +913,7 @@ export class KpiChart {
     // The names of each side keep apart, top to bottom, and inside the tile.
     for (const side of [1, -1]) {
       const column = items.filter((item) => item.side === side).sort((a, b) => a.line - b.line);
-      const gap = 46;
+      const gap = 40;
       column.forEach((item, index) => {
         item.line = index ? Math.max(item.line, column[index - 1].line + gap) : Math.max(item.line, 22);
       });
@@ -926,7 +926,7 @@ export class KpiChart {
       const cos = Math.cos(item.mid);
       const sin = Math.sin(item.mid);
       const elbow = cx + item.side * (r + 18);
-      const far = elbow + item.side * 92;
+      const far = elbow + item.side * 78;
       item.leader = `${item.dot.x},${item.dot.y} ${cx + cos * (r + 6)},${cy + sin * (r + 6)} ${elbow},${item.line} ${far},${item.line}`;
       item.text = { x: elbow + item.side * 4, y: item.line, anchor: item.text.anchor };
     }

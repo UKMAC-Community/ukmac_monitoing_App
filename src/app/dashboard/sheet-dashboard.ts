@@ -9,7 +9,7 @@ import {
   BAD_COLOR,
   chartPoints,
   chartSeries,
-  seriesColour,
+  type ChartSeries,
   type CrossFilter,
   dashboardColumnName,
   dashboardOf,
@@ -50,10 +50,11 @@ interface CardView {
   template: `
     <div class="canvas" [class.flat]="!selectable()" [class.studio]="selectable()">
       @if (part() !== 'summaries' && cards().length) {
-        <div class="cards">
-          @for (card of cards(); track card.kpi.id) {
+        <div class="cards" [class.tiled]="spans().length > 0">
+          @for (card of cards(); track card.kpi.id; let i = $index) {
             <article
               class="tile kpi-card"
+              [style.grid-column]="spans()[i] ? 'span ' + spans()[i] : null"
               [class.is-pickable]="selectable()"
               [class.is-selected]="selected() === card.kpi.id"
               [attr.tabindex]="selectable() ? 0 : null"
@@ -75,7 +76,7 @@ interface CardView {
                   }
                   <span>{{ card.value }}</span>
                 </p>
-                <p class="foot" [class.gone]="card.gone">
+                <p class="foot" [class.gone]="card.gone" [attr.title]="card.foot + (card.delta ? ' ' + card.delta : '')">
                   {{ card.foot }}
                   @if (card.delta) {
                     <b [style.color]="card.color">{{ card.delta }}</b>
@@ -90,9 +91,10 @@ interface CardView {
       @if (part() !== 'summaries' && charts().length) {
         <div class="charts">
           @for (chart of charts(); track chart.kpi.id) {
+            <div class="slot" [class.paired]="chart.total !== null">
             <article
               class="tile"
-              [class.wide]="chart.kpi.wide"
+              [class.wide]="chart.kpi.wide && chart.total === null"
               [class.is-pickable]="selectable()"
               [class.is-selected]="selected() === chart.kpi.id"
               [attr.tabindex]="selectable() ? 0 : null"
@@ -119,32 +121,22 @@ interface CardView {
                   <div class="chart-main">
                     <app-kpi-chart [points]="chart.points" [series]="chart.series" [visual]="chart.kpi.visual" [timeline]="!!chart.kpi.timeline" [totalLine]="!!chart.kpi.totalLine" [zoneColours]="!!chart.kpi.zoneColours" [decimals]="chart.kpi.decimals" [label]="kpiTitle(chart.kpi)" [value]="chart.value" [goal]="chart.kpi.goal" [pickable]="!selectable() && chart.kpi.visual !== 'gauge'" [selected]="lit(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart)" (groupClick)="clickGroup(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart, $event)" />
                   </div>
-                  @if (chart.total !== null) {
-                    <aside class="total-box">
-                      <span class="total-name">{{ chart.kpi.total }}</span>
-                      <div class="ring" role="img" [attr.aria-label]="chart.kpi.total + ': ' + chart.total">
-                        <svg viewBox="0 0 140 140" aria-hidden="true">
-                          <circle class="ring-track" cx="70" cy="70" r="52" pathLength="100" />
-                          @for (part of chart.totalParts; track part.label) {
-                            <circle class="ring-part" cx="70" cy="70" r="52" pathLength="100" [attr.stroke]="part.colour" [attr.stroke-dasharray]="part.dash" [attr.stroke-dashoffset]="part.offset">
-                              <title>{{ part.label }}: {{ part.text }} ({{ part.percent }}%)</title>
-                            </circle>
-                          }
-                        </svg>
-                        <b class="big"><span>{{ chart.total }}</span></b>
-                      </div>
-                      @if (chart.totalParts.length > 1) {
-                        <ul class="ring-legend">
-                          @for (part of chart.totalParts; track part.label) {
-                            <li><span class="dot" [style.background]="part.colour"></span><span class="name">{{ part.label }}</span><span class="num">{{ part.text }} · {{ part.percent }}%</span></li>
-                          }
-                        </ul>
-                      }
-                    </aside>
-                  }
                 </div>
               }
             </article>
+            @if (chart.total !== null) {
+              <!-- The total is a chart of its own: one stack split into its parts (unripe, ripe), its number written over it, beside the chart it adds up; its plot sits on the same lines as the chart's. -->
+              <article
+                class="tile total-tile"
+                [class.is-pickable]="selectable()"
+                [class.is-selected]="selected() === chart.kpi.id"
+                (click)="pick(chart.kpi.id, $event)"
+              >
+                <header><h3>{{ chart.kpi.total }}</h3></header>
+                <app-kpi-chart [points]="chart.totalSeries[0]?.points ?? []" [series]="chart.totalSeries" visual="stacked" [decimals]="chart.kpi.decimals" [label]="chart.kpi.total ?? ''" />
+              </article>
+            }
+            </div>
           }
         </div>
       }
@@ -202,7 +194,7 @@ interface CardView {
                         <td class="cell-num">
                           @if (isText(value)) {
                             <!-- A list of values (the zone plots of a day, say): one line cut with … when it is long, whole when it is pointed at. -->
-                            <span class="list-text" [title]="value">{{ value }}</span>
+                            <span class="list-text" [class.dates]="isDates(value)" [title]="value">{{ value }}</span>
                           } @else {
                             {{ format(value) }}
                           }
@@ -271,6 +263,9 @@ interface CardView {
     }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
     .kpi-card { min-height: 140px; }
+    /* Seven or eight cards sit in two even rows (4 + 3), each row filling the width, not five and a straggler. */
+    .cards.tiled { grid-template-columns: repeat(60, 1fr); }
+    .kpi-card .foot:not(.gone) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .big {
       flex: 1; display: flex; align-items: center; gap: 6px; font-size: 34px; line-height: 1; font-weight: 600;
       letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #252423;
@@ -284,29 +279,19 @@ interface CardView {
     /* A chart and, when it has one, the box with its total beside it. */
     .chart-row { display: flex; align-items: stretch; gap: 16px; min-width: 0; }
     .chart-main { flex: 1; min-width: 0; }
-    .total-box {
-      flex: none; width: 220px; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 16px 20px;
-      border: var(--hairline) solid var(--border); border-radius: var(--radius-lg); background: var(--surface);
-    }
-    .total-name { font-size: 12px; font-weight: 600; color: #605e5c; }
-    /* The total as a ring split into its parts (ripe and unripe), the number in its middle. */
-    .ring { position: relative; width: 150px; max-width: 100%; aspect-ratio: 1; align-self: center; }
-    .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-    .ring circle { fill: none; stroke-width: 20; }
-    .ring-track { stroke: #edebe9; }
-    .ring .big { position: absolute; inset: 0; display: grid; place-items: center; font-size: 20px; padding: 0 30px; text-align: center; }
-    .ring-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
-    .ring-legend li { display: flex; align-items: center; gap: 6px; min-width: 0; }
-    .ring-legend .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
-    .ring-legend .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #605e5c; }
-    .ring-legend .num { font-variant-numeric: tabular-nums; font-weight: 600; }
-    @media (max-width: 760px) { .chart-row { flex-direction: column; } .total-box { width: auto; } }
+    /* A chart with a total: the chart and its total side by side, each its own card. */
+    .slot { display: contents; }
+    .slot.paired { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; }
+    .total-tile { justify-content: flex-start; }
+    @media (max-width: 760px) { .chart-row { flex-direction: column; } .slot.paired { grid-template-columns: minmax(0, 1fr); } }
     /* The pager keeps a page short, so the table shows all of its page's rows (no scrolling inside it). */
     .summary .table-wrap { overflow-x: auto; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .data-table th { text-align: center; font-weight: 600; color: #605e5c; padding: 8px 10px; border-bottom: 1px solid #e1dfdd; position: sticky; top: 0; background: #fff; }
     .data-table td { text-align: center; padding: 7px 10px; border-bottom: 1px solid #f3f2f1; }
     .data-table .cell-num { text-align: center; font-variant-numeric: tabular-nums; }
+    /* A list of dates (a zone's harvest days) is shown whole, wrapping onto as many lines as it needs. */
+    .data-table .list-text.dates { max-width: 340px; overflow: visible; text-overflow: clip; white-space: normal; text-align: left; line-height: 1.5; }
     .data-table tr.hit { cursor: pointer; }
     .data-table .list-text { display: inline-block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
     .data-table tr.hit:hover td { background: var(--accent-soft); }
@@ -380,6 +365,17 @@ export class SheetDashboard {
     this.filterChange.emit({ sheetId: sheet.sheetId, source, column, part, keys, labels, name: field ? dashboardColumnName(sheet.columns, field) : '' });
   }
 
+  /** How many of 60 columns each card spans when there are more than five (two rows as even as can be); none: the cards flow as they fit. */
+  readonly spans = computed<number[]>(() => {
+    const count = this.cards().length;
+    if (count <= 5) return [];
+    const perRow = Math.ceil(count / 2);
+    return this.cards().map((_, index) => {
+      const row = Math.floor(index / perRow);
+      return 60 / (row === 0 ? perRow : count - perRow);
+    });
+  });
+
   readonly cards = computed<CardView[]>(() =>
     this.dashboard()
       .kpis.filter((kpi) => kpi.visual === 'card')
@@ -413,7 +409,7 @@ export class SheetDashboard {
           value: gauge && !noValue ? kpiValue(this.formulas(), rows, kpi) : null,
           // The chart's own total, in the box beside it (the chart's rows added up: the bars' sum).
           total: kpi.total && !noValue ? formatNumber(this.chartTotal(rows, kpi), kpi.decimals) : null,
-          totalParts: kpi.total && !noValue ? this.totalParts(rows, kpi) : [],
+          totalSeries: kpi.total && !noValue ? this.totalSeries(rows, kpi) : [],
         };
       }),
   );
@@ -459,21 +455,12 @@ export class SheetDashboard {
     return chartSeries(this.formulas(), rows, kpi).reduce((all, one) => all + one.points.reduce((sum, point) => sum + point.value, 0), 0);
   }
 
-  /** The total's ring: a stacked chart's series each a part of it (ripe red, unripe green); else one whole ring. */
-  private totalParts(rows: SheetWithRows, kpi: Kpi) {
+  /** The total as one stack: a stacked chart's series each a part of it (unripe green, ripe red); else one part. */
+  private totalSeries(rows: SheetWithRows, kpi: Kpi): ChartSeries[] {
     const series = kpi.visual === 'stacked' && kpi.aggregate === 'sum' ? chartSeries(this.formulas(), rows, kpi) : [];
-    const sums = series.map((one, index) => ({ label: one.label, value: one.points.reduce((sum, point) => sum + Math.max(point.value, 0), 0), colour: seriesColour(one.label, index) }));
-    const parts = sums.length > 1 ? sums : [{ label: kpi.total ?? '', value: 1, colour: seriesColour('', 0) }];
-    const whole = parts.reduce((sum, part) => sum + part.value, 0);
-    let start = 0;
-    return parts
-      .filter((part) => part.value > 0)
-      .map((part) => {
-        const share = whole > 0 ? (part.value / whole) * 100 : 0;
-        const out = { label: part.label, colour: part.colour, text: formatNumber(part.value, kpi.decimals), percent: Math.round(share), dash: `${share} ${100 - share}`, offset: -start };
-        start += share;
-        return out;
-      });
+    const sums = series.map((one) => ({ label: one.label, value: one.points.reduce((sum, point) => sum + Math.max(point.value, 0), 0) }));
+    const parts = sums.length > 1 ? sums : [{ label: kpi.total ?? '', value: this.chartTotal(rows, kpi) ?? 0 }];
+    return parts.map((part) => ({ label: part.label, points: [{ key: 'total', label: 'Total', value: part.value }] }));
   }
 
   /** A chart's switch: group it the way its `index`th view says. */
@@ -534,9 +521,9 @@ export class SheetDashboard {
       kpi.aggregate === 'count'
         ? 'Count of rows'
         : kpi.perGroup
-          ? `${aggregateLabel(kpi.aggregate)} of each ${nameOf(kpi.perGroup.groupBy)}'s ${named}`
+          ? `${aggregateLabel(kpi.aggregate)} per ${nameOf(kpi.perGroup.groupBy)} · ${named}`
           : kpi.plus?.length
-            ? `Sum · ${[named, ...kpi.plus.map(nameOf)].join(' + ')}`
+            ? [named, ...kpi.plus.map(nameOf)].join(' + ')
             : `${aggregateLabel(kpi.aggregate)} · ${named}`;
     const foot = gone
       ? "Its column isn't in the table any more — pick another in Edit dashboard."
@@ -544,18 +531,23 @@ export class SheetDashboard {
         ? `Goal: ${formatNumber(kpi.goal, kpi.decimals)}`
         : source;
     const percent = !gone && !empty ? kpiPercent(this.formulas(), this.rowsFor(kpi.id), kpi, value) : null;
-    const share = percent === null ? '' : ` · ${percent.toFixed(2)}% of ${(kpi.percentOf ?? []).map(nameOf).join(' + ')}`;
+    const share = percent === null ? null : `${percent.toFixed(2)}% of ${kpi.percentLabel ?? (kpi.percentOf ?? []).map(nameOf).join(' + ')}`;
     const deltaText = delta !== null ? `(${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%)` : null;
     return {
       kpi,
       value: formatNumber(value, kpi.decimals),
       color,
       arrow: hasGoal ? (good ? 'up' : 'down') : null,
-      foot: gone || hasGoal ? foot : foot + share,
-      delta: gone ? null : deltaText,
+      foot,
+      delta: gone ? null : (deltaText ?? share),
       gone,
       empty,
     };
+  }
+
+  /** Whether a list holds dates (2026-07-01, 2026-07-02, …). */
+  isDates(value: string) {
+    return /^\d{4}-\d{2}-\d{2}(, \d{4}-\d{2}-\d{2})*$/.test(value);
   }
 
   isText(value: number | string | null): value is string {

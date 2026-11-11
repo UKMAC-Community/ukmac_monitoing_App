@@ -59,9 +59,9 @@ describe('Harvest: its tables by date, and by zone number', () => {
     expect(zoneChart.groupBy).toBe(hKey('Zone number'));
     // The ripe and the unripe kilos stacked in each zone number (together the harvest yield), the total of them a line over the stacks.
     expect(zoneChart.visual).toBe('stacked');
-    expect(zoneChart.totalLine).toBe(true);
+    expect(zoneChart.totalLine).toBeUndefined(); // no line over the stacks: the total is written above each, and has a chart of its own
     const series = chartSeries(book, sheet, zoneChart);
-    expect(series.map((one) => [one.label, one.points.map((point) => point.value)])).toEqual([['Ripe yield (kg)', [10, 4, 3]], ['Unripe yield (kg)', [3.5, 0, 0]]]);
+    expect(series.map((one) => [one.label, one.points.map((point) => point.value)])).toEqual([['Unripe yield (kg)', [3.5, 0, 0]], ['Ripe yield (kg)', [10, 4, 3]]]);
     expect(series[0].points.map((point) => point.label)).toEqual(['1', '2', '(blank)']);
   });
 
@@ -81,11 +81,11 @@ describe('Harvest: its tables by date, and by zone number', () => {
     expect(result.header).toBe('Zone number');
     expect(result.header2).toBeUndefined();
     expect(result.rows.map((row) => [row.label, ...row.values])).toEqual([
-      ['1', 'A-01, A-02', 13.5, 10, 3.5],
-      ['2', 'B-01', 4, 4, 0],
-      ['(blank)', 'Z-99', 3, 3, 0],
+      ['1', 'A-01, A-02', '2026-07-01, 2026-07-02', 13.5, 10, 3.5],
+      ['2', 'B-01', '2026-07-02', 4, 4, 0],
+      ['(blank)', 'Z-99', '2026-07-01', 3, 3, 0],
     ]);
-    expect(result.totals).toEqual(['', 20.5, 17, 3.5]);
+    expect(result.totals).toEqual(['', '', 20.5, 17, 3.5]);
   });
 
   it('shows the plots in the page, one table at a time', () => {
@@ -109,7 +109,7 @@ describe('Harvest: its tables by date, and by zone number', () => {
     expect(root.querySelector('article.summary tbody tr td:nth-child(2)')?.textContent?.trim()).toBe('A-01, Z-99');
     buttons[1].click();
     fixture.detectChanges();
-    expect(heads()).toEqual(['Zone number', 'Zone plots', 'Total yield (kg)', 'Ripe (kg)', 'Unripe (kg)']);
+    expect(heads()).toEqual(['Zone number', 'Zone plots', 'Harvest dates', 'Total yield (kg)', 'Ripe (kg)', 'Unripe (kg)']);
     expect(root.querySelectorAll('article.summary tbody tr').length).toBe(3);
   });
 
@@ -172,20 +172,28 @@ describe('Harvest: its tables by date, and by zone number', () => {
     fixture.detectChanges();
     const tiles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('article.tile')];
     const tile = tiles.find((item) => item.querySelector('h3')?.textContent?.trim() === 'Harvest yield by zone number (kg)')!;
-    expect(tile.classList).toContain('wide');
-    expect(tile.querySelector('.total-name')?.textContent?.trim()).toBe('Total yield (kg)');
-    expect(tile.querySelector('.total-box .big')?.textContent?.trim()).toBe('20.5');
-    // The total is a ring of its ripe and unripe parts (red and green) with the number in its middle.
-    const parts = [...tile.querySelectorAll('.total-box circle.ring-part')];
-    expect(parts.map((part) => part.getAttribute('stroke'))).toEqual([RIPE_COLOR, UNRIPE_COLOR]);
-    expect(tile.querySelectorAll('.total-box .ring-legend li').length).toBe(2);
+    // The chart and its total are two cards side by side (one slot), the total no longer a box inside the chart's.
+    expect(tile.querySelector('.total-box')).toBeNull();
+    const total = tiles.find((item) => item.classList.contains('total-tile'))!;
+    expect(total.closest('.slot')).toBe(tile.closest('.slot'));
+    expect(total.closest('.slot')!.classList).toContain('paired');
+    expect(total.querySelector('h3')?.textContent?.trim()).toBe('Total yield (kg)');
+    // The total's number is over its stack (no big figure above the chart, so both plots start on the same line).
+    expect(total.querySelector('.total-figure')).toBeNull();
+    expect(total.querySelector('text.value')?.textContent?.trim()).toBe('20.5');
+    // The total is one stack of its unripe (green, below) and ripe (red, above) parts, each part's amount written in it.
+    const parts = [...total.querySelectorAll('svg rect[fill]')].map((part) => part.getAttribute('fill')).filter((fill) => fill === RIPE_COLOR || fill === UNRIPE_COLOR);
+    expect(parts).toEqual([UNRIPE_COLOR, RIPE_COLOR]);
+    expect([...total.querySelectorAll('text.segment')].map((text) => text.textContent?.trim())).toEqual(['3.5', '17.0']);
+    expect(total.querySelector('.series-legend')?.textContent).toContain('Ripe yield (kg)');
     expect(tile.querySelectorAll('rect[fill="' + RIPE_COLOR + '"]').length).toBeGreaterThan(0);
-    expect(tile.querySelectorAll('polyline.total-line').length).toBe(1);
-    expect(tile.querySelectorAll('circle.total-line').length).toBe(3);
-    expect(tile.querySelector('.series-legend')?.textContent).toContain('Total');
+    // Each zone's parts are written in them; no line over the stacks.
+    expect(tile.querySelectorAll('text.segment').length).toBeGreaterThan(0);
+    expect(tile.querySelectorAll('polyline.total-line').length).toBe(0);
+    expect(tile.querySelector('.series-legend')?.textContent).not.toContain('Total');
     const byDay = tiles.find((item) => item.querySelector('h3')?.textContent?.trim() === 'Harvest yield by day')!;
     expect(byDay.classList).toContain('wide');
-    expect(byDay.querySelector('.total-box')).toBeNull();
+    expect(byDay.closest('.slot')!.classList).not.toContain('paired');
     expect(byDay.querySelector('.day-scroll')).toBeTruthy();
   });
 });

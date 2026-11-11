@@ -98,11 +98,15 @@ export function cellsFor(
   matched: Map<number, Column>,
   data: ExcelSheetData,
   linkOptions: (column: Column) => readonly string[],
-): { rows: Cells[]; problems: number } {
+  /** A column (its key) every row must have a value in: a row without one is left out (and counted in `skipped`). */
+  needed: string | null = null,
+): { rows: Cells[]; problems: number; skipped: number } {
   const options = new Map<string, readonly string[]>();
   for (const column of matched.values()) if (column.type === 'link') options.set(column.key, linkOptions(column));
   let problems = 0;
-  const rows = data.rows.map((row) => {
+  let skipped = 0;
+  const rows: Cells[] = [];
+  for (const row of data.rows) {
     const cells: Cells = {};
     for (const [index, column] of matched) {
       const raw = (row[index] ?? '').trim();
@@ -111,9 +115,13 @@ export function cellsFor(
       cells[column.key] = checked.value;
       if (checked.error) problems += 1;
     }
-    return cells;
-  });
-  return { rows, problems };
+    if (needed && !cells[needed]) {
+      skipped += 1;
+      continue;
+    }
+    rows.push(cells);
+  }
+  return { rows, problems, skipped };
 }
 
 /**

@@ -5,7 +5,7 @@ import type { FileLayout } from '../excel/file-layout';
 import { readExcelSheets, tableFromSheet, type ExcelSheetData } from '../excel/sheet-from-excel';
 import { planLinks } from '../google/link-plan';
 import { cellsFor, headerMapOf, matchHeaders, newColumns } from '../google/sheet-sync';
-import { parseLinkSource, todayIso } from '../sheet/columns';
+import { parseLinkSource, plotColumnKey, todayIso } from '../sheet/columns';
 import { Api, errorText } from './api';
 import { MacList } from './mac-list';
 import type { DriveFile, GoogleLink, GoogleStatus, SheetWithRows, Workbook } from './models';
@@ -20,6 +20,8 @@ export interface SyncOutcome {
   added: string[];
   /** Cells that don't fit their column (drawn red in the table). */
   problems: number;
+  /** Rows of the tab left out because they have no zone plot (a Zone Measurement row without one). */
+  skipped?: number;
   /** The tab has more rows than the app takes. */
   truncated: boolean;
 }
@@ -290,8 +292,12 @@ export class Google {
     }
 
     const formulas = new WorkbookFormulas(book, todayIso());
-    const { rows, problems } = cellsFor(matched, data, (column) =>
-      column.type === 'link' ? formulas.linkOptions(parseLinkSource(column.source)) : [],
+    const { rows, problems, skipped } = cellsFor(
+      matched,
+      data,
+      (column) => (column.type === 'link' ? formulas.linkOptions(parseLinkSource(column.source)) : []),
+      // Only when the tab has the zone plot's column: a tab without it keeps every row.
+      [...matched.values()].some((column) => column.key === plotColumnKey(sheet)) ? plotColumnKey(sheet) : null,
     );
     await this.api.addRows(sheet.sheetId, rows, {
       import: { fileName: `Google Sheets · ${link.spreadsheetTitle} › ${link.tabTitle}`, mode: 'replace' },
@@ -301,7 +307,7 @@ export class Google {
     if (open) await this.store.reload();
     void this.macList.refresh();
     this.powerBi.changed();
-    return { rows: rows.length, added, problems, truncated: !!data.truncated };
+    return { rows: rows.length, added, problems, skipped, truncated: !!data.truncated };
   }
 
   /**

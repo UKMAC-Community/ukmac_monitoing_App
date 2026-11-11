@@ -40,6 +40,9 @@ interface Cell {
             Each zone plot's latest QC record against the growth standard · {{ built().rows.length }} plot{{ built().rows.length === 1 ? '' : 's' }}
           </p>
         </div>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="setAll(!anyOpen())" title="Open every stage's table, or fold them all away">
+          {{ anyOpen() ? 'Collapse all' : 'Expand all' }}
+        </button>
         <button type="button" class="btn btn-secondary btn-sm" [attr.aria-pressed]="showFormulas()" (click)="showFormulas.set(!showFormulas())" title="Show each column's formula under its name">
           <app-icon name="table" /> {{ showFormulas() ? 'Hide formulas' : 'Show formulas' }}
         </button>
@@ -57,7 +60,14 @@ interface Cell {
         <!-- Each stage is a table of its own, one under the other: its checks over the plots (the plot's own columns repeat). -->
         @for (block of blocks(); track block.stage) {
           <section class="stage">
-            <h3 class="stage-title">{{ block.stage }}</h3>
+            <h3 class="stage-title">
+              <button type="button" class="stage-toggle" [attr.aria-expanded]="block.open" (click)="toggleStage(block.stage)">
+                <app-icon name="chevron-down" [size]="16" class="chev" [class.shut]="!block.open" />
+                <span class="stage-name">{{ block.stage }}</span>
+                <span class="stage-count">{{ block.total }} plot{{ block.total === 1 ? '' : 's' }}</span>
+              </button>
+            </h3>
+            @if (block.open) {
             <div class="table-card scroller">
               <table class="data-table">
                 <thead>
@@ -96,6 +106,15 @@ interface Cell {
                 </tbody>
               </table>
             </div>
+            @if (block.total > preview) {
+              <div class="more">
+                <span class="more-note">Showing {{ block.lines.length }} of {{ block.total }} plots</span>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="toggleRows(block.stage)">
+                  {{ block.all ? 'Show fewer' : 'Show all ' + block.total }}
+                </button>
+              </div>
+            }
+            }
           </section>
         }
       }
@@ -120,7 +139,15 @@ interface Cell {
     .jump .chip { white-space: nowrap; cursor: pointer; font-size: 0.8125rem; }
     .stage { padding: 4px 0 8px; }
     .stage + .stage { border-top: var(--hairline) solid var(--border); }
-    .stage-title { margin: 0; padding: 14px 20px 8px; font-size: 0.9375rem; font-weight: 600; }
+    .stage-title { margin: 0; padding: 6px 12px 4px; font-size: 0.9375rem; font-weight: 600; }
+    .stage-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border: 0; border-radius: var(--radius-sm, 8px); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    .stage-toggle:hover { background: var(--surface-hover, rgb(0 0 0 / 0.04)); }
+    .stage-name { font-weight: 600; }
+    .stage-count { margin-left: auto; font-size: 0.8125rem; font-weight: 400; color: var(--text-muted); }
+    .chev { display: inline-flex; transition: transform 0.15s ease; }
+    .chev.shut { transform: rotate(-90deg); }
+    .more { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px 4px; }
+    .more-note { font-size: 0.8125rem; color: var(--text-muted); }
     .scroller { background: transparent; overflow-x: auto; }
     .data-table { width: max-content; min-width: 100%; }
     .data-table thead th { background: var(--surface-solid); text-align: center; }
@@ -143,6 +170,12 @@ export class QaQcAnalysis {
   readonly sheets = input.required<readonly SheetWithRows[]>();
 
   readonly stage = signal<string | null>(null);
+
+  /** How many plots a stage shows before "Show all". */
+  readonly preview = 5;
+  /** The stages folded away, and the ones showing every plot (the rest show the first few). */
+  private readonly folded = signal<ReadonlySet<string>>(new Set());
+  private readonly everyRow = signal<ReadonlySet<string>>(new Set());
   readonly showFormulas = signal(true);
 
   readonly built = computed(() => buildAnalysis(this.sheet(), batchSourceOf(this.sheets())));
@@ -163,15 +196,34 @@ export class QaQcAnalysis {
       .filter((name) => picked === null || picked === name)
       .map((name) => {
         const shown = [...own, ...columns.filter((item) => item.stage === name)];
+        const all = this.everyRow().has(name);
         return {
           stage: name,
+          open: !this.folded().has(name),
+          all,
+          total: rows.length,
           columns: shown,
           // The checks named over their columns (the plot's own and the stage's date have none).
           spans: runs(shown.map((item) => item.check)),
-          lines: rows.map((row) => ({ id: row.rowId, cells: shown.map((item) => this.cellOf(formulas, sheet, row, item)) })),
+          lines: (all ? rows : rows.slice(0, this.preview)).map((row) => ({ id: row.rowId, cells: shown.map((item) => this.cellOf(formulas, sheet, row, item)) })),
         };
       });
   });
+
+  readonly anyOpen = computed(() => this.stages().some((name) => !this.folded().has(name)));
+
+  toggleStage(name: string) {
+    this.folded.update((set) => toggled(set, name));
+  }
+
+  toggleRows(name: string) {
+    this.everyRow.update((set) => toggled(set, name));
+  }
+
+  /** Every stage's table opened (showing the first few plots) or folded away. */
+  setAll(open: boolean) {
+    this.folded.set(open ? new Set() : new Set(this.stages()));
+  }
 
   private cellOf(formulas: WorkbookFormulas, sheet: SheetWithRows, row: Row, item: AnalysisColumn): Cell {
     const value = formulas.cell(sheet, row, item.column);
@@ -183,6 +235,12 @@ export class QaQcAnalysis {
     const status = item.kind === 'status' ? (word === 'GREEN' ? 'green' : word === 'YELLOW' ? 'yellow' : word === 'RED' ? 'red' : null) : null;
     return { text, status, error: null };
   }
+}
+
+function toggled(set: ReadonlySet<string>, name: string): ReadonlySet<string> {
+  const next = new Set(set);
+  if (!next.delete(name)) next.add(name);
+  return next;
 }
 
 /** Consecutive equal labels as one header cell each (a blank one stays blank). */
