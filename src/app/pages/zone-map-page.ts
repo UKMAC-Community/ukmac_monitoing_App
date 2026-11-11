@@ -9,7 +9,7 @@ import { Modal } from '../components/modal';
 import { Api } from '../core/api';
 import { WorkbookStore } from '../core/workbook-store';
 import { formatDate } from '../sheet/columns';
-import { formOf, formProblem, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf, type PlotForm } from '../zonemap/zone-edit';
+import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf, type PlotForm } from '../zonemap/zone-edit';
 import { buildZoneLayout, filterLayout, mapCentre, plotCard, plotShapes, showsPlot, usageWord, type PlotShow, type Usage, type ZoneCell } from '../zonemap/zone-layout';
 
 export type ZoneMapView = 'farm' | 'satellite';
@@ -56,10 +56,17 @@ export type ZoneMapView = 'farm' | 'satellite';
               @if (editing()) {
                 <div class="edit-bar" role="group" aria-label="Edit the plot shapes">
                   <span class="edit-hint"><app-icon name="edit" [size]="14" /> {{ editHint() }}</span>
+                  @if (drawing()) {
+                    <button type="button" class="btn btn-secondary btn-sm" [disabled]="!draft().length" (click)="undoCorner()"><app-icon name="undo" [size]="13" /> Undo corner</button>
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="stopDrawing()">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" [disabled]="draft().length < 3" (click)="finishDrawing()"><app-icon name="check" [size]="13" /> Finish plot</button>
+                  } @else {
+                  <button type="button" class="btn btn-secondary btn-sm" title="Draw a new plot on the satellite: click its corners" (click)="startDrawing()"><app-icon name="plus" [size]="13" /> Add plot</button>
                   <button type="button" class="btn btn-secondary btn-sm" [disabled]="!canUndo()" (click)="undo()"><app-icon name="undo" [size]="13" /> Undo</button>
                   <button type="button" class="btn btn-secondary btn-sm" [disabled]="!canRedo()" (click)="redo()"><app-icon name="redo" [size]="13" /> Redo</button>
                   <button type="button" class="btn btn-secondary btn-sm" (click)="cancelEdit()">Cancel</button>
                   <button type="button" class="btn btn-primary btn-sm" [disabled]="!changedCount()" (click)="saveEdit()"><app-icon name="check" [size]="13" /> Save{{ changedCount() ? ' · ' + changedCount() : '' }}</button>
+                  }
                 </div>
               } @else if (view() === 'satellite') {
                 <div class="legend">
@@ -79,8 +86,8 @@ export type ZoneMapView = 'farm' | 'satellite';
                   <button type="button" class="segment" [attr.aria-pressed]="view() === 'satellite'" (click)="setView('satellite')"><app-icon name="map" [size]="13" /> Satellite</button>
                   <button type="button" class="segment" [attr.aria-pressed]="view() === 'farm'" (click)="setView('farm')"><app-icon name="sprout" [size]="13" /> Farm</button>
                 </div>
-                @if (canReshape(mac)) {
-                  <button type="button" class="btn btn-secondary btn-sm edit-shapes" title="Drag a plot's corners, or move it whole, on the satellite" (click)="startEdit()"><app-icon name="edit" [size]="13" /> Edit shapes</button>
+                @if (canEdit(mac)) {
+                  <button type="button" class="btn btn-secondary btn-sm edit-shapes" title="Drag a plot's corners, move it whole, or draw a new plot, on the satellite" (click)="startEdit()"><app-icon name="edit" [size]="13" /> Edit shapes</button>
                 }
               }
             </div>
@@ -98,6 +105,9 @@ export type ZoneMapView = 'farm' | 'satellite';
                     [selected]="selectedId()"
                     [card]="editing() ? null : card()"
                     [editable]="editing()"
+                    [drawing]="drawing()"
+                    [draft]="draft()"
+                    (drawClick)="addCorner($event)"
                     (reshaped)="reshaped($event)"
                     (picked)="select($event)"
                     (cleared)="selectedId.set(null)"
@@ -154,9 +164,16 @@ export type ZoneMapView = 'farm' | 'satellite';
         }
       </div>
 
-      @if (formCell(); as cell) {
-        <app-modal [open]="true" [title]="'Edit plot ' + (cell.plot || cell.label)" [subtitle]="(cell.section !== null ? 'Zone ' : '') + cell.zone + ' · saved into the Zones table'" (closed)="formCell.set(null)">
-          <form id="plot-form" class="form-stack" (submit)="$event.preventDefault(); saveForm(cell)">
+      @if (formCell() || creating()) {
+        <app-modal [open]="true" [title]="formTitle()" [subtitle]="formSubtitle()" (closed)="closeForm()">
+          <form id="plot-form" class="form-stack" (submit)="$event.preventDefault(); saveForm()">
+            @if (creating()) {
+              <label class="form-group">
+                <span class="form-label">Plot code *</span>
+                <input class="input-field" [value]="form().plot" (input)="set('plot', $event)" placeholder="e.g. A66" />
+                <small class="form-hint">The records and the other tables find the plot by this code, so it can't be changed later.</small>
+              </label>
+            }
             <div class="form-grid">
               <label class="form-group">
                 <span class="form-label">Zone *</span>
@@ -205,14 +222,16 @@ export type ZoneMapView = 'farm' | 'satellite';
               <span class="form-label">Note</span>
               <textarea class="input-field" rows="2" [value]="form().note" (input)="set('note', $event)"></textarea>
             </label>
-            <small class="form-hint">The plot's code ({{ cell.plot }}) stays: the records and other tables find the plot by it. {{ cell.outline.length ? '' : 'It has no shape on the map yet.' }}</small>
+            @if (formCell(); as cell) {
+              <small class="form-hint">The plot's code ({{ cell.plot }}) stays: the records and other tables find the plot by it. {{ cell.outline.length ? '' : 'It has no shape on the map yet.' }}</small>
+            }
             @if (problem()) {
               <div class="alert-box error">{{ problem() }}</div>
             }
           </form>
           <ng-container footer>
-            <button type="button" class="btn btn-secondary" (click)="formCell.set(null)">Cancel</button>
-            <button type="submit" form="plot-form" class="btn btn-primary" [disabled]="!!problem()">Save</button>
+            <button type="button" class="btn btn-secondary" (click)="closeForm()">Cancel</button>
+            <button type="submit" form="plot-form" class="btn btn-primary" [disabled]="!!problem()">{{ creating() ? 'Add plot' : 'Save' }}</button>
           </ng-container>
         </app-modal>
       }
@@ -237,8 +256,8 @@ export type ZoneMapView = 'farm' | 'satellite';
     .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.8125rem; color: var(--text-muted); }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; }
-    .sw.planted { background: linear-gradient(90deg, #F2A03D, #5B86E0, #FFF04D, #7BF542); border: 2px solid #5b4a2a; }
-    .sw.pale { background: linear-gradient(90deg, #F2A03D, #5B86E0, #FFF04D, #7BF542); border-color: #c9c9c9; }
+    .sw.planted { background: linear-gradient(90deg, #7BF542, #BF4E33, #FFF04D, #5B86E0); border: 2px solid #5b4a2a; }
+    .sw.pale { background: linear-gradient(90deg, #7BF542, #BF4E33, #FFF04D, #5B86E0); border-color: #c9c9c9; }
     .sw.unused { background: #f7f8f7; border-color: #d7dbd8; }
     .sw.water { background: #dbeafe; border-color: #60a5fa; }
     .sat-box { flex: 1; min-width: 0; position: relative; min-height: 420px; border-radius: var(--radius-md); overflow: hidden; }
@@ -344,12 +363,26 @@ export class ZoneMapPage {
 
   // ---- Edit a plot's details (saved into the Zones table) ----
   readonly formCell = signal<ZoneCell | null>(null);
-  readonly form = signal<PlotForm>({ zone: '', section: '', row: '', column: '', usage: 'normal', statusName: '', capacity: '', note: '' });
-  readonly problem = computed(() => formProblem(this.form()));
+  readonly form = signal<PlotForm>({ plot: '', zone: '', section: '', row: '', column: '', usage: 'normal', statusName: '', capacity: '', note: '' });
+  /** A new plot's shape, while its form is open (the corners just drawn). */
+  readonly creating = signal<[number, number][] | null>(null);
+  readonly problem = computed(() => (this.creating() ? newPlotProblem(this.form(), this.layout().cells) : formProblem(this.form())));
   readonly taken = computed(() => {
-    const cell = this.formCell();
-    return cell && !this.problem() ? placeTakenBy(this.layout().cells, cell, this.form()) : null;
+    const open = this.formCell() || this.creating();
+    return open && !this.problem() ? placeTakenBy(this.layout().cells, this.formCell(), this.form()) : null;
   });
+  readonly formTitle = computed(() => {
+    const cell = this.formCell();
+    return cell ? 'Edit plot ' + (cell.plot || cell.label) : 'New plot';
+  });
+  readonly formSubtitle = computed(() => {
+    const cell = this.formCell();
+    return cell ? (cell.section !== null ? 'Zone ' : '') + cell.zone + ' · saved into the Zones table' : 'Drawn on the map · added to the Zones table';
+  });
+  closeForm() {
+    this.formCell.set(null);
+    this.creating.set(null);
+  }
 
   openForm(cell: ZoneCell) {
     const sheet = this.zonesSheet();
@@ -364,12 +397,52 @@ export class ZoneMapPage {
   setUsage(event: Event) {
     this.form.update((form) => ({ ...form, usage: (event.target as HTMLSelectElement).value as Usage }));
   }
-  async saveForm(cell: ZoneCell) {
+  async saveForm() {
     const sheet = this.zonesSheet();
     if (!sheet || this.problem()) return;
-    this.formCell.set(null);
-    await this.store.updateCells(sheet.sheetId, plotChanges(sheet, Number(cell.id), this.form()));
+    const cell = this.formCell();
+    const outline = this.creating();
+    this.closeForm();
+    if (cell) {
+      await this.store.updateCells(sheet.sheetId, plotChanges(sheet, Number(cell.id), this.form()));
+      return;
+    }
+    const row = outline && newPlotCells(sheet, this.form(), outline);
+    if (!row) return;
+    const [added] = await this.store.addRows(sheet.sheetId, [row]);
+    // The new plot is the one picked, so it can be reshaped or edited straight away.
+    if (added) this.selectedId.set(String(added.rowId));
   }
+
+  // ---- Draw a new plot: click its corners on the satellite, then fill in its details ----
+  readonly drawing = signal(false);
+  readonly draft = signal<[number, number][]>([]);
+  startDrawing() {
+    this.nearCell = this.selected();
+    this.selectedId.set(null);
+    this.draft.set([]);
+    this.drawing.set(true);
+  }
+  addCorner(point: [number, number]) {
+    this.draft.update((points) => [...points, point]);
+  }
+  undoCorner() {
+    this.draft.update((points) => points.slice(0, -1));
+  }
+  stopDrawing() {
+    this.drawing.set(false);
+    this.draft.set([]);
+  }
+  finishDrawing() {
+    const corners = this.draft();
+    if (corners.length < 3) return;
+    // Beside the plot that was picked before drawing began, else beside the last one.
+    this.form.set(newPlotForm(this.layout().cells, this.nearCell));
+    this.creating.set(corners);
+    this.stopDrawing();
+  }
+  /** The plot picked when drawing began: the new one's zone and place follow on from it. */
+  private nearCell: ZoneCell | null = null;
 
   // ---- Edit shapes on the satellite: corners and whole plots, then Save ----
   private readonly api = inject(Api);
@@ -382,13 +455,18 @@ export class ZoneMapPage {
   readonly changedCount = computed(() => (this.step(), Object.keys(this.history.now).length));
   readonly editHint = computed(() => {
     const cell = this.selected();
-    if (!cell) return 'Click a plot, then drag a corner, or the round handle to move it.';
+    if (this.drawing()) {
+      const n = this.draft().length;
+      return n < 3 ? `Click the plot's corners on the map, one after another (${n} so far, at least 3).` : `${n} corners. Click more, or Finish plot.`;
+    }
+    if (!cell) return 'Click a plot, then drag a corner, or the round handle to move it. Or Add plot to draw a new one.';
     if (!cell.outline.length) return `${cell.plot || cell.label} has no shape on the map to edit.`;
     return `Editing ${cell.plot || cell.label}: drag a corner, or the round handle to move it whole.`;
   });
 
-  canReshape(mac: { latitude: number | null; longitude: number | null }) {
-    return this.view() === 'satellite' && this.hasMap(mac) && this.layout().cells.some((cell) => cell.outline.length >= 3);
+  /** Editing the satellite: reshaping the plots there, or drawing a new one (needs the Zones table). */
+  canEdit(mac: { latitude: number | null; longitude: number | null }) {
+    return this.view() === 'satellite' && this.hasMap(mac) && !!this.zonesSheet();
   }
   startEdit() {
     // Shapes are edited with every plot there.
@@ -416,12 +494,14 @@ export class ZoneMapPage {
   }
   async cancelEdit() {
     if (this.history.changed && !(await this.api.confirm('Leave without saving the changes to the shapes?', 'Edit shapes', 'Discard'))) return;
+    this.stopDrawing();
     this.editing.set(false);
   }
   async saveEdit() {
     const sheet = this.zonesSheet();
     if (!sheet) return;
     const changes = outlineChanges(sheet, this.history.now);
+    this.stopDrawing();
     this.editing.set(false);
     await this.store.updateCells(sheet.sheetId, changes);
   }

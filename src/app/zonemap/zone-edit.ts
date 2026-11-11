@@ -1,8 +1,10 @@
-import type { CellChange, SheetWithRows } from '../core/models';
+import type { CellChange, Cells, SheetWithRows } from '../core/models';
 import { formatOutline, type Usage, type ZoneCell } from './zone-layout';
 
 /** What the Plot form holds. Strings, as the Zones table keeps them (numbers too: "9"). */
 export interface PlotForm {
+  /** The plot's code: only a new plot's is typed (an old plot's stays, the records find it by it). */
+  plot: string;
   zone: string;
   section: string;
   row: string;
@@ -19,6 +21,7 @@ const STATUS_WORD: Record<Usage, string> = { normal: 'Active', unused: 'Unused',
 
 export function formOf(cell: ZoneCell, statusName: string): PlotForm {
   return {
+    plot: cell.plot,
     zone: cell.zone,
     section: cell.section === null ? '' : String(cell.section),
     row: String(cell.row),
@@ -82,11 +85,11 @@ export function formProblem(form: PlotForm): string | null {
 }
 
 /** Another plot already at this row and column of the same zone and zone number (the Farm view stacks by them): its code, or null. */
-export function placeTakenBy(cells: ZoneCell[], self: ZoneCell, form: PlotForm): string | null {
+export function placeTakenBy(cells: ZoneCell[], self: ZoneCell | null, form: PlotForm): string | null {
   const section = form.section.trim() ? Number(form.section) : null;
   const other = cells.find(
     (cell) =>
-      cell.id !== self.id &&
+      cell.id !== self?.id &&
       cell.zone.trim().toLowerCase() === form.zone.trim().toLowerCase() &&
       cell.section === section &&
       cell.row === Number(form.row) &&
@@ -141,4 +144,78 @@ export class ReshapeHistory {
   redo() {
     if (this.canRedo) this.at++;
   }
+}
+
+// ---- A new plot, drawn on the satellite ----
+
+/** The code a new plot in this zone would follow on from: its letters and the next number ("A66" after "A65"); '' when the zone has no coded plot yet. */
+export function suggestPlotCode(cells: ZoneCell[], zone: string): string {
+  const inZone = cells.filter((cell) => cell.zone.trim().toLowerCase() === zone.trim().toLowerCase());
+  const counts = new Map<string, number>();
+  let top = 0;
+  for (const cell of inZone) {
+    const match = /^([A-Za-z]+)(\d+)$/.exec(cell.plot.trim());
+    if (!match) continue;
+    counts.set(match[1], (counts.get(match[1]) ?? 0) + 1);
+    top = Math.max(top, Number(match[2]));
+  }
+  const prefix = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (!prefix) return '';
+  // The next number nobody in the whole table holds under that prefix.
+  let next = top + 1;
+  const used = new Set(cells.map((cell) => cell.plot.trim().toLowerCase()));
+  while (used.has(`${prefix}${next}`.toLowerCase())) next++;
+  return `${prefix}${next}`;
+}
+
+/** What the form starts with for a new plot: beside the one picked (its zone, its zone number, the next column in its row), else the first zone. */
+export function newPlotForm(cells: ZoneCell[], near: ZoneCell | null): PlotForm {
+  const base = near ?? cells[cells.length - 1] ?? null;
+  const zone = base?.zone ?? '';
+  const section = base?.section ?? null;
+  const same = cells.filter((cell) => cell.zone === zone && cell.section === section);
+  const row = near ? near.row : same.length ? Math.max(...same.map((cell) => cell.row)) : 1;
+  const inRow = same.filter((cell) => cell.row === row);
+  const column = inRow.length ? Math.max(...inRow.map((cell) => cell.column)) + 1 : 1;
+  return {
+    plot: suggestPlotCode(cells, zone),
+    zone,
+    section: section === null ? '' : String(section),
+    row: String(row),
+    column: String(column),
+    usage: 'normal',
+    statusName: '',
+    capacity: '',
+    note: '',
+  };
+}
+
+/** A new plot's problems: the ones every plot has, and a code that is given and not already a plot's. */
+export function newPlotProblem(form: PlotForm, cells: ZoneCell[]): string | null {
+  const code = form.plot.trim();
+  if (!code) return 'Give the plot a code (like A66): the records find the plot by it.';
+  if (code && cells.some((cell) => cell.plot.trim().toLowerCase() === code.toLowerCase())) return `${code} is already a plot. Give this one another code.`;
+  return formProblem(form);
+}
+
+/** The row to add to the Zones table for a new plot, by column name; the shape goes in the Outline column. Null when the table lacks a Plot column. */
+export function newPlotCells(sheet: SheetWithRows, form: PlotForm, outline: [number, number][]): Cells | null {
+  const wanted: [string, string][] = [
+    ['Zone', form.zone],
+    ['Plot', form.plot],
+    ['Zone number', form.section],
+    ['Row', form.row],
+    ['Column', form.column],
+    ['Plot status', STATUS_WORD[form.usage]],
+    ['Status name', form.usage === 'normal' ? '' : form.statusName],
+    ['Plant capacity', form.capacity],
+    ['Note', form.note],
+    ['Outline', formatOutline(outline)],
+  ];
+  const cells: Cells = {};
+  for (const [name, value] of wanted) {
+    const key = keyOf(sheet, name);
+    if (key && value.trim()) cells[key] = value.trim();
+  }
+  return keyOf(sheet, 'Plot') && keyOf(sheet, 'Outline') ? cells : null;
 }

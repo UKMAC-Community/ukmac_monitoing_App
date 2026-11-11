@@ -4,21 +4,21 @@ import type { SheetWithRows } from '../core/models';
 import { formatDate } from '../sheet/columns';
 
 /**
- * The colour of each numbered section, as the farm's own Farm Update sheet colours it: Zone A's sections
- * 1, 3, 5, 7, 9 are orange, blue, yellow, brick red and light green; Zone B's 2, 4, 6, 8, 10 are green,
- * dark grey, light grey, cyan and magenta.
+ * The colour of each numbered section, as the farm's zone key colours it (the user's picture, 2026-11-11): Zone A's sections
+ * 1, 3, 5, 7, 9 are light green, brick red, yellow, blue and orange; Zone B's 2, 4, 6, 8, 10 are magenta, cyan,
+ * light grey, grey and green.
  */
 const SECTION_COLORS = [
-  '#F2A03D', // 1 orange
-  '#5BAD5B', // 2 green
-  '#5B86E0', // 3 blue
-  '#999999', // 4 dark grey
+  '#7BF542', // 1 light green
+  '#E83CF5', // 2 magenta
+  '#BF4E33', // 3 brick red
+  '#80FFFF', // 4 cyan
   '#FFF04D', // 5 yellow
   '#D9D9D9', // 6 light grey
-  '#BF4E33', // 7 brick red
-  '#80FFFF', // 8 cyan
-  '#7BF542', // 9 light green
-  '#E83CF5', // 10 magenta
+  '#5B86E0', // 7 blue
+  '#999999', // 8 grey
+  '#F2A03D', // 9 orange
+  '#5BAD5B', // 10 green
 ];
 const UNNUMBERED = { bg: '#eef0ee', border: '#c7ccc8', text: '#5b615c' };
 const UNUSED = { bg: '#f7f8f7', border: '#d7dbd8', text: '#8a928e' };

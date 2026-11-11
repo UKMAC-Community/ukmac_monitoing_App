@@ -1,6 +1,6 @@
 import type { Cells, Column } from '../core/models';
 import { makeSheet } from '../test-helpers';
-import { formOf, formProblem, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf } from './zone-edit';
+import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, outlineChanges, suggestPlotCode, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf } from './zone-edit';
 import { buildZoneLayout, formatOutline, moveOutline, parseOutline } from './zone-layout';
 
 const columns: Column[] = ['Zone', 'Plot', 'Plant capacity', 'Note', 'Zone number', 'Row', 'Column', 'Plot status', 'Status name', 'Outline'].map((name, index) => ({
@@ -90,5 +90,34 @@ describe('reshaping several plots, then saving', () => {
     history.undo();
     history.undo();
     expect(history.changed).toBe(false);
+  });
+});
+
+describe('a new plot drawn on the map', () => {
+  const corners: [number, number][] = [[10.1, 100.1], [10.1, 100.2], [10.2, 100.2]];
+
+  it('suggests the next code of the zone, by the letters its plots use', () => {
+    expect(suggestPlotCode(layout.cells, 'A')).toBe('A63');
+    expect(suggestPlotCode(layout.cells, 'Z')).toBe('');
+  });
+  it('starts beside the picked plot: its zone, its zone number, the next column of its row', () => {
+    const form = newPlotForm(layout.cells, first);
+    expect(form).toMatchObject({ plot: 'A63', zone: 'A', section: '9', row: '1', column: '3', usage: 'normal' });
+  });
+  it('wants a code that is not a plot already', () => {
+    const form = newPlotForm(layout.cells, first);
+    expect(newPlotProblem(form, layout.cells)).toBeNull();
+    expect(newPlotProblem({ ...form, plot: 'a61' }, layout.cells)).toContain('already a plot');
+    expect(newPlotProblem({ ...form, plot: '' }, layout.cells)).toContain('code');
+  });
+  it('makes the Zones row by column name, with the corners in Outline', () => {
+    const form = { ...newPlotForm(layout.cells, first), capacity: '120' };
+    const row = newPlotCells(sheet, form, corners)!;
+    expect(row['c1']).toBe('A');
+    expect(row['c2']).toBe('A63');
+    expect(row['c3']).toBe('120');
+    expect(row['c8']).toBe('Active');
+    expect(row['c10']).toBe('10.1000000,100.1000000;10.1000000,100.2000000;10.2000000,100.2000000');
+    expect(row['c9']).toBeUndefined();
   });
 });

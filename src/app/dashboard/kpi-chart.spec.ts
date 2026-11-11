@@ -215,12 +215,12 @@ describe('KpiChart: zone colours', () => {
 
   it('column: each zone number is painted as the Zone Map paints it, the blank one plain', () => {
     const colours = fills('column', true);
-    expect(colours.slice(0, 3)).toEqual(['#F2A03D', '#5BAD5B', '#E83CF5']);
-    expect(colours[3]).not.toBe('#F2A03D');
+    expect(colours.slice(0, 3)).toEqual(['#7BF542', '#E83CF5', '#5BAD5B']);
+    expect(colours[3]).not.toBe('#7BF542');
   });
 
   it('bar: the same colours', () => {
-    expect(fills('bar', true).slice(0, 3)).toEqual(['#F2A03D', '#5BAD5B', '#E83CF5']);
+    expect(fills('bar', true).slice(0, 3)).toEqual(['#7BF542', '#E83CF5', '#5BAD5B']);
   });
 
   it('without the flag every column keeps the one colour', () => {

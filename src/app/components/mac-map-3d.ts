@@ -252,6 +252,10 @@ export class MacMap3d implements OnDestroy {
   readonly highlight = input<number | null>(null);
   /** A plot's corner or the plot itself was let go: its new outline (nothing is saved here). */
   readonly reshaped = output<Reshaped>();
+  /** Drawing a new plot (editing): each click on the map is a corner, sent up as [lat, lng]; the page keeps them and gives them back as `draft`. */
+  readonly drawing = input(false);
+  readonly draft = input<[number, number][]>([]);
+  readonly drawClick = output<[number, number]>();
   readonly picked = output<string>();
   /** The picked plot let go: its card closed, or the map clicked off the plots. */
   readonly cleared = output<void>();
@@ -334,6 +338,8 @@ export class MacMap3d implements OnDestroy {
             // The layers stacked on a plot (see plot-stack): tipped back, panes (sheets and their edges); from above, flat bands.
             glass: { type: 'geojson', data: NOTHING },
             'glass-flat': { type: 'geojson', data: NOTHING },
+            // A plot being drawn (editing): its corners so far.
+            draft: { type: 'geojson', data: NOTHING },
           },
           layers: [
             { id: 'sat', type: 'raster', source: 'sat' },
@@ -375,6 +381,9 @@ export class MacMap3d implements OnDestroy {
               layout: { 'line-sort-key': ['get', 'level'] },
               paint: { 'line-color': ['to-color', ['get', 'edge']], 'line-width': 1.2 },
             },
+            { id: 'draft-fill', type: 'fill', source: 'draft', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#0a84ff', 'fill-opacity': 0.3 } },
+            { id: 'draft-line', type: 'line', source: 'draft', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#ffffff', 'line-width': 3, 'line-dasharray': [2, 1.5] } },
+            { id: 'draft-pts', type: 'circle', source: 'draft', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': '#0a84ff', 'circle-stroke-width': 3 } },
           ],
         },
       });
@@ -390,6 +399,11 @@ export class MacMap3d implements OnDestroy {
       map.on('load', start);
       // A click on a plot picks it (once, though its bed and its panes are both under the click); off the plots it lets the picked one go.
       map.on('click', (event) => {
+        // Drawing a new plot: a click is a corner, never a pick.
+        if (this.drawing()) {
+          this.drawClick.emit([event.lngLat.lat, event.lngLat.lng]);
+          return;
+        }
         const id = map.queryRenderedFeatures(event.point, { layers: PICKABLE })[0]?.properties?.['id'];
         if (id) this.picked.emit(String(id));
         else if (this.selected()) this.cleared.emit();
@@ -460,7 +474,28 @@ export class MacMap3d implements OnDestroy {
       this.shapes();
       this.selected();
       this.editable();
+      this.drawing();
       if (this.ready) this.draw();
+    });
+
+    // The plot being drawn, and the map's own gestures while drawing (a double click is two corners, not a zoom).
+    effect(() => {
+      const points = this.draft();
+      const drawing = this.drawing();
+      untracked(() => {
+        const map = this.map;
+        if (!map) return;
+        if (drawing) map.doubleClickZoom.disable();
+        else map.doubleClickZoom.enable();
+        map.getCanvas().style.cursor = drawing ? 'crosshair' : '';
+        const source = map.getSource('draft') as GeoJSONSource | undefined;
+        if (!source) return;
+        const at = points.map(([lat, lng]) => [lng, lat]);
+        const features: object[] = at.map((coordinates) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates } }));
+        if (at.length >= 3) features.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...at, at[0]]] } });
+        else if (at.length === 2) features.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: at } });
+        source.setData({ type: 'FeatureCollection', features } as never);
+      });
     });
 
     // A stack is panes tipped back and flat bands seen from above (see plot-stack): redrawn as the camera goes between the two.
@@ -609,7 +644,7 @@ export class MacMap3d implements OnDestroy {
     this.features = features;
     (map.getSource('plots') as GeoJSONSource).setData({ type: 'FeatureCollection', features });
     untracked(() => this.drawGlass());
-    this.drawHandles(editing ? this.selectedShape() : null);
+    this.drawHandles(editing && !this.drawing() ? this.selectedShape() : null);
 
     this.tags.forEach((tag) => tag.remove());
     this.lifted = [];
@@ -784,7 +819,7 @@ export class MacMap3d implements OnDestroy {
       return;
     }
     const hits = map.queryRenderedFeatures([event.point.x, event.point.y], { layers: PICKABLE });
-    map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
+    map.getCanvas().style.cursor = this.drawing() ? 'crosshair' : hits.length ? 'pointer' : '';
     this.setPointed(this.layerAt(hits), event.point);
   }
 
