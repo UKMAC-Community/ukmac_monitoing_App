@@ -12,10 +12,20 @@ import {
 } from '@angular/core';
 
 import type { KpiVisual } from '../core/models';
+import { sectionPalette } from '../zonemap/zone-layout';
 import { BAD_COLOR, formatNumber, GOOD_COLOR, KPI_PALETTE, seriesColour, type ChartPoint, type ChartSeries } from './dashboard-model';
 
 const HEIGHT = 230;
 const MAX_GROUPS = 12;
+
+/** Dark writing on a light colour, white on a dark one. */
+function inkOn(hex: string): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return '#252423';
+  const value = parseInt(match[1], 16);
+  const [r, g, b] = [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.52 ? '#1f1f1f' : '#ffffff';
+}
 /** A timeline's room for each day: enough to name it ("05/09/2026"). */
 const DAY_SLOT = 76;
 
@@ -122,22 +132,33 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
       <p class="none">No rows to chart yet.</p>
     } @else if (visual() === 'pie' || visual() === 'donut') {
       <div class="round">
-        <svg [attr.width]="pieSize" [attr.height]="pieSize" viewBox="-1 -1 2 2" role="img" [attr.aria-label]="label()">
-          @for (slice of slices(); track slice.label; let i = $index) {
-            <path [attr.d]="slice.path" [attr.fill]="colour(i)" stroke="#fff" stroke-width="0.01" [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" (click)="choose(slice, $event)">
-              <title>{{ slice.label }}: {{ format(slice.value) }} ({{ slice.percent }}%)</title>
-            </path>
-          }
-          @if (visual() === 'donut') {
-            <circle r="0.58" fill="#fff" />
+        <svg [attr.width]="pieSize" [attr.height]="pieSize" [attr.viewBox]="'0 0 ' + pieSize + ' ' + pieSize" role="img" [attr.aria-label]="label()">
+          <g [attr.transform]="'translate(' + pieSize / 2 + ' ' + pieSize / 2 + ') scale(' + pieSize / 2 + ')'">
+            @for (slice of slices(); track slice.label; let i = $index) {
+              <path [attr.d]="slice.path" [attr.fill]="sliceColour(slice.label, i)" stroke="#fff" stroke-width="0.012" [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" (click)="choose(slice, $event)">
+                <title>{{ sliceName(slice.label) }}: {{ format(slice.value) }} ({{ slice.share }}%)</title>
+              </path>
+            }
+            @if (visual() === 'donut') {
+              <circle r="0.58" fill="#fff" />
+            }
+          </g>
+          <!-- The share of each big slice, in it (the small ones are in the list). -->
+          @if (visual() === 'pie') {
+            @for (slice of slices(); track slice.label; let i = $index) {
+              @if (slice.fraction >= 0.07) {
+                <text class="pie-percent" [attr.x]="pieSize / 2 + cos(slice.mid) * 0.68 * pieSize / 2" [attr.y]="pieSize / 2 + sin(slice.mid) * 0.68 * pieSize / 2" text-anchor="middle" dominant-baseline="middle" [attr.fill]="inkOf(slice.label, i)" [class.dim]="dim(slice.key)">{{ slice.share }}%</text>
+              }
+            }
           }
         </svg>
         <ul class="legend">
           @for (slice of slices(); track slice.label; let i = $index) {
             <li [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" (click)="choose(slice, $event)">
-              <span class="dot" [style.background]="colour(i)"></span>
-              <span class="name">{{ slice.label }}</span>
-              <span class="num">{{ format(slice.value) }} · {{ slice.percent }}%</span>
+              <span class="dot" [style.background]="sliceColour(slice.label, i)"></span>
+              <span class="name">{{ sliceName(slice.label) }}</span>
+              <span class="num">{{ format(slice.value) }}</span>
+              <span class="share">{{ slice.share }}%</span>
             </li>
           }
         </ul>
@@ -263,7 +284,7 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
             @for (bar of bars(); track bar.label; let i = $index) {
               <g [attr.transform]="'translate(0,' + (i * 28 + 4) + ')'" [class.hit]="hit(bar.key)" [class.dim]="dim(bar.key)" (click)="choose(bar, $event)">
                 <text class="axis" x="0" y="15">{{ bar.short }}</text>
-                <rect [attr.x]="labelWidth" y="3" [attr.width]="bar.size" height="18" rx="2" [attr.fill]="colour(0)">
+                <rect [attr.x]="labelWidth" y="3" [attr.width]="bar.size" height="18" rx="2" [attr.fill]="zoneColour(bar.label)">
                   <title>{{ bar.label }}: {{ format(bar.value) }}</title>
                 </rect>
                 <text class="value" [attr.x]="labelWidth + bar.size + 6" y="16">{{ format(bar.value) }}</text>
@@ -411,7 +432,7 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
                 <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
               }
               @for (column of columns(); track column.label) {
-                <rect [attr.x]="column.x" [attr.y]="column.y" [attr.width]="column.w" [attr.height]="column.h" rx="2" [attr.fill]="colour(0)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)">
+                <rect [attr.x]="column.x" [attr.y]="column.y" [attr.width]="column.w" [attr.height]="column.h" rx="2" [attr.fill]="zoneColour(column.label)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)">
                   <title>{{ column.label }}: {{ format(column.value) }}</title>
                 </rect>
                 @if (column.w > 22) {
@@ -448,10 +469,12 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
     .series-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0 44px; font-size: 12px; color: #252423; }
     .series-legend li { display: inline-flex; align-items: center; gap: 6px; }
     .none { font-size: 0.8125rem; color: #605e5c; padding: 40px 0; text-align: center; }
-    .round { display: flex; align-items: center; gap: 18px; min-height: 200px; }
-    .legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; max-height: 210px; overflow: auto; }
-    .legend li { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #252423; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .pie-percent { font-size: 13px; font-weight: 600; pointer-events: none; }
+    .round { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px; min-height: 220px; }
+    .legend { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow: auto; }
+    .legend li { display: flex; align-items: center; gap: 10px; padding: 3px 4px; border-radius: 6px; font-size: 14px; color: #252423; }
+    .legend .share { width: 46px; text-align: right; color: #8a8886; font-variant-numeric: tabular-nums; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
     .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .num { color: #605e5c; font-variant-numeric: tabular-nums; white-space: nowrap; }
   `,
@@ -474,6 +497,8 @@ export class KpiChart {
   readonly pickable = input(false);
   /** A stacked chart's totals as a line over its columns. */
   readonly totalLine = input(false);
+  /** Columns and bars named by a zone number take that zone's colour from the Zone Map. */
+  readonly zoneColours = input(false);
   readonly totalColour = KPI_PALETTE[2];
   /** A group was clicked; `additive`: with Ctrl / ⌘ / Shift held, to add it to the ones lit. */
   readonly groupClick = output<{ key: string; label: string; additive: boolean }>();
@@ -481,7 +506,7 @@ export class KpiChart {
   readonly height = HEIGHT;
   readonly left = 44;
   readonly labelWidth = 110;
-  readonly pieSize = 180;
+  readonly pieSize = 200;
   readonly width = signal(480);
 
   constructor() {
@@ -511,8 +536,33 @@ export class KpiChart {
 
   readonly seriesColour = seriesColour;
 
+  /** The chart's colour for a group; a zone number (when the chart is of zones) in its zone's colour. */
+  zoneColour(label: string) {
+    const section = /^\d+$/.test(label.trim()) ? Number(label) : null;
+    return this.zoneColours() && section ? sectionPalette(section).bg : this.colour(0);
+  }
+
   colour(index: number) {
     return KPI_PALETTE[index % KPI_PALETTE.length];
+  }
+
+  /** A pie's slice colour: a zone number (when the chart is of zones) in its zone's colour, else the palette's. */
+  sliceColour(label: string, index: number) {
+    const section = /^\d+$/.test(label.trim()) ? Number(label) : null;
+    return this.zoneColours() && section ? sectionPalette(section).bg : this.colour(index);
+  }
+
+  readonly cos = Math.cos;
+  readonly sin = Math.sin;
+
+  /** The writing on a pie slice: dark on a light colour, white on a dark one. */
+  inkOf(label: string, index: number) {
+    return inkOn(this.sliceColour(label, index));
+  }
+
+  /** A pie's slice name: a zone number is "Zone 3". */
+  sliceName(label: string) {
+    return this.zoneColours() && /^\d+$/.test(label.trim()) ? `Zone ${label.trim()}` : label;
   }
 
   format(value: number) {
@@ -801,7 +851,7 @@ export class KpiChart {
       const [x1, y1, x2, y2] = [Math.cos(start), Math.sin(start), Math.cos(end), Math.sin(end)];
       const path =
         share >= 0.9999 ? 'M 1 0 A 1 1 0 1 1 -1 0 A 1 1 0 1 1 1 0 Z' : `M 0 0 L ${x1} ${y1} A 1 1 0 ${large} 1 ${x2} ${y2} Z`;
-      return { ...point, path, percent: (share * 100).toFixed(share < 0.1 ? 1 : 0) };
+      return { ...point, path, percent: (share * 100).toFixed(share < 0.1 ? 1 : 0), share: (share * 100).toFixed(1), fraction: share, mid: (start + end) / 2 };
     });
   });
 

@@ -68,3 +68,21 @@ describe('Plant Progress: the Plants chart', () => {
     expect(points.map((point) => [point.label, point.value])).toEqual([['1', 1500], ['2', 300], ['4', 200], ['(blank)', 40]]);
   });
 });
+
+describe('Plant Progress: the Plants chart as a pie with a Pie | Column switch', () => {
+  it('opens as a pie, in the zones\' colours, and switches to columns', () => {
+    const chart = suggestedDashboard(sheet).kpis.find((kpi) => kpi.title === 'Plants by zone number')!;
+    expect(chart.visual).toBe('pie');
+    expect(chart.zoneColours).toBe(true);
+    expect(chart.views?.map((view) => [view.label, view.visual])).toEqual([['Pie', 'pie'], ['Column', 'column']]);
+    // Both show the same zone numbers.
+    expect(new Set(chart.views!.map((view) => view.groupBy))).toEqual(new Set([key('Zone number')]));
+  });
+
+  it('keeps an older table without a Zone number column as columns by plot, with no switch', () => {
+    const older = makeSheet(5, 'Plant Progress', records.filter((column) => column.name !== 'Zone number'), [row('A1', '1000', '10', '20')], 'zone-records');
+    const chart = suggestedDashboard(older).kpis.find((kpi) => kpi.title === 'Plants by zone plot')!;
+    expect(chart.visual).toBe('column');
+    expect(chart.views).toBeUndefined();
+  });
+});

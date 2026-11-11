@@ -282,7 +282,16 @@ export interface Kpi {
   total?: string;
   /** A stacked column chart also draws the total of each stack as a line over the columns. */
   totalLine?: boolean;
+  /** The chart groups by zone number: each column or bar takes its zone's colour, as the Zone Map paints it. */
+  zoneColours?: boolean;
+  /** A card's sum also adds these columns (their keys): the plants used = planted + replanted. */
+  plus?: string[];
+  /** A card worked out over the groups, not the rows: the average / smallest / largest total of a group (a day), the empty groups left out. */
+  perGroup?: { groupBy: string; groupPart: GroupPart };
+  /** A card also says what percent its value is of these columns' sum (their keys), in its foot. */
+  percentOf?: string[];
 }
+
 
 /** One way to group a chart: what its switch button says, what it groups by, and what the chart is then called. */
 export interface KpiView {
@@ -292,6 +301,8 @@ export interface KpiView {
   title?: string;
   /** Drawn as a timeline (every day, the empty ones left empty) or not; unsaid: as the chart is. */
   timeline?: boolean;
+  /** Drawn as this kind of chart (a Pie | Column switch has one view of each); unsaid: as the chart is. */
+  visual?: KpiVisual;
 }
 
 export interface SummaryMeasure {

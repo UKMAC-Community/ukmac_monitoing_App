@@ -18,6 +18,7 @@ import {
   GOOD_COLOR,
   hasAxis,
   kpiColumnGone,
+  kpiPercent,
   kpiValue,
   summaryResult,
 } from './dashboard-model';
@@ -102,7 +103,7 @@ interface CardView {
               <header [class.has-switch]="chart.views.length > 1">
                 <h3>{{ kpiTitle(chart.kpi) }}</h3>
                 @if (chart.views.length > 1) {
-                  <div class="segmented is-sm" role="group" aria-label="Group the chart by">
+                  <div class="segmented is-sm" role="group" aria-label="Show the chart as">
                     @for (view of chart.views; track view.label; let index = $index) {
                       <button type="button" class="segment" [attr.aria-pressed]="chart.viewAt === index" (click)="setView(chart.kpi.id, index, $event)">{{ view.label }}</button>
                     }
@@ -116,7 +117,7 @@ interface CardView {
               } @else {
                 <div class="chart-row">
                   <div class="chart-main">
-                    <app-kpi-chart [points]="chart.points" [series]="chart.series" [visual]="chart.kpi.visual" [timeline]="!!chart.kpi.timeline" [totalLine]="!!chart.kpi.totalLine" [decimals]="chart.kpi.decimals" [label]="kpiTitle(chart.kpi)" [value]="chart.value" [goal]="chart.kpi.goal" [pickable]="!selectable() && chart.kpi.visual !== 'gauge'" [selected]="lit(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart)" (groupClick)="clickGroup(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart, $event)" />
+                    <app-kpi-chart [points]="chart.points" [series]="chart.series" [visual]="chart.kpi.visual" [timeline]="!!chart.kpi.timeline" [totalLine]="!!chart.kpi.totalLine" [zoneColours]="!!chart.kpi.zoneColours" [decimals]="chart.kpi.decimals" [label]="kpiTitle(chart.kpi)" [value]="chart.value" [goal]="chart.kpi.goal" [pickable]="!selectable() && chart.kpi.visual !== 'gauge'" [selected]="lit(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart)" (groupClick)="clickGroup(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart, $event)" />
                   </div>
                   @if (chart.total !== null) {
                     <aside class="total-box">
@@ -198,7 +199,14 @@ interface CardView {
                         <td>{{ row.label2 }}</td>
                       }
                       @for (value of row.values; track $index) {
-                        <td class="cell-num">{{ format(value) }}</td>
+                        <td class="cell-num">
+                          @if (isText(value)) {
+                            <!-- A list of values (the zone plots of a day, say): one line cut with … when it is long, whole when it is pointed at. -->
+                            <span class="list-text" [title]="value">{{ value }}</span>
+                          } @else {
+                            {{ format(value) }}
+                          }
+                        </td>
                       }
                     </tr>
                   } @empty {
@@ -300,6 +308,7 @@ interface CardView {
     .data-table td { text-align: center; padding: 7px 10px; border-bottom: 1px solid #f3f2f1; }
     .data-table .cell-num { text-align: center; font-variant-numeric: tabular-nums; }
     .data-table tr.hit { cursor: pointer; }
+    .data-table .list-text { display: inline-block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
     .data-table tr.hit:hover td { background: var(--accent-soft); }
     .data-table tr.lit td { background: var(--accent-soft); font-weight: 600; }
     .data-table tr.dim td { opacity: 0.4; }
@@ -388,7 +397,7 @@ export class SheetDashboard {
         const viewAt = Math.min(this.viewPicked()[own.id] ?? 0, Math.max(views.length - 1, 0));
         const view = views[viewAt];
         // The chart as the picked view groups it (and calls it); its id stays, so it is the same tile.
-        const kpi: Kpi = view ? { ...own, groupBy: view.groupBy, groupPart: view.groupPart, title: view.title ?? own.title, timeline: view.timeline ?? own.timeline } : own;
+        const kpi: Kpi = view ? { ...own, groupBy: view.groupBy, groupPart: view.groupPart, title: view.title ?? own.title, timeline: view.timeline ?? own.timeline, visual: view.visual ?? own.visual } : own;
         const gauge = !hasAxis(kpi.visual);
         const noValue = !kpi.column && kpi.aggregate !== 'count';
         const rows = this.rowsFor(own.id);
@@ -515,23 +524,42 @@ export class SheetDashboard {
     const delta = hasGoal && kpi.goal !== 0 ? ((value! - kpi.goal!) / Math.abs(kpi.goal!)) * 100 : null;
     const color = hasGoal ? (good ? GOOD_COLOR : BAD_COLOR) : null;
     const column = sheet.columns.find((item) => item.key === kpi.column);
-    const source = kpi.aggregate === 'count' ? 'Count of rows' : `${aggregateLabel(kpi.aggregate)} · ${column ? dashboardColumnName(sheet.columns, column) : ''}`;
+    const nameOf = (key: string) => {
+      const found = sheet.columns.find((item) => item.key === key);
+      return found ? dashboardColumnName(sheet.columns, found) : '';
+    };
+    const named = column ? dashboardColumnName(sheet.columns, column) : '';
+    // How the number is worked out, from the table's own columns.
+    const source =
+      kpi.aggregate === 'count'
+        ? 'Count of rows'
+        : kpi.perGroup
+          ? `${aggregateLabel(kpi.aggregate)} of each ${nameOf(kpi.perGroup.groupBy)}'s ${named}`
+          : kpi.plus?.length
+            ? `Sum · ${[named, ...kpi.plus.map(nameOf)].join(' + ')}`
+            : `${aggregateLabel(kpi.aggregate)} · ${named}`;
     const foot = gone
       ? "Its column isn't in the table any more — pick another in Edit dashboard."
       : hasGoal
         ? `Goal: ${formatNumber(kpi.goal, kpi.decimals)}`
         : source;
+    const percent = !gone && !empty ? kpiPercent(this.formulas(), this.rowsFor(kpi.id), kpi, value) : null;
+    const share = percent === null ? '' : ` · ${percent.toFixed(2)}% of ${(kpi.percentOf ?? []).map(nameOf).join(' + ')}`;
     const deltaText = delta !== null ? `(${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%)` : null;
     return {
       kpi,
       value: formatNumber(value, kpi.decimals),
       color,
       arrow: hasGoal ? (good ? 'up' : 'down') : null,
-      foot,
+      foot: gone || hasGoal ? foot : foot + share,
       delta: gone ? null : deltaText,
       gone,
       empty,
     };
+  }
+
+  isText(value: number | string | null): value is string {
+    return typeof value === 'string' && value !== '';
   }
 
   format(value: number | string | null) {

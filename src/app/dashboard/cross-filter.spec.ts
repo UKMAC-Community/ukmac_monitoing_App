@@ -18,7 +18,7 @@ const row = (plot: string, day: string, plants: string, dead: string) => ({ [key
 const sheet = makeSheet(4, 'Plant Progress', records, [row('A1', '1', '1000', '20'), row('A2', '2', '500', '1'), row('B1', '1', '300', '2'), row('B9', '2', '200', '0')], 'zone-records');
 const book = new WorkbookFormulas([zones, sheet], '2026-11-10');
 
-const zoneOne: CrossFilter = { sheetId: 4, source: 'suggested-kpi-4', column: key('Zone number'), part: 'value', keys: ['1'], labels: ['1'], name: 'Zone number' };
+const zoneOne: CrossFilter = { sheetId: 4, source: 'suggested-kpi-7', column: key('Zone number'), part: 'value', keys: ['1'], labels: ['1'], name: 'Zone number' };
 
 describe('clicking a group filters the other visuals (as Power BI does)', () => {
   beforeAll(() => {
@@ -38,21 +38,29 @@ describe('clicking a group filters the other visuals (as Power BI does)', () => 
     const el = fixture.nativeElement as HTMLElement;
     const emitted: (CrossFilter | null)[] = [];
     fixture.componentInstance.filterChange.subscribe((change) => emitted.push(change));
-    const big = () => [...el.querySelectorAll('.kpi-card .big')].map((node) => node.textContent?.trim());
-    return { fixture, el, emitted, big };
+    const big = () => [...el.querySelectorAll('.kpi-card .big')].map((node) => node.querySelector('span')?.textContent?.trim())
+    const foot = () => [...el.querySelectorAll('.kpi-card .foot')].map((node) => node.textContent?.replace(/\s+/g, ' ').trim());
+    return { fixture, el, emitted, big, foot };
   }
 
   it('shows every record with nothing clicked', () => {
-    expect(mount(null).big()).toEqual(['4', '2,000', '0', '23']);
+    const { big, foot } = mount(null);
+    // used, planted, replanted, dead, then the plants a day (average, smallest, largest of the two days)
+    expect(big()).toEqual(['2,000', '2,000', '0', '23', '1,000.00', '700', '1,300']);
+    // ... each saying how it is worked out from the records
+    expect(foot()[0]).toBe('Sum · Plant count + Replant count');
+    expect(foot()[3]).toContain('1.15% of Plant count + Replant count');
+    expect(foot()[4]).toContain('each Day number');
   });
 
   it('keeps only zone 1 in the cards, the other chart and the table, but all the bars in the chart clicked', () => {
     const { el, big } = mount(zoneOne);
-    expect(big()[0]).toBe('2'); // records
-    expect(big()[1]).toBe('1,500'); // plants
+    expect(big()[0]).toBe('1,500'); // used
+    expect(big()[1]).toBe('1,500'); // planted
     expect(big()[3]).toBe('21'); // dead
-    // The chart clicked still has every bar (zone 1 lit, the rest dimmed) ...
-    const bars = [...el.querySelectorAll('svg rect.dim, svg rect.hit')].filter((r) => r.closest('article')?.querySelector('h3')?.textContent?.includes('by zone number'));
+    expect(big().slice(4)).toEqual(['750.00', '500', '1,000']); // plants a day
+    // The chart clicked still has every bar or slice (zone 1 lit, the rest dimmed; it opens as a pie) ...
+    const bars = [...el.querySelectorAll('svg rect.dim, svg rect.hit, svg path.dim, svg path.hit')].filter((r) => r.closest('article')?.querySelector('h3')?.textContent?.includes('by zone number'));
     expect(bars.length).toBeGreaterThanOrEqual(3);
     // ... and the table only works out zone 1.
     const rows = [...el.querySelectorAll('table tbody tr')];
@@ -63,12 +71,12 @@ describe('clicking a group filters the other visuals (as Power BI does)', () => 
   it('a bar clicked asks for the filter, and the same bar clicked again lets it go', () => {
     const { fixture, el, emitted } = mount(null);
     const tile = [...el.querySelectorAll('article.tile')].find((t) => t.querySelector('h3')?.textContent?.includes('by zone number'))!;
-    (tile.querySelector('rect.hit') as unknown as SVGElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    (tile.querySelector('rect.hit, path.hit') as unknown as SVGElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(emitted.length).toBe(1);
     expect(emitted[0]).toMatchObject({ sheetId: 4, column: key('Zone number'), keys: ['1'], labels: ['1'], name: 'Zone number' });
     fixture.componentRef.setInput('filter', { ...emitted[0]! });
     fixture.detectChanges();
-    (tile.querySelector('rect.hit') as unknown as SVGElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    (tile.querySelector('rect.hit, path.hit') as unknown as SVGElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(emitted[1]).toBeNull();
   });
 

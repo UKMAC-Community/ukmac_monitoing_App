@@ -185,3 +185,45 @@ describe('KpiChart: the newer charts', () => {
     expect((plain.nativeElement as HTMLElement).querySelectorAll('rect').length).toBe(12);
   });
 });
+
+describe('KpiChart: zone colours', () => {
+  beforeAll(() => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    };
+  });
+
+  const zones: ChartPoint[] = [
+    { label: '1', value: 146 },
+    { label: '2', value: 99 },
+    { label: '10', value: 40 },
+    { label: '(blank)', value: 0 },
+  ];
+
+  function fills(visual: KpiVisual, zoneColours: boolean) {
+    const fixture = TestBed.createComponent(KpiChart);
+    fixture.componentRef.setInput('points', zones);
+    fixture.componentRef.setInput('visual', visual);
+    fixture.componentRef.setInput('zoneColours', zoneColours);
+    fixture.detectChanges();
+    return [...(fixture.nativeElement as HTMLElement).querySelectorAll('rect')]
+      .map((rect) => rect.getAttribute('fill'))
+      .filter((fill) => !!fill && fill !== 'transparent');
+  }
+
+  it('column: each zone number is painted as the Zone Map paints it, the blank one plain', () => {
+    const colours = fills('column', true);
+    expect(colours.slice(0, 3)).toEqual(['#F2A03D', '#5BAD5B', '#E83CF5']);
+    expect(colours[3]).not.toBe('#F2A03D');
+  });
+
+  it('bar: the same colours', () => {
+    expect(fills('bar', true).slice(0, 3)).toEqual(['#F2A03D', '#5BAD5B', '#E83CF5']);
+  });
+
+  it('without the flag every column keeps the one colour', () => {
+    expect(new Set(fills('column', false)).size).toBe(1);
+  });
+});

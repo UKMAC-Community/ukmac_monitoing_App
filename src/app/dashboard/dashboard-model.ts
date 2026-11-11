@@ -145,7 +145,41 @@ export function columnValues(formulas: WorkbookFormulas, sheet: SheetWithRows, k
 /** A KPI card's value now; null: its column is gone or holds no numbers. */
 export function kpiValue(formulas: WorkbookFormulas, sheet: SheetWithRows, kpi: Kpi): number | null {
   const values = columnValues(formulas, sheet, kpi.column);
-  return values ? reduceValues(values, kpi.aggregate) : null;
+  if (!values) return null;
+  if (kpi.perGroup) return perGroupValue(formulas, sheet, kpi, values);
+  const own = reduceValues(values, kpi.aggregate);
+  if (!kpi.plus?.length || kpi.aggregate !== 'sum') return own;
+  const more = sumOfColumns(formulas, sheet, kpi.plus);
+  return more === null ? own : (own ?? 0) + more;
+}
+
+/** The columns (keys) each added up over the rows, then together; null when one is gone. */
+export function sumOfColumns(formulas: WorkbookFormulas, sheet: SheetWithRows, keys: readonly string[]): number | null {
+  let total = 0;
+  for (const key of keys) {
+    const values = columnValues(formulas, sheet, key);
+    if (!values) return null;
+    total += reduceValues(values, 'sum') ?? 0;
+  }
+  return total;
+}
+
+/** A card's value as a percent of other columns' sum (the dead plants of the plants used); null with nothing to divide by. */
+export function kpiPercent(formulas: WorkbookFormulas, sheet: SheetWithRows, kpi: Kpi, value: number | null): number | null {
+  if (!kpi.percentOf?.length || value === null) return null;
+  const whole = sumOfColumns(formulas, sheet, kpi.percentOf);
+  return whole ? (value / whole) * 100 : null;
+}
+
+/** The column added up in each group (a day), the groups with nothing in them (and the blank group) left out, then averaged / min / max'd. */
+function perGroupValue(formulas: WorkbookFormulas, sheet: SheetWithRows, kpi: Kpi, values: FormulaScalar[]): number | null {
+  const groups = groupRows(formulas, sheet, kpi.perGroup!.groupBy, kpi.perGroup!.groupPart);
+  if (!groups) return null;
+  const totals = groups
+    .filter((group) => group.key !== '\uffff')
+    .map((group) => reduceValues(group.rows.map((index) => values[index]), 'sum') ?? 0)
+    .filter((total) => total > 0);
+  return reduceValues(totals, kpi.aggregate);
 }
 
 export function kpiColumnGone(sheet: SheetWithRows, kpi: Kpi) {
@@ -534,6 +568,9 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
       const dead = pick('Dead plant');
       const date = pick('Record date');
       const day = pick('Day number');
+      // A day is a day number (the date when the table has none).
+      const dayColumn = day ?? date;
+      const perDay = dayColumn ? { groupBy: dayColumn.key, groupPart: 'value' as const } : undefined;
       const byDay = day ? chart('Plant count by day number', 'line', plants, 'sum', day) : chart('Dead plants by month', 'line', dead, 'sum', date, 'month');
       const planted: Kpi | null =
         day && date && byDay
@@ -545,12 +582,33 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
               ],
             }
           : byDay;
+      // By zone number the plants open as a pie (each zone in its colour, with its share) and switch to columns: Pie | Column.
+      const byZone = chart(zoneNumber ? 'Plants by zone number' : 'Plants by zone plot', zoneNumber ? 'pie' : 'column', plants, 'sum', zoneNumber ?? plot, 'value', zoneNumber ? { zoneColours: true } : {});
+      const plantsChart: Kpi | null =
+        byZone && zoneNumber
+          ? {
+              ...byZone,
+              views: [
+                { label: 'Pie', groupBy: zoneNumber.key, groupPart: 'value', visual: 'pie' },
+                { label: 'Column', groupBy: zoneNumber.key, groupPart: 'value', visual: 'column' },
+              ],
+            }
+          : byZone;
       kpis = [
-        card('Records', '', 'count'),
-        card('Plants', plants, 'sum'),
-        card('Replanted', replant, 'sum'),
-        card('Dead plants', dead, 'sum', { higherIsBetter: false }),
-        chart(zoneNumber ? 'Plants by zone number' : 'Plants by zone plot', 'column', plants, 'sum', zoneNumber ?? plot),
+        // The farm sheet's KPI row, worked out from the records: the plants used (planted + replanted), planted, replanted, dead (and its percent of the plants used),
+        // then the plants a day (average, smallest, largest) over the days the table has records of.
+        card('Total Chili Plant Used', plants, 'sum', { plus: replant ? [replant.key] : [] }),
+        card('Total Chili Plants Planted', plants, 'sum'),
+        card('Total Chili Replant', replant, 'sum'),
+        card('Total Plant Dead After Planting', dead, 'sum', {
+          higherIsBetter: false,
+          decimals: 0,
+          percentOf: [plants, replant].flatMap((column) => (column ? [column.key] : [])),
+        }),
+        card('Average Plant a Day', plants, 'average', { decimals: 2, perGroup: perDay }),
+        card('Minimum Plants a Day', plants, 'min', { perGroup: perDay }),
+        card('Maximum Plants a Day', plants, 'max', { perGroup: perDay }),
+        plantsChart,
         // The plant count of each day number, day by day (a table without a Day number column keeps the dead plants by month).
         // It opens on the day number and switches to each month of the record date: Day | Month.
         planted,
@@ -578,7 +636,7 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
         area ? card(columnLabel(area), area, 'sum') : null,
         width ? card(columnLabel(width), width, 'sum') : null,
         length ? card(columnLabel(length), length, 'sum') : null,
-        area && by ? chart(`${columnLabel(area)} by ${zoneNumber ? 'zone number' : 'zone plot'}`, 'bar', area, 'sum', by) : null,
+        area && by ? chart(`${columnLabel(area)} by ${zoneNumber ? 'zone number' : 'zone plot'}`, 'bar', area, 'sum', by, 'value', zoneNumber ? { zoneColours: true } : {}) : null,
       ];
       summaries = by
         ? [
