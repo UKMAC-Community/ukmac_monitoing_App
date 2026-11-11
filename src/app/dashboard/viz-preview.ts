@@ -6,6 +6,7 @@ import { STUDIO_TYPES, wellNames, type StudioType } from './studio-model';
 export const VISUAL_PREVIEWS: Record<StudioType, string> = {
   card: 'One number, big and clear.',
   column: 'Compare amounts across categories, side by side.',
+  stacked: 'Compare totals across categories, each split into the parts that make it up.',
   bar: 'Compare categories as rows: good for long names and rankings.',
   line: 'See how values rise and fall over time.',
   area: 'A trend over time, with the volume under it filled in.',
@@ -59,6 +60,18 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
             <rect class="grow-y" style="--i: 2" x="106" y="64" width="26" height="32" rx="2" fill="#118DFF" />
             <rect class="grow-y" style="--i: 3" x="146" y="22" width="26" height="74" rx="2" fill="#118DFF" />
             <text class="cap fade" style="--d: 900ms" x="159" y="16" text-anchor="middle">highest</text>
+          }
+          @case ('stacked') {
+            <g class="grid"><line x1="12" x2="190" y1="30" y2="30" /><line x1="12" x2="190" y1="55" y2="55" /><line x1="12" x2="190" y1="80" y2="80" /></g>
+            <line class="axis" x1="12" x2="190" y1="96" y2="96" />
+            <rect class="grow-y" style="--i: 0" x="26" y="58" width="26" height="38" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 0" x="26" y="46" width="26" height="12" rx="2" fill="#12239E" />
+            <rect class="grow-y" style="--i: 1" x="66" y="40" width="26" height="56" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 1" x="66" y="26" width="26" height="14" rx="2" fill="#12239E" />
+            <rect class="grow-y" style="--i: 2" x="106" y="68" width="26" height="28" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 2" x="106" y="60" width="26" height="8" rx="2" fill="#12239E" />
+            <rect class="grow-y" style="--i: 3" x="146" y="32" width="26" height="64" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 3" x="146" y="18" width="26" height="14" rx="2" fill="#12239E" />
           }
           @case ('bar') {
             <line class="axis" x1="44" x2="44" y1="10" y2="100" />

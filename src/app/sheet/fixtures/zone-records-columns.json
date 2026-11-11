@@ -1,0 +1,78 @@
+[
+  {
+    "key": "c1",
+    "name": "Nursery batch",
+    "required": false,
+    "source": "'Batch'[Batch number]",
+    "type": "link"
+  },
+  {
+    "key": "c2",
+    "name": "Plant type",
+    "required": false,
+    "source": "'Batch'[Variety name]",
+    "type": "link"
+  },
+  {
+    "formula": "=IF([Zone plot]=\"\",\"\",LOOKUP('Zones'[Zone number],'Zones'[Plot],[Zone plot],\"\"))",
+    "key": "c3",
+    "name": "Zone number",
+    "required": false,
+    "type": "formula"
+  },
+  {
+    "key": "c4",
+    "name": "Zone plot",
+    "required": true,
+    "source": "'Zones'[Plot]",
+    "type": "link"
+  },
+  {
+    "key": "c5",
+    "name": "Record date",
+    "required": true,
+    "type": "date"
+  },
+  {
+    "key": "c6",
+    "name": "Day number",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "key": "c7",
+    "name": "Plant count",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "key": "c8",
+    "name": "Replant date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "key": "c9",
+    "name": "Replant count",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "key": "c10",
+    "name": "Dead plant",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "key": "c11",
+    "name": "Status",
+    "required": false,
+    "type": "text"
+  },
+  {
+    "key": "c12",
+    "name": "Note",
+    "required": false,
+    "type": "text"
+  }
+]

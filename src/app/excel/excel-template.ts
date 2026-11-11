@@ -308,7 +308,7 @@ export async function readImport(
   for (const column of entry) byAlias.set(normalizeHeader(headers.get(column.key)!), column);
   const formulaNames = new Set(
     sheet.columns
-      .filter((column) => column.type === 'formula')
+      .filter((column) => column.type === 'formula' || column.auto)
       .flatMap((column) => [column.name, columnLabel(column), column.box ? `${column.box} · ${columnLabel(column)}` : '', ...(column.aliases ?? [])])
       .filter(Boolean)
       .map(normalizeHeader),

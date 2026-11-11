@@ -39,7 +39,7 @@ interface Span {
             <span class="jump-label">Show</span>
             <button type="button" class="chip" [class.active]="stage() === null" (click)="show(null)">All</button>
             @for (chip of stageChips(); track chip.label) {
-              <button type="button" class="chip" [class.active]="stage() === chip.label" (click)="show(chip.label)">{{ chip.label }} <small>{{ chip.total }}</small></button>
+              <button type="button" class="chip" [class.active]="stage() === chip.label" (click)="show(chip.label)">{{ stageName(chip.label) }} <small>{{ chip.total }}</small></button>
             }
           </div>
         } @else {
@@ -67,10 +67,10 @@ interface Span {
                   @if (box.foldable) {
                     <button type="button" class="fold" [attr.aria-expanded]="!box.folded" [title]="box.folded ? 'Open the group' : 'Fold the group to its first column'" (click)="toggle(box.id)">
                       <app-icon [name]="box.folded ? 'circle-plus' : 'circle-minus'" [size]="14" />
-                      <span class="fold-label">{{ box.label }}</span>
+                      <span class="fold-label">{{ stageName(box.label) }}</span>
                     </button>
                   } @else {
-                    {{ box.label }}
+                    {{ stageName(box.label) }}
                   }
                 </th>
               }
@@ -175,8 +175,8 @@ export class SheetTable {
   private readonly groupRuns = computed(() =>
     this.runs((column) => `${column.box ?? ''}\u0000${column.group ?? ''}`, (column) => column.group ?? '', (label, column) => `group:${column.box ?? ''}\u0000${label}`),
   );
-  /** What there is to fold: a named box or group of two or more columns. */
-  readonly foldables = computed(() => [...this.boxRuns(), ...this.groupRuns()].filter((run) => run.label && run.total > 1));
+  /** What there is to fold: a named box of two or more columns (a stage); a group only in a table with no boxes. */
+  readonly foldables = computed(() => [...this.boxRuns(), ...(this.showBoxes() ? [] : this.groupRuns())].filter((run) => run.label && run.total > 1));
   readonly allFolded = computed(() => this.foldables().every((run) => this.folded().has(run.id)));
 
   /** The columns a folded box or group hides: each one's but its first. */
@@ -205,7 +205,7 @@ export class SheetTable {
   readonly groupSpans = computed(() => {
     const columns = this.columns();
     // A group inside a folded box has nothing of its own to fold.
-    return this.display(this.groupRuns(), (run) => !!columns[run.start].box && this.folded().has(`box:${columns[run.start].box}`));
+    return this.display(this.groupRuns(), (run) => this.showBoxes() || (!!columns[run.start].box && this.folded().has(`box:${columns[run.start].box}`)));
   });
   /** A wide table's boxes (or its groups, with no boxes) as chips that show one of them at a time, with how many columns each has. */
   readonly stageChips = computed(() => {
@@ -265,8 +265,8 @@ export class SheetTable {
       .map((run) => {
         let span = 0;
         for (let at = run.start; at < run.start + run.total; at += 1) if (!this.hidden().has(at)) span += 1;
-        const folded = !!run.label && run.total > 1 && this.folded().has(run.id);
-        return { ...run, span, folded, foldable: !!run.label && run.total > 1 && !inFoldedBox(run) };
+        const foldable = !!run.label && run.total > 1 && !inFoldedBox(run);
+        return { ...run, span, folded: foldable && this.folded().has(run.id), foldable };
       })
       .filter((run) => run.span > 0);
   }
@@ -300,6 +300,11 @@ export class SheetTable {
 
   label(column: Column) {
     return columnLabel(column);
+  }
+
+  /** A stage as the header writes it: "1 · Transplant (0 DAT)" is "Stage 1 · Transplant (0 DAT)". */
+  stageName(label: string) {
+    return /^\d+ · /.test(label) ? `Stage ${label}` : label;
   }
 
   right(column: Column) {

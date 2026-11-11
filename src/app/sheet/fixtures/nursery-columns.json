@@ -6,6 +6,7 @@
       "Batch no",
       "Batch No."
     ],
+    "group": "Batch",
     "key": "c1",
     "name": "Batch number",
     "required": true,
@@ -13,7 +14,20 @@
     "type": "link"
   },
   {
+    "aliases": [
+      "Variety",
+      "Plant type"
+    ],
+    "formula": "=IF([Batch number]=\"\",\"\",LOOKUP('Batch'[Variety name],'Batch'[Batch number],[Batch number],\"\"))",
+    "group": "Batch",
     "key": "c2",
+    "name": "Variety name",
+    "required": false,
+    "type": "formula"
+  },
+  {
+    "group": "Seedlings",
+    "key": "c3",
     "min": 0.0,
     "name": "Total number",
     "required": true,
@@ -23,42 +37,48 @@
     "aliases": [
       "Healthy"
     ],
-    "key": "c3",
+    "group": "Seedlings",
+    "key": "c4",
     "min": 0.0,
     "name": "Healthy number",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c4",
+    "group": "Not healthy",
+    "key": "c5",
     "min": 0.0,
     "name": "Stem rot",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c5",
+    "group": "Not healthy",
+    "key": "c6",
     "min": 0.0,
     "name": "Leaf rot",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c6",
+    "group": "Not healthy",
+    "key": "c7",
     "min": 0.0,
     "name": "Smaller",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c7",
+    "group": "Not healthy",
+    "key": "c8",
     "min": 0.0,
     "name": "Disease",
     "required": false,
     "type": "number"
   },
   {
-    "key": "c8",
+    "group": "Not healthy",
+    "key": "c9",
     "min": 0.0,
     "name": "Physical damage",
     "required": false,
@@ -69,21 +89,24 @@
       "Not healthy"
     ],
     "formula": "=IF(COUNT([Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])=0,\"\",SUM([Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage]))",
-    "key": "c9",
+    "group": "Not healthy",
+    "key": "c10",
     "name": "Total unhealthy",
     "required": false,
     "type": "formula"
   },
   {
     "formula": "=IF(OR([Healthy number]=\"\",[Total number]=\"\",[Total number]=0),\"\",ROUND([Healthy number]/[Total number]*100,2))",
-    "key": "c10",
+    "group": "Check",
+    "key": "c11",
     "name": "Healthy %",
     "required": false,
     "type": "formula"
   },
   {
     "formula": "=IF(OR([Total number]=\"\",COUNT([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])=0),\"\",IF(SUM([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])=[Total number],\"OK\",IF(SUM([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])<[Total number],([Total number]-SUM([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage]))&\" missing\",(SUM([Healthy number],[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage])-[Total number])&\" over\")))",
-    "key": "c11",
+    "group": "Check",
+    "key": "c12",
     "name": "Count check",
     "required": false,
     "type": "formula"
@@ -93,7 +116,8 @@
       "Supply date",
       "Supply start"
     ],
-    "key": "c12",
+    "group": "Supply",
+    "key": "c13",
     "name": "Supply date start",
     "required": false,
     "type": "date"
@@ -102,7 +126,8 @@
     "aliases": [
       "Supply end"
     ],
-    "key": "c13",
+    "group": "Supply",
+    "key": "c14",
     "name": "Supply date end",
     "required": false,
     "type": "date"

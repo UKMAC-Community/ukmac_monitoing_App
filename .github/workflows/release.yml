@@ -2,6 +2,12 @@
 # GitHub Release of this repository. The app reads its updates from there (see plugins.updater in
 # src-tauri/tauri.conf.json). See RELEASING.md.
 #
+# When it runs:
+#   - a push to main: the tests run, and if they pass the next version (one patch above the last release) is built and
+#     published, so every push reaches the installed apps. Put [skip release] in the commit message to push without releasing.
+#   - a tag v*: that version is released as it is written in the files (the older, manual way).
+#   - the "Run workflow" button.
+#
 # Secrets (Settings > Secrets and variables > Actions), all required:
 #   TAURI_SIGNING_PRIVATE_KEY   the updater signing key (contents of ~/.ukmac-signing/ukmac-updater.key)
 #   UKMAC_GOOGLE_CLIENT_ID      the shared Google client. Required: whatever this builds is what every installed
@@ -10,15 +16,36 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
+
+# One release at a time: a second push waits for the first, so two never pick the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
+  # A push to main is only released if the tests pass.
+  check:
+    if: ${{ github.ref_type == 'branch' && !contains(github.event.head_commit.message, '[skip release]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx ng test --watch=false
+
   # One job makes the (draft) release; the builds only add files to it, so they cannot race to create it.
   create-release:
+    needs: check
+    if: ${{ !cancelled() && needs.check.result != 'failure' && (github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]')) }}
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
@@ -41,13 +68,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-          for file in package.json; do
-            [ "$(node -p "require('./$file').version")" = "$version" ] || { echo "$file version differs from tauri.conf.json ($version)"; exit 1; }
-          done
-          grep -q "^version = \"$version\"" src-tauri/Cargo.toml || { echo "src-tauri/Cargo.toml version differs ($version)"; exit 1; }
-          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$version" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match version $version"; exit 1
+          written="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            # A tag releases the version written in the files, which must all agree and match the tag.
+            version="$written"
+            [ "$(node -p "require('./package.json').version")" = "$version" ] || { echo "package.json version differs from tauri.conf.json ($version)"; exit 1; }
+            grep -q "^version = \"$version\"" src-tauri/Cargo.toml || { echo "src-tauri/Cargo.toml version differs ($version)"; exit 1; }
+            [ "${GITHUB_REF_NAME}" = "v$version" ] || { echo "Tag ${GITHUB_REF_NAME} does not match version $version"; exit 1; }
+          else
+            # A push to main releases one patch above the last release (or the version written in the files, if that is higher).
+            last="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>/dev/null || echo v0.0.0)"
+            version="$(node -e '
+              const [written, last] = process.argv.slice(1).map((text) => text.replace(/^v/, "").split(".").map(Number));
+              const newer = written[0] - last[0] || written[1] - last[1] || written[2] - last[2];
+              console.log(newer > 0 ? written.join(".") : [last[0], last[1], last[2] + 1].join("."));
+            ' "$written" "$last")"
           fi
           id="$(gh api "repos/${GITHUB_REPOSITORY}/releases" -f tag_name="v$version" -f target_commitish="${GITHUB_SHA}" \
             -f name="UKMAC Monitoring v$version" -F draft=true \
@@ -85,6 +120,22 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      # A release made from a push to main has the next version, which the files do not say yet: write it in before building.
+      - name: Use the release's version
+        shell: bash
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          node <<'JS'
+          const fs = require('fs');
+          for (const file of ['package.json', 'src-tauri/tauri.conf.json']) {
+            const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+            json.version = process.env.VERSION;
+            fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
+          }
+          const toml = fs.readFileSync('src-tauri/Cargo.toml', 'utf8').replace(/^version = ".*"/m, `version = "${process.env.VERSION}"`);
+          fs.writeFileSync('src-tauri/Cargo.toml', toml);
+          JS
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ github.token }}

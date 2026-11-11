@@ -86,22 +86,43 @@
       </nav>
     </div>
   } @else {
-    <!-- As the system's table page: the table's KPIs and charts, its rows as a table (Open in sheet for the spreadsheet), its summaries under. -->
+    <!-- As the system's table page: the table's KPIs and charts, its summaries, then its rows as a table (Open in sheet for the spreadsheet). -->
     <div class="page-scroll">
-      <section class="kpi-panel" [class.folded]="panelHidden()">
-        <header class="panel-head">
-          <span class="group-kicker"><app-icon name="chart" [size]="12" /> Dashboard</span>
-          <span class="panel-note">Summary and KPIs of the rows below, worked out as they change</span>
-          <span class="grow"></span>
-          <button type="button" class="btn btn-plain btn-sm" (click)="setMode('dashboard')"><app-icon name="edit" /> Edit dashboard</button>
-          <button type="button" class="btn btn-plain btn-sm" (click)="togglePanel()" [attr.aria-expanded]="!panelHidden()">
-            <app-icon [name]="panelHidden() ? 'chevron-down' : 'arrow-up'" /> {{ panelHidden() ? 'Show' : 'Hide' }}
-          </button>
-        </header>
-        @if (!panelHidden()) {
-          <app-sheet-dashboard [sheet]="sheet" [formulas]="store.formulas()" part="top" />
+      @if (sheet.templateKey === 'qa-qc-management') {
+        <!-- The QA/QC page shows its analysis as a map instead of the dashboard: each plot coloured by its status. -->
+        <app-qa-qc-map [sheet]="sheet" [sheets]="store.sheets()" [mac]="store.mac()" />
+      } @else {
+        <section class="kpi-panel" [class.folded]="panelHidden()">
+          <header class="panel-head">
+            <span class="group-kicker"><app-icon name="chart" [size]="12" /> Dashboard</span>
+            <span class="panel-note">Summary and KPIs of the rows below, worked out as they change</span>
+            @if (activeFilter(); as filter) {
+              <button type="button" class="chip active" title="Show everything again" (click)="setFilter(null)">
+                {{ filter.name }}: {{ filter.labels.join(', ') }} <app-icon name="x" [size]="12" />
+              </button>
+            }
+            <span class="grow"></span>
+            <button type="button" class="btn btn-plain btn-sm" (click)="setMode('dashboard')"><app-icon name="edit" /> Edit dashboard</button>
+            <button type="button" class="btn btn-plain btn-sm" (click)="togglePanel()" [attr.aria-expanded]="!panelHidden()">
+              <app-icon [name]="panelHidden() ? 'chevron-down' : 'arrow-up'" /> {{ panelHidden() ? 'Show' : 'Hide' }}
+            </button>
+          </header>
+          @if (!panelHidden()) {
+            <app-sheet-dashboard [sheet]="sheet" [formulas]="store.formulas()" part="top" [filter]="activeFilter()" (filterChange)="setFilter($event)" />
+          }
+        </section>
+
+        @if (!panelHidden() && hasSummaries()) {
+          <section class="kpi-panel after">
+            <app-sheet-dashboard [sheet]="sheet" [formulas]="store.formulas()" part="summaries" [filter]="activeFilter()" (filterChange)="setFilter($event)" />
+          </section>
         }
-      </section>
+      }
+
+      @if (sheet.templateKey === 'qa-qc-management') {
+        <!-- The QA/QC Analysis, as the web's: each plot's latest record against the growth standard, by formula, over the raw data. -->
+        <app-qa-qc-analysis [sheet]="sheet" [sheets]="store.sheets()" />
+      }
 
       <label class="input-wrap search page-search">
         <span class="input-prefix"><app-icon name="search" [size]="15" /></span>
@@ -148,12 +169,6 @@
           (sortBy)="sortBy($event)"
         />
       </section>
-
-      @if (!panelHidden() && hasSummaries()) {
-        <section class="kpi-panel after">
-          <app-sheet-dashboard [sheet]="sheet" [formulas]="store.formulas()" part="summaries" />
-        </section>
-      }
     </div>
   }
 

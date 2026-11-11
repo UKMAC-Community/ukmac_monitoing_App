@@ -699,6 +699,8 @@ export class SheetEngine {
             params,
             `${target.name} is worked out by its formula. Double-click its name to change the formula.`,
           );
+        } else if (target?.auto) {
+          block(params, `${target.name} is numbered by the app: it can't be typed or changed.`);
         }
       }),
 

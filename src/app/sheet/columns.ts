@@ -34,7 +34,8 @@ export function columnLabel(column: Pick<Column, 'name' | 'unit'>) {
 }
 
 /** Whether a column is typed in (and imported): every one but a formula. */
-export const isEntryColumn = (column: Column) => column.type !== 'formula';
+/** A column a person fills in: not a worked-out formula, not an ID the app numbers. */
+export const isEntryColumn = (column: Column) => column.type !== 'formula' && !column.auto;
 
 export function hasBoxes(columns: Column[]) {
   return new Set(columns.map((column) => column.box?.trim()).filter(Boolean)).size > 1;
@@ -261,5 +262,6 @@ export function defaultWidth(column: Column) {
 
 /** Whether a value lines up right, as numbers do in a sheet. */
 export function alignsRight(column: Column) {
-  return column.type === 'number' || column.type === 'percentage';
+  // An ID the app numbers lines up left, as a label does, not right as a measure does.
+  return !column.auto && (column.type === 'number' || column.type === 'percentage');
 }

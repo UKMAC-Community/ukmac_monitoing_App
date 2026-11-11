@@ -1,0 +1,70 @@
+[
+  {
+    "aliases": [
+      "Zone",
+      "Plot"
+    ],
+    "key": "c1",
+    "name": "Zone plot",
+    "required": true,
+    "source": "'Zones'[Plot]",
+    "type": "link"
+  },
+  {
+    "formula": "=IF([Zone plot]=\"\",\"\",LOOKUP('Zones'[Zone number],'Zones'[Plot],[Zone plot],\"\"))",
+    "key": "c2",
+    "name": "Zone number",
+    "required": false,
+    "type": "formula"
+  },
+  {
+    "key": "c3",
+    "name": "Chili type",
+    "options": [
+      "ripe",
+      "unripe"
+    ],
+    "required": true,
+    "type": "choice"
+  },
+  {
+    "aliases": [
+      "Date",
+      "Harvest date"
+    ],
+    "key": "c4",
+    "name": "Date harvest",
+    "required": true,
+    "type": "date"
+  },
+  {
+    "aliases": [
+      "Yield",
+      "Harvest yield (kg)",
+      "Weight",
+      "Weight (kg)"
+    ],
+    "key": "c5",
+    "min": 0.0,
+    "name": "Harvest yield",
+    "required": true,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "formula": "=IF([Chili type]=\"ripe\",[Harvest yield],\"\")",
+    "key": "c6",
+    "name": "Ripe yield",
+    "required": false,
+    "type": "formula",
+    "unit": "kg"
+  },
+  {
+    "formula": "=IF([Chili type]=\"unripe\",[Harvest yield],\"\")",
+    "key": "c7",
+    "name": "Unripe yield",
+    "required": false,
+    "type": "formula",
+    "unit": "kg"
+  }
+]

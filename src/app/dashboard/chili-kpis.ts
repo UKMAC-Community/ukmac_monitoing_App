@@ -54,7 +54,7 @@ const CARDS: Starter[] = [
   { title: 'Stem rot', table: NURSERY, column: 'Stem rot', aggregate: 'sum', year: 'Supply date start' },
   { title: 'Plants planted', table: RECORDS, column: 'Plant count', aggregate: 'sum', year: 'Record date' },
   { title: 'Dead after planting', table: RECORDS, column: 'Dead plant', aggregate: 'sum', year: 'Record date' },
-  { title: 'Harvest (kg)', table: QC, column: 'Harvested', box: '8 ·', aggregate: 'sum', year: 'Date', yearBox: '', decimals: 1 },
+  { title: 'Harvest (kg)', table: QC, column: 'Total', box: '8 ·', aggregate: 'sum', year: 'Date', yearBox: '', decimals: 1 },
   { title: 'QC records', table: QC, column: '', aggregate: 'count', year: 'Date', yearBox: '' },
   { title: 'Live plants (avg of 20)', table: QC, column: 'Live plant', box: '2 ·', aggregate: 'average', year: 'Date', yearBox: '', decimals: 1 },
   { title: 'Marketable fruit (kg)', table: QC, column: 'Marketable', box: '8 ·', aggregate: 'sum', year: 'Date', yearBox: '', decimals: 1 },

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { DashboardStudio } from '../dashboard/dashboard-studio';
 import { SheetDashboard } from '../dashboard/sheet-dashboard';
-import { dashboardOf } from '../dashboard/dashboard-model';
+import { type CrossFilter, dashboardOf } from '../dashboard/dashboard-model';
 import { Router, RouterLink } from '@angular/router';
 
 import { ColumnDialog } from '../components/column-dialog';
@@ -12,9 +12,12 @@ import { GoogleLinkDialog } from '../components/google-link-dialog';
 import { ImportDialog, type ImportDone, type ImportFile } from '../components/import-dialog';
 import { Modal } from '../components/modal';
 import { SheetTable } from '../components/sheet-table';
+import { QaQcAnalysis } from '../qaqc/qa-qc-analysis';
+import { QaQcMap } from '../qaqc/qa-qc-map';
 import { TableDialog } from '../components/table-dialog';
 import { Api, errorText } from '../core/api';
 import { Google } from '../core/google';
+import { AutoSync } from '../core/auto-sync';
 import type { Column, ImportRecord, RetiredColumn, Row, SheetWithRows } from '../core/models';
 import { Shell } from '../core/shell';
 import { Toasts } from '../core/toast';
@@ -33,7 +36,7 @@ import { baseName } from '../core/paths';
 /** One table: the sheet, and everything done to it. */
 @Component({
   selector: 'app-sheet-page',
-  imports: [RouterLink, Icon, UniverSheet, SheetTable, SheetDashboard, DashboardStudio, ColumnDialog, ColumnsPanel, ImportDialog, GoogleImportDialog, GoogleLinkDialog, TableDialog, Modal],
+  imports: [RouterLink, Icon, UniverSheet, SheetTable, QaQcAnalysis, QaQcMap, SheetDashboard, DashboardStudio, ColumnDialog, ColumnsPanel, ImportDialog, GoogleImportDialog, GoogleLinkDialog, TableDialog, Modal],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sheet-page.html',
   styleUrl: './sheet-page.css',
@@ -41,6 +44,7 @@ import { baseName } from '../core/paths';
 export class SheetPage {
   readonly store = inject(WorkbookStore);
   readonly google = inject(Google);
+  private readonly autoSync = inject(AutoSync);
   private readonly api = inject(Api);
   private readonly toasts = inject(Toasts);
   private readonly router = inject(Router);
@@ -51,6 +55,16 @@ export class SheetPage {
   readonly mode = computed<'table' | 'dashboard' | 'sheet'>(() => (this.view() === 'dashboard' ? 'dashboard' : this.view() === 'sheet' ? 'sheet' : 'table'));
   readonly sheet = computed(() => this.store.sheet(Number(this.sheetId())));
   readonly linkOptions = (column: Column) => this.store.linkOptions(column);
+
+  /** What a click on a group in the dashboard keeps in its other visuals (of this table only). */
+  private readonly crossFilter = signal<CrossFilter | null>(null);
+  readonly activeFilter = computed(() => {
+    const filter = this.crossFilter();
+    return filter && filter.sheetId === this.sheet()?.sheetId ? filter : null;
+  });
+  setFilter(filter: CrossFilter | null) {
+    this.crossFilter.set(filter);
+  }
 
   readonly search = signal('');
   readonly sort = signal<{ key: string; dir: 1 | -1 } | null>(null);
@@ -114,14 +128,14 @@ export class SheetPage {
       );
     }
     if (limited.length) {
-      parts.push(`sets allowed values on ${limited.length} column${s(limited.length)} (a vigor score from 1 to 5, percentages from 0 to 100, counts 0 or more): a value outside is drawn red, not changed`);
+      parts.push(`sets allowed values or a group heading on ${limited.length} column${s(limited.length)} (a vigor score from 1 to 5, percentages from 0 to 100, counts 0 or more; the group each sits under in the table's header): a value outside is drawn red, not changed`);
     }
     return {
       title: missing.length
         ? `The template has ${missing.length} column${s(missing.length)} this table doesn't.`
         : removable.length
           ? `This table has ${removable.length} column${s(removable.length)} the template no longer has.`
-          : `The template gives ${limited.length} of this table's columns allowed values.`,
+          : `The template gives ${limited.length} of this table's columns allowed values or a group heading.`,
       note: `It ${parts.join(', and ')}. No column that holds a value is removed or moved, and no value in the rows changes.`,
       button: [missing.length, removable.length, limited.length].filter(Boolean).length > 1 ? 'Update from the template' : missing.length ? `Add ${missing.length} column${s(missing.length)}` : removable.length ? 'Take them off' : 'Set allowed values',
     };
@@ -159,6 +173,11 @@ export class SheetPage {
     // The sidebar stays open on the table's page; it folds only for the spreadsheet, as the system's sheet view does.
     const shell = inject(Shell);
     effect(() => (this.mode() === 'sheet' ? shell.enterSheet() : shell.leaveSheet()));
+    // A table open as a spreadsheet isn't read from Google meanwhile (its rows would be replaced under the editor); it is once closed.
+    effect((onCleanup) => {
+      const sheet = this.sheet();
+      if (this.mode() === 'sheet' && sheet) onCleanup(this.autoSync.hold(sheet.sheetId));
+    });
     inject(DestroyRef).onDestroy(() => shell.leaveSheet());
     // The template this table was made from, so the columns it has gained since can be offered (a table that wasn't: none).
     effect(() => {
@@ -389,7 +408,7 @@ export class SheetPage {
       if (await this.saveColumns(columns)) {
         this.settingsOpen.set(false);
         const said = [missing.length ? `${missing.length} column${missing.length === 1 ? '' : 's'} added` : '', removable.length ? `${removable.length} empty one${removable.length === 1 ? '' : 's'} taken off` : ''].filter(Boolean);
-        this.toasts.show(said.length ? `${sheet.title}: ${said.join(', ')} (from the template)` : 'Allowed values set from the template');
+        this.toasts.show(said.length ? `${sheet.title}: ${said.join(', ')} (from the template)` : 'Updated from the template');
       }
     } finally {
       this.busy.set(false);

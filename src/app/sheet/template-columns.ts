@@ -13,6 +13,15 @@ export function columnIdentity(column: Pick<Column, 'box' | 'group' | 'name'>) {
   return [clean(column.box), clean(column.group), clean(column.name)].join('|');
 }
 
+/**
+ * Whether a column of the table is the template's: the same box, group and name, or (a column the template has since put in
+ * a group) the same box and name with no group of its own yet.
+ */
+function isTemplateColumn(item: Column, template: Column) {
+  if (columnIdentity(item) === columnIdentity(template)) return true;
+  return !item.group?.trim() && !!template.group?.trim() && columnIdentity({ ...template, group: '' }) === columnIdentity(item);
+}
+
 /** The columns the table has that an earlier template had and this one doesn't (the template says which). */
 export function retiredColumns(existing: readonly Column[], retired: readonly RetiredColumn[]): Column[] {
   const gone = new Set(retired.map(columnIdentity));
@@ -35,12 +44,11 @@ export function isUntouched(existing: readonly Column[], template: readonly Colu
 
 /** The template's columns the table doesn't have (by name: one renamed here counts as missing). */
 export function missingTemplateColumns(existing: readonly Column[], template: readonly Column[]): Column[] {
-  const have = new Set(existing.map(columnIdentity));
-  return template.filter((column) => !have.has(columnIdentity(column)));
+  return template.filter((column) => !existing.some((item) => isTemplateColumn(item, column)));
 }
 
 /** What a column of the table is missing that the template gives it: its limits (least, most) and the other names it answers to. */
-type Taken = Pick<Column, 'min' | 'max' | 'aliases'>;
+type Taken = Pick<Column, 'min' | 'max' | 'aliases' | 'group'>;
 
 function takenFromTemplate(column: Column, template: Column | undefined): Taken | undefined {
   if (!template) return undefined;
@@ -48,14 +56,15 @@ function takenFromTemplate(column: Column, template: Column | undefined): Taken 
   const max = column.max === undefined ? template.max : undefined;
   const have = new Set((column.aliases ?? []).map((alias) => alias.trim().toLowerCase()));
   const names = (template.aliases ?? []).filter((alias) => !have.has(alias.trim().toLowerCase()));
-  if (min === undefined && max === undefined && !names.length) return undefined;
-  return { ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}), ...(names.length ? { aliases: [...(column.aliases ?? []), ...names] } : {}) };
+  // A column the template has since put in a group takes it (the table's header then has the band over it).
+  const group = !column.group?.trim() && template.group?.trim() ? template.group : undefined;
+  if (min === undefined && max === undefined && !names.length && group === undefined) return undefined;
+  return { ...(group !== undefined ? { group } : {}), ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}), ...(names.length ? { aliases: [...(column.aliases ?? []), ...names] } : {}) };
 }
 
 /** The columns the table has that the template gives a limit or another name they don't have yet (a limit the person set is not changed). */
 export function columnsToLimit(existing: readonly Column[], template: readonly Column[]): Column[] {
-  const byIdentity = new Map(template.map((column) => [columnIdentity(column), column]));
-  return existing.filter((column) => takenFromTemplate(column, byIdentity.get(columnIdentity(column))) !== undefined);
+  return existing.filter((column) => takenFromTemplate(column, template.find((item) => isTemplateColumn(column, item))) !== undefined);
 }
 
 /**
@@ -69,8 +78,7 @@ export function withTemplateColumns(existing: readonly Column[], template: reado
   const result = [...existing];
   let after = -1;
   for (const column of template) {
-    const identity = columnIdentity(column);
-    const at = result.findIndex((item) => columnIdentity(item) === identity);
+    const at = result.findIndex((item) => isTemplateColumn(item, column));
     if (at >= 0) {
       const taken = takenFromTemplate(result[at], column);
       if (taken) result[at] = { ...result[at], ...taken };

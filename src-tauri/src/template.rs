@@ -149,27 +149,6 @@ fn count_unit(name: &str, group: &str, unit: &str) -> Column {
     with_unit(count(name, group), unit)
 }
 
-/// The path of a column in a stage's group, as a formula names it (so the same name in two stages is not mixed up).
-fn path(box_name: &str, group: &str, name: &str) -> String {
-    format!("[{box_name} › {group} › {name}]")
-}
-
-/// A check of a group of counts that must add up to `target` (the sample: 20 plants, 50 fruits): "OK" when they do,
-/// else what they add up to ("18 of 20"). Blank until every count is entered.
-fn adds_up(name: &str, group: &str, parts: &[String], target: &str) -> Column {
-    let list = parts.join(",");
-    in_group(
-        formula(
-            name,
-            &format!(
-                r#"=IF(COUNT({list})<{count},"",IF(SUM({list})={target},"OK",SUM({list})&" of "&{target}))"#,
-                count = parts.len(),
-            ),
-        ),
-        group,
-    )
-}
-
 const LEAF: &str = "Seedling Leaf Stage (No.)";
 const VIGOR: &str = "Seedling Health / Vigor (No.)";
 const YIELD: &str = "Cumulative Yield";
@@ -193,44 +172,11 @@ const PLANTS: u32 = 20;
 
 fn qa_qc_columns() -> Vec<Column> {
     let harvest_box = stage_box(8, "Harvest", Some("75–150 DAT"));
-    let end_box = stage_box(10, "End of Cycles", None);
     let rejected_kg = REJECTS
         .iter()
         .map(|name| format!("[{harvest_box} › {REJECTED} › {name}]"))
         .collect::<Vec<_>>()
         .join(",");
-
-    let stage_1 = stage_box(1, "Transplant", Some("0 DAT"));
-    let leaf_parts: Vec<String> = ["4–5, good", "3, >5", "Disease"]
-        .iter()
-        .map(|name| path(&stage_1, LEAF, name))
-        .collect();
-    let vigor_parts: Vec<String> = ["Healthy", "Medium", "Wilt"]
-        .iter()
-        .map(|name| path(&stage_1, VIGOR, name))
-        .collect();
-    let stage_2 = stage_box(2, "Establishment", Some("7 DAT"));
-    let live = path(&stage_2, "Plant Survival (No.)", "Live plant");
-    let growth = [
-        path(&stage_2, "New Growth (No.)", "Upright plants"),
-        path(&stage_2, "New Growth (No.)", "Uneven / Wilt"),
-    ];
-    let stage_5 = stage_box(5, "Fruit set", Some("60 DAT"));
-    let orientation: Vec<String> = ["Upright", "Mixed", "Different"]
-        .iter()
-        .map(|name| path(&stage_5, "Fruit Orientation (No.)", name))
-        .collect();
-    let shape: Vec<String> = ["True-to-type", "Variability", "Off-type"]
-        .iter()
-        .map(|name| path(&stage_5, "Fruit Shape (No.)", name))
-        .collect();
-    let stage_7 = stage_box(7, "Maturity", Some("75 DAT+"));
-    let color: Vec<String> = ["Green", "Turning", "Red"]
-        .iter()
-        .map(|name| path(&stage_7, "Fruit Color (No.)", name))
-        .collect();
-    let marketable_total = path(&harvest_box, "Marketable Fruit (kg)", "Total");
-    let marketable = path(&harvest_box, "Marketable Fruit (kg)", "Marketable");
 
     // The sheet's Planting Date and Block (a plot code: A1, B3…), the row's own; Notes closes the row (below).
     let mut columns = vec![
@@ -249,8 +195,6 @@ fn qa_qc_columns() -> Vec<Column> {
             count("Healthy", VIGOR),
             count("Medium", VIGOR),
             count("Wilt", VIGOR),
-            adds_up("Leaf stage check", LEAF, &leaf_parts, "20"),
-            adds_up("Health check", VIGOR, &vigor_parts, "20"),
         ],
     ));
     columns.extend(stage(
@@ -267,18 +211,6 @@ fn qa_qc_columns() -> Vec<Column> {
             ),
             count("Upright plants", "New Growth (No.)"),
             count("Uneven / Wilt", "New Growth (No.)"),
-            // New growth is counted among the live plants: the two must make up the live ones.
-            in_group(
-                formula(
-                    "Growth check",
-                    &format!(
-                        r#"=IF(OR({live}="",COUNT({a},{b})<2),"",IF(SUM({a},{b})={live},"OK",SUM({a},{b})&" of "&{live}))"#,
-                        a = growth[0],
-                        b = growth[1],
-                    ),
-                ),
-                "New Growth (No.)",
-            ),
         ],
     ));
     columns.extend(stage(
@@ -353,13 +285,6 @@ fn qa_qc_columns() -> Vec<Column> {
             count("True-to-type", "Fruit Shape (No.)"),
             count("Variability", "Fruit Shape (No.)"),
             count("Off-type", "Fruit Shape (No.)"),
-            adds_up(
-                "Orientation check",
-                "Fruit Orientation (No.)",
-                &orientation,
-                "50",
-            ),
-            adds_up("Shape check", "Fruit Shape (No.)", &shape, "50"),
         ]
         .into_iter()
         .chain(per_plant(
@@ -403,22 +328,11 @@ fn qa_qc_columns() -> Vec<Column> {
             count("Green", "Fruit Color (No.)"),
             count("Turning", "Fruit Color (No.)"),
             count("Red", "Fruit Color (No.)"),
-            adds_up("Color check", "Fruit Color (No.)", &color, "50"),
         ],
     ));
     let mut harvest = vec![
         count_unit("Total", "Marketable Fruit (kg)", "kg"),
         count_unit("Marketable", "Marketable Fruit (kg)", "kg"),
-        // What is marketable can't be more than what was harvested.
-        in_group(
-            formula(
-                "Marketable check",
-                &format!(
-                    r#"=IF(OR({marketable_total}="",{marketable}=""),"",IF({marketable}<={marketable_total},"OK","More than total"))"#
-                ),
-            ),
-            "Marketable Fruit (kg)",
-        ),
     ];
     harvest.extend(REJECTS.iter().map(|name| count_unit(name, REJECTED, "kg")));
     // Every reason entered, their sum (the old sheet's Total (kg)).
@@ -432,11 +346,7 @@ fn qa_qc_columns() -> Vec<Column> {
         ),
         "kg",
     ));
-    harvest.extend([
-        count("Harvest rounds", YIELD),
-        count_unit("Harvested", YIELD, "kg"),
-        count("Total plant", YIELD),
-    ]);
+    harvest.push(count("Total plant", YIELD));
     // Each round's date and kilos per plant, as the sheet names them ("1st Date", "1st Harvest").
     for round in ROUNDS {
         harvest.push(in_group(date(&format!("{round} Date")), YIELD));
@@ -463,29 +373,12 @@ fn qa_qc_columns() -> Vec<Column> {
         "75–150 DAT Plant Health",
         health,
     ));
-    let mut end = vec![
-        count("Harvest rounds", YIELD),
-        count_unit("Harvested", YIELD, "kg"),
-        count("Total plant", YIELD),
-    ];
+    let mut end = vec![count("Total plant", YIELD)];
     // Each round's date ("1st Date") and kilos per plant ("1st Harvest"), as the sheet names them.
     for round in ROUNDS {
         end.push(in_group(date(&format!("{round} Date")), YIELD));
         end.push(count_unit(&format!("{round} Harvest"), YIELD, "kg/plant"));
     }
-    // The final rounds' kilos per plant.
-    end.push(with_unit(
-        in_group(
-            formula(
-                "Yield per plant",
-                &format!(
-                    r#"=IF(OR([{end_box} › Harvested]="",[{end_box} › Total plant]="",[{end_box} › Total plant]=0),"",[{end_box} › Harvested]/[{end_box} › Total plant])"#
-                ),
-            ),
-            YIELD,
-        ),
-        "kg",
-    ));
     columns.extend(stage(10, "End of Cycles", None, "End of Cycles", end));
     // The old sheet's last column.
     columns.push(also_called(text("Notes"), &["Outside", "Other › Outside"]));
@@ -579,6 +472,18 @@ pub const QA_QC_BEFORE: [&str; 72] = [
     "10 · End of Cycles|Cumulative Yield|Yield per plant",
 ];
 
+/// The checks the QA/QC table was given besides the sheet's own columns ("OK" or what the counts added up to) and the
+/// sums the dashboards used, all taken out again: the table is only the columns the farm's sheet has.
+const QA_QC_REMOVED: [&str; 7] = [
+    "1 · Transplant (0 DAT)|Seedling Leaf Stage (No.)|Leaf stage check",
+    "1 · Transplant (0 DAT)|Seedling Health / Vigor (No.)|Health check",
+    "2 · Establishment (7 DAT)|New Growth (No.)|Growth check",
+    "5 · Fruit set (60 DAT)|Fruit Orientation (No.)|Orientation check",
+    "5 · Fruit set (60 DAT)|Fruit Shape (No.)|Shape check",
+    "7 · Maturity (75 DAT+)|Fruit Color (No.)|Color check",
+    "8 · Harvest (75–150 DAT)|Marketable Fruit (kg)|Marketable check",
+];
+
 /// A column of an earlier template that this one doesn't have (a table made earlier still has it, and may have values in it).
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -595,6 +500,7 @@ fn qa_qc_retired() -> Vec<Retired> {
     let now: std::collections::HashSet<String> = qa_qc_columns().iter().map(identity).collect();
     QA_QC_BEFORE
         .iter()
+        .chain(QA_QC_REMOVED.iter())
         .filter(|old| !now.contains(**old))
         .map(|old| {
             let mut parts = old.splitn(3, '|');
@@ -629,16 +535,11 @@ pub fn columns_and_retired(template_key: &str) -> (Vec<Column>, Vec<Retired>) {
 
 // -------------------------------------------------------------- Nursery
 
-/// The Batch table: one row for each nursery batch, its number (B1, B2, …, never repeated) and the variety it is.
+/// The Batch table: one row for each nursery batch, its number (B1, B2, …) and the variety it is: the farm's two columns, no more.
 fn batch_columns() -> Vec<Column> {
     vec![
         also_called(required(text("Batch number")), &["Batch #", "Batch", "Batch no", "Batch No."]),
         also_called(required(text("Variety name")), &["Plant type", "Variety", "Variety Name"]),
-        // A batch number is a B and a number, and no two batches have the same one: "OK", or what is wrong.
-        formula(
-            "Batch check",
-            r#"=IF([Batch number]="","",IF(NOT(AND(LEFT([Batch number],1)="B",LEN([Batch number])>1,IFERROR(RIGHT([Batch number],LEN([Batch number])-1)+0>=0,FALSE))),"Use B and a number",IF(COUNTIF('Batch'[Batch number],[Batch number])>1,"Repeated","OK")))"#,
-        ),
     ]
 }
 
@@ -649,12 +550,37 @@ fn seedlings(name: &str) -> Column {
 
 /// The Nursery Progress table: each assessment of a batch, how many seedlings, how many healthy, what was wrong with the rest, and the supply dates.
 fn nursery_batch_columns() -> Vec<Column> {
+    // The table's two header rows: a band naming what the columns under it are, over each column's own name.
+    nursery_columns()
+        .into_iter()
+        .map(|column| {
+            let band = match column.name.as_str() {
+                "Batch number" | "Variety name" => "Batch",
+                "Total number" | "Healthy number" => "Seedlings",
+                "Stem rot" | "Leaf rot" | "Smaller" | "Disease" | "Physical damage" | "Total unhealthy" => "Not healthy",
+                "Healthy %" | "Count check" => "Check",
+                _ => "Supply",
+            };
+            in_group(column, band)
+        })
+        .collect()
+}
+
+fn nursery_columns() -> Vec<Column> {
     let damage = r#"[Stem rot],[Leaf rot],[Smaller],[Disease],[Physical damage]"#;
     // Everything the batch's seedlings were sorted into: healthy and each kind of not healthy.
     let sorted = format!("[Healthy number],{damage}");
     vec![
         // The batch picks its number from the Batch table.
         also_called(required(link("Batch number", BATCH_SOURCE)), &["Batch #", "Batch", "Batch no", "Batch No."]),
+        // Its variety, read from the Batch table by the number (worked out here, so a file's "Variety" or "Plant type" fills nothing).
+        also_called(
+            formula(
+                "Variety name",
+                r#"=IF([Batch number]="","",LOOKUP('Batch'[Variety name],'Batch'[Batch number],[Batch number],""))"#,
+            ),
+            &["Variety", "Plant type"],
+        ),
         required(seedlings("Total number")),
         also_called(seedlings("Healthy number"), &["Healthy"]),
         seedlings("Stem rot"),
@@ -687,17 +613,56 @@ fn nursery_batch_columns() -> Vec<Column> {
 
 fn zone_record_columns() -> Vec<Column> {
     vec![
+        // The nursery batch comes first, after the row's ID, then its variety; then the zone number and the plot.
+        link("Nursery batch", BATCH_SOURCE),
+        link("Plant type", VARIETY_SOURCE),
+        // The plot's zone number, read from Zones (never typed): the group the farm adds its plots up by.
+        formula(
+            "Zone number",
+            r#"=IF([Zone plot]="","",LOOKUP('Zones'[Zone number],'Zones'[Plot],[Zone plot],""))"#,
+        ),
         required(link("Zone plot", ZONE_SOURCE)),
         required(date("Record date")),
         number("Day number"),
         number("Plant count"),
-        link("Plant type", VARIETY_SOURCE),
-        link("Nursery batch", BATCH_SOURCE),
-        text("Status"),
         date("Replant date"),
         number("Replant count"),
         number("Dead plant"),
+        // The status is the last thing said about the record, just before its note.
+        text("Status"),
         text("Note"),
+    ]
+}
+
+/// The Harvest table, as the farm's own design has it (harvest_id, zone_plot, chili_type, date_harvest, harvest_yield):
+/// the ID the app numbers is harvest_id, the plot is one of the Zones' plots, the chili is ripe or unripe, and the yield
+/// is a weight in kg that is never below zero (the design's DECIMAL(10, 2)). Three columns work themselves out and are
+/// never typed: the plot's zone number (read from Zones), and the yield again as ripe and as unripe, which the
+/// dashboard adds up by day and by zone number.
+fn harvest_columns() -> Vec<Column> {
+    let mut chili_type = required(col("Chili type", "choice"));
+    chili_type.options = vec!["ripe".into(), "unripe".into()];
+    let kind = |name: &str, kind: &str| {
+        with_unit(
+            formula(name, &format!(r#"=IF([Chili type]="{kind}",[Harvest yield],"")"#)),
+            "kg",
+        )
+    };
+    vec![
+        also_called(required(link("Zone plot", ZONE_SOURCE)), &["Zone", "Plot"]),
+        // The plot's zone number, from the Zones table: nothing is typed here.
+        formula(
+            "Zone number",
+            r#"=IF([Zone plot]="","",LOOKUP('Zones'[Zone number],'Zones'[Plot],[Zone plot],""))"#,
+        ),
+        chili_type,
+        also_called(required(date("Date harvest")), &["Date", "Harvest date"]),
+        also_called(
+            required(with_unit(between(number("Harvest yield"), Some(0.0), None), "kg")),
+            &["Yield", "Harvest yield (kg)", "Weight", "Weight (kg)"],
+        ),
+        kind("Ripe yield", "ripe"),
+        kind("Unripe yield", "unripe"),
     ]
 }
 
@@ -779,7 +744,26 @@ fn zone_measurement_retired() -> Vec<Retired> {
     .collect()
 }
 
+/// The ID every table starts with, first: a number the app gives each row (1, 2, 3…), never typed or changed (src/ids.rs).
+/// A file's "ID", "Id" or "No" column is this one's, so it is not added as a column of its own.
+pub fn id_column() -> Column {
+    let mut column = also_called(number("ID"), &["Id", "No", "No."]);
+    column.auto = true;
+    column
+}
+
+/// The chili template's tables, each with its ID first.
 pub fn chili_template() -> Vec<TemplateSheet> {
+    chili_sheets()
+        .into_iter()
+        .map(|mut sheet| {
+            sheet.columns.insert(0, id_column());
+            sheet
+        })
+        .collect()
+}
+
+fn chili_sheets() -> Vec<TemplateSheet> {
     vec![
         TemplateSheet {
             key: "zones",
@@ -813,7 +797,7 @@ pub fn chili_template() -> Vec<TemplateSheet> {
             title: "Batch",
             heading: "Nursery",
             icon: "package",
-            about: "The nursery's batches: a number (B1, B2, …) and the variety each is. A batch number is used once. Nursery Progress and Zone Records pick their batch from here.",
+            about: "The nursery's batches: a number (B1, B2, …) and the variety each is. Nursery Progress and Zone Records pick their batch from here.",
             columns: batch_columns(),
         },
         TemplateSheet {
@@ -877,8 +861,8 @@ pub fn chili_template() -> Vec<TemplateSheet> {
             title: "Harvest",
             heading: "Planting",
             icon: "wheat",
-            about: "Record what each zone harvests, round by round, by weight and grade.",
-            columns: zone_log(vec![]),
+            about: "Record each harvest: the plot, whether the chili was ripe or unripe, the date and the yield in kg. Its dashboard adds them up by day and by zone number.",
+            columns: harvest_columns(),
         },
         TemplateSheet {
             key: "qa-qc-management",
@@ -950,12 +934,17 @@ mod tests {
     fn qa_qc_follows_the_old_sheet() {
         let columns = qa_qc_columns();
         // The row's Date (the sheet's Planting Date) and Zone (its Block), then each stage as the old sheet lays it
-        // out, then Notes; with the 7 checks that counts add up and the 3 sums the dashboards need (Harvest rounds,
-        // Harvested, Yield per plant). No planned Date, no plant averages, no QC record.
-        assert_eq!(columns.len(), 299);
+        // out, then Notes: the sheet's 287 columns and nothing the sheet does not have (no checks, no sums added for the
+        // dashboards). Only its two own totals are worked out: the dead plants and the rejected kilos. No planned Date,
+        // no plant averages, no QC record.
+        assert_eq!(columns.len(), 287);
         assert_eq!(
-            columns.iter().filter(|c| c.col_type == "formula").count(),
-            3 + 7
+            columns
+                .iter()
+                .filter(|c| c.col_type == "formula")
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Dead plant", "Total"]
         );
         let boxes: HashSet<_> = columns.iter().filter_map(|c| c.box_name.clone()).collect();
         assert_eq!(boxes.len(), 10);
@@ -994,8 +983,9 @@ mod tests {
     #[test]
     fn qa_qc_drops_only_what_the_sheet_has_no_column_for() {
         let retired = qa_qc_retired();
-        // 32 of the stages, and the QC record's Plant batch and Block (the sheet has none).
-        assert_eq!(retired.len(), 34);
+        // 32 of the stages, and the QC record's Plant batch and Block (the sheet has none), then the 5 sums the dashboards
+        // used (Harvest rounds and Harvested at two stages, Yield per plant) and the 7 checks.
+        assert_eq!(retired.len(), 34 + 5 + 7);
         assert_eq!(
             retired
                 .iter()
@@ -1034,8 +1024,6 @@ mod tests {
             "Live plant",
             "Dead plant",
             "Marketable",
-            "Harvested",
-            "Yield per plant",
             "Zone",
             "Date",
         ] {
@@ -1172,8 +1160,8 @@ mod tests {
         let batches = &sheets[at("Batch")];
         assert_eq!(batches.heading, "Nursery");
         let names: Vec<&str> = batches.columns.iter().map(|column| column.name.as_str()).collect();
-        assert_eq!(names, ["Batch number", "Variety name", "Batch check"]);
-        assert!(batches.columns[0].required && batches.columns[1].required);
+        assert_eq!(names, ["ID", "Batch number", "Variety name"]);
+        assert!(batches.columns[1].required && batches.columns[2].required);
     }
 
     #[test]
@@ -1196,7 +1184,7 @@ mod tests {
         assert_eq!(
             names,
             [
-                "Batch number", "Total number", "Healthy number", "Stem rot", "Leaf rot", "Smaller", "Disease",
+                "Batch number", "Variety name", "Total number", "Healthy number", "Stem rot", "Leaf rot", "Smaller", "Disease",
                 "Physical damage", "Total unhealthy", "Healthy %", "Count check", "Supply date start", "Supply date end",
             ]
         );
@@ -1333,6 +1321,37 @@ mod tests {
         );
     }
 
+    /// The app's tests (src/app/sheet/fixtures/zone-records-columns.json) add the Zone Records up by zone number from this
+    /// copy; make it again with `TEMPLATE_OUT=/tmp/t.json cargo test dump_template -- --ignored` (the "zone-records" table's "columns").
+    #[test]
+    fn the_zone_record_columns_the_app_tests_use_are_the_template_s() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../src/app/sheet/fixtures/zone-records-columns.json"
+        ))
+        .unwrap();
+        let mut columns = zone_record_columns();
+        for (index, column) in columns.iter_mut().enumerate() {
+            column.key = format!("c{}", index + 1);
+        }
+        assert_eq!(
+            fixture,
+            serde_json::to_value(&columns).unwrap(),
+            "the zone records fixture is out of date"
+        );
+    }
+
+    /// The app's tests (src/app/sheet/fixtures/harvest-columns.json) add the harvests up by day and by zone number from this
+    /// copy (the "harvest" table's "columns" without its ID); a copy that drifts fails here.
+    #[test]
+    fn the_harvest_columns_the_app_tests_use_are_the_template_s() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../src/app/sheet/fixtures/harvest-columns.json")).unwrap();
+        let mut columns = harvest_columns();
+        for (index, column) in columns.iter_mut().enumerate() {
+            column.key = format!("c{}", index + 1);
+        }
+        assert_eq!(fixture, serde_json::to_value(&columns).unwrap(), "the harvest fixture is out of date");
+    }
+
     #[test]
     fn zone_measurement_follows_the_farms_zone_plot_design() {
         let columns = zone_measurement_columns();
@@ -1377,7 +1396,7 @@ mod tests {
     #[test]
     fn an_older_zone_measurement_table_is_told_what_changed() {
         let (columns, retired) = columns_and_retired("zone-measurement");
-        assert_eq!(columns.len(), 10);
+        assert_eq!(columns.len(), 11);
         let old: Vec<&str> = retired.iter().map(|r| r.name.as_str()).collect();
         assert_eq!(
             old,
@@ -1387,6 +1406,37 @@ mod tests {
         for gone in &retired {
             assert!(columns.iter().all(|c| c.name != gone.name), "{}", gone.name);
         }
+    }
+
+    #[test]
+    fn every_table_starts_with_an_id_the_app_numbers() {
+        for sheet in chili_template() {
+            let first = &sheet.columns[0];
+            assert_eq!((first.name.as_str(), first.col_type.as_str(), first.auto), ("ID", "number", true), "{}", sheet.title);
+            assert_eq!(sheet.columns.iter().filter(|column| column.auto).count(), 1, "{}", sheet.title);
+        }
+    }
+
+    #[test]
+    fn harvest_follows_the_farms_design() {
+        let sheet = chili_template().into_iter().find(|sheet| sheet.key == "harvest").unwrap();
+        let shape: Vec<_> = sheet.columns.iter().map(|c| (c.name.as_str(), c.col_type.as_str(), c.required)).collect();
+        assert_eq!(
+            shape,
+            [
+                ("ID", "number", false),
+                ("Zone plot", "link", true),
+                ("Zone number", "formula", false),
+                ("Chili type", "choice", true),
+                ("Date harvest", "date", true),
+                ("Harvest yield", "number", true),
+                ("Ripe yield", "formula", false),
+                ("Unripe yield", "formula", false),
+            ]
+        );
+        assert_eq!(sheet.columns[1].source.as_deref(), Some("'Zones'[Plot]"));
+        assert_eq!(sheet.columns[3].options, ["ripe", "unripe"]);
+        assert_eq!((sheet.columns[5].unit.as_deref(), sheet.columns[5].min), (Some("kg"), Some(0.0)));
     }
 
     #[test]

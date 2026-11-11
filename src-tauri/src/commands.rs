@@ -239,6 +239,24 @@ pub(crate) fn code_taken(conn: &Connection, code: &str, except: Option<i64>) -> 
     Ok(matches!(found, Some(id) if Some(id) != except))
 }
 
+/// The name this computer has (System Settings › General › About › Name, e.g. "Chesthara's MacBook Air"), for the sidebar's foot.
+/// Empty when it can't be read.
+#[tauri::command]
+pub fn computer_name() -> String {
+    let said = |program: &str, args: &[&str]| {
+        std::process::Command::new(program)
+            .args(args)
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            .filter(|name| !name.is_empty())
+    };
+    said("scutil", &["--get", "ComputerName"])
+        .or_else(|| said("hostname", &[]))
+        .unwrap_or_default()
+}
+
 #[tauri::command]
 pub fn list_macs(db: State<'_, Db>, google: State<'_, GoogleState>) -> CmdResult<Vec<Mac>> {
     // Nobody signed in, nothing shown; a signed-in account sees only its own MACs.
@@ -554,8 +572,12 @@ pub fn create_sheet(
         )
         .map_err(err)?;
     let tx = conn.transaction().map_err(err)?;
-    let columns =
+    let mut columns =
         columns.unwrap_or_else(|| vec![Column::new("Date", "date"), Column::new("Note", "text")]);
+    // Every table has an ID column, the first, numbered by the app.
+    if !columns.iter().any(|column| column.auto) {
+        columns.insert(0, template::id_column());
+    }
     let sheet_id = insert_sheet(
         &tx,
         mac_id,
@@ -804,6 +826,8 @@ pub fn save_columns(db: State<'_, Db>, google: State<'_, GoogleState>, sheet_id:
         )
         .map_err(err)?;
     }
+    // A table that has just gained an ID column has its rows numbered now.
+    crate::ids::fill_missing(&tx, sheet_id).map_err(err)?;
     tx.commit().map_err(err)?;
     load_sheet(&conn, sheet_id)
 }
@@ -877,7 +901,7 @@ fn clean_cells(data: Map<String, Value>) -> Map<String, Value> {
 pub(crate) fn insert_rows(
     tx: &Transaction,
     sheet_id: i64,
-    rows: Vec<Map<String, Value>>,
+    mut rows: Vec<Map<String, Value>>,
     after_row_id: Option<i64>,
     import_id: Option<i64>,
 ) -> CmdResult<Vec<i64>> {
@@ -923,6 +947,8 @@ pub(crate) fn insert_rows(
             (last, 1.0)
         }
     };
+    // A table with an ID column numbers its new rows (src/ids.rs).
+    crate::ids::assign(tx, sheet_id, &mut rows).map_err(err)?;
     let mut statement = tx
         .prepare(
             "INSERT INTO sheet_rows (sheet_id, position, data, import_id) VALUES (?1, ?2, ?3, ?4)",
@@ -989,10 +1015,14 @@ pub fn update_cells(
     db: State<'_, Db>,
     google: State<'_, GoogleState>,
     sheet_id: i64,
-    changes: Vec<CellChange>,
+    mut changes: Vec<CellChange>,
 ) -> CmdResult<Vec<Row>> {
     let mut conn = db.conn.lock().map_err(err)?;
     access::guard_sheet(&conn, &google, sheet_id)?;
+    // An ID is the app's to give: an edit to it is dropped.
+    if let Some(key) = crate::ids::auto_key(&conn, sheet_id).map_err(err)? {
+        changes.retain(|change| change.key != key);
+    }
     let tx = conn.transaction().map_err(err)?;
     let mut by_row: HashMap<i64, Vec<CellChange>> = HashMap::new();
     for change in changes {
@@ -1297,20 +1327,59 @@ mod tests {
             .iter()
             .find(|s| s.title == "QA/QC Management")
             .unwrap();
+        // Every table starts with its ID (c1), numbered by the app; the 287 columns of the sheet follow.
+        assert_eq!(qc.columns[0].name, "ID");
+        assert!(qc.columns[0].auto);
         assert_eq!(qc.columns[0].key, "c1");
-        assert_eq!(qc.columns.last().unwrap().key, "c299");
+        assert_eq!(qc.columns.last().unwrap().key, "c288");
         assert!(qc.dashboard.is_none());
+    }
+
+    #[test]
+    fn rows_added_to_a_template_table_are_numbered_by_the_app() {
+        let mut conn = memory();
+        let mac_id = mac(&conn);
+        let tx = conn.transaction().unwrap();
+        for (order, sheet) in template::chili_template().into_iter().enumerate() {
+            insert_sheet(&tx, mac_id, sheet.title, sheet.heading, Some(sheet.icon), sheet.about, Some(sheet.key), sheet.columns, order as i64).unwrap();
+        }
+        tx.commit().unwrap();
+        let batch = load_sheets(&conn, mac_id).unwrap().into_iter().find(|s| s.title == "Batch").unwrap();
+        let (id, number) = (batch.columns[0].key.clone(), batch.columns[1].key.clone());
+        let row = |text: &str| {
+            let mut cells = Map::new();
+            cells.insert(number.clone(), Value::String(text.into()));
+            cells
+        };
+        let tx = conn.transaction().unwrap();
+        insert_rows(&tx, batch.sheet_id, vec![row("B1"), row("B2")], None, None).unwrap();
+        // A later row, even one put at the top, is numbered after them, and one that comes with its number keeps it.
+        insert_rows(&tx, batch.sheet_id, vec![row("B3")], Some(0), None).unwrap();
+        let mut given = row("B9");
+        given.insert(id.clone(), Value::String("9".into()));
+        insert_rows(&tx, batch.sheet_id, vec![given, row("B10")], None, None).unwrap();
+        tx.commit().unwrap();
+        let rows = load_rows(&conn, batch.sheet_id).unwrap();
+        let seen: Vec<(String, String)> = rows
+            .iter()
+            .map(|row| (row.data[&number].as_str().unwrap().to_string(), row.data[&id].as_str().unwrap().to_string()))
+            .collect();
+        assert_eq!(
+            seen,
+            [("B3", "3"), ("B1", "1"), ("B2", "2"), ("B9", "9"), ("B10", "10")].map(|(a, b)| (a.to_string(), b.to_string()))
+        );
     }
 
     #[test]
     fn the_template_gives_a_tables_columns_by_its_key() {
         let qc = template_columns("qa-qc-management".into());
-        assert_eq!(qc.columns.len(), 299);
-        assert_eq!(qc.columns[0].name, "Date");
+        assert_eq!(qc.columns.len(), 288);
+        assert_eq!(qc.columns[0].name, "ID");
+        assert_eq!(qc.columns[1].name, "Date");
         // Keys are the table's to give: none here.
         assert!(qc.columns.iter().all(|column| column.key.is_empty()));
-        // What the table had and no longer has: its planned dates, days, plant averages and pest totals.
-        assert_eq!(qc.retired.len(), 34);
+        // What the table had and no longer has: its planned dates, days, plant averages and pest totals, the dashboards' sums and the checks.
+        assert_eq!(qc.retired.len(), 34 + 5 + 7);
         assert!(
             qc.retired
                 .iter()

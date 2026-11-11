@@ -34,6 +34,8 @@ export interface Column {
   /** The least a number or percentage may be, and the most: a value outside is drawn red, not refused. */
   min?: number;
   max?: number;
+  /** An ID: a number the app gives each row (1, 2, 3…), never typed or changed. */
+  auto?: boolean;
 }
 
 /** A column an earlier version of a template had and the template no longer has. */
@@ -249,9 +251,9 @@ export interface GoogleLinkInput {
 
 // ------------------------------------------------------------- dashboards
 
-/** How a KPI reduces its column, as Power BI's card does. */
-export type KpiAggregate = 'count' | 'count_values' | 'distinct' | 'sum' | 'average' | 'min' | 'max';
-export type KpiVisual = 'card' | 'column' | 'bar' | 'line' | 'area' | 'waterfall' | 'pie' | 'donut' | 'treemap' | 'funnel' | 'radar' | 'gauge' | 'lollipop' | 'dot' | 'pareto' | 'polar';
+/** How a KPI reduces its column, as Power BI's card does. `list`: a summary table's own — the distinct values, written out (A-01, A-02…). */
+export type KpiAggregate = 'count' | 'count_values' | 'distinct' | 'sum' | 'average' | 'min' | 'max' | 'list';
+export type KpiVisual = 'card' | 'column' | 'stacked' | 'bar' | 'line' | 'area' | 'waterfall' | 'pie' | 'donut' | 'treemap' | 'funnel' | 'radar' | 'gauge' | 'lollipop' | 'dot' | 'pareto' | 'polar';
 /** A chart's or summary's groups: the group column's values, or its dates' months or years. */
 export type GroupPart = 'value' | 'month' | 'year';
 
@@ -268,6 +270,28 @@ export interface Kpi {
   goal: number | null;
   higherIsBetter: boolean;
   decimals: number | null;
+  /** A stacked column chart's other values, stacked on `column`'s (a chart of any other type shows only `column`). */
+  more?: SummaryMeasure[];
+  /** Ways to group the same chart (by batch, by month): its tile shows a switch of them, and opens on the first. */
+  views?: KpiView[];
+  /** A column chart of dates drawn as a timeline: every day from the first to the last, a day with no rows left empty. */
+  timeline?: boolean;
+  /** The chart takes a whole line of the dashboard to itself. */
+  wide?: boolean;
+  /** A box beside the chart holding the chart's own total, under this name ("Total yield (kg)"). */
+  total?: string;
+  /** A stacked column chart also draws the total of each stack as a line over the columns. */
+  totalLine?: boolean;
+}
+
+/** One way to group a chart: what its switch button says, what it groups by, and what the chart is then called. */
+export interface KpiView {
+  label: string;
+  groupBy: string;
+  groupPart: GroupPart;
+  title?: string;
+  /** Drawn as a timeline (every day, the empty ones left empty) or not; unsaid: as the chart is. */
+  timeline?: boolean;
 }
 
 export interface SummaryMeasure {
@@ -282,6 +306,9 @@ export interface SummaryTable {
   title: string;
   groupBy: string;
   groupPart: GroupPart;
+  /** A second column its rows are grouped by inside each of the first's (a day, then each zone number in it). */
+  thenBy?: string;
+  thenPart?: GroupPart;
   measures: SummaryMeasure[];
 }
 

@@ -1,6 +1,6 @@
 import { WorkbookFormulas } from '../formula/sheet-formulas';
 import { makeSheet, qaQcColumns } from '../test-helpers';
-import { chartPoints, dashboardOf, groupRows, kpiValue, reduceValues, summaryResult, suggestedDashboard } from './dashboard-model';
+import { chartPoints, type CrossFilter, dashboardOf, filteredSheet, groupRows, kpiValue, reduceValues, summaryResult, suggestedDashboard } from './dashboard-model';
 
 const zones = makeSheet(1, 'Zones', [
   { key: 'c1', name: 'Zone', type: 'text' },
@@ -49,11 +49,9 @@ describe('the QA/QC suggested dashboard', () => {
     expect(kpiValue(formulas, qc, dead)).toBe(6);
   });
 
-  it('groups by zone with totals', () => {
-    const result = summaryResult(formulas, qc, board.summaries[0])!;
-    expect(result.rows.map((row) => row.label)).toEqual(['A1', 'A2', 'B1']);
-    expect(result.rows[0].values.slice(0, 3)).toEqual([2, 17, 6]);
-    expect(result.totals[0]).toBe(4);
+  it('has no By zone table (the zone chart and the cards say it)', () => {
+    expect(board.summaries).toEqual([]);
+    expect(board.kpis.some((kpi) => kpi.title === 'Live plants by zone')).toBe(true);
   });
 
   it('keeps the same ids each time (it is made again on every change)', () => {
@@ -70,9 +68,9 @@ describe('charts', () => {
       goal: null, higherIsBetter: true, decimals: null,
     });
     expect(points).toEqual([
-      { label: 'Jun 2026', value: 38 },
-      { label: 'Jul 2026', value: 16 },
-      { label: '(blank)', value: 0 },
+      { key: '2026-06', label: 'Jun 2026', value: 38 },
+      { key: '2026-07', label: 'Jul 2026', value: 16 },
+      { key: '\uFFFF', label: '(blank)', value: 0 },
     ]);
   });
 
@@ -85,5 +83,34 @@ describe('charts', () => {
     const board = suggestedDashboard(own);
     expect(board.kpis.map((kpi) => `${kpi.title}:${kpi.visual}`)).toEqual(['Rows:card', 'Kg:card', 'Kg by month:column', 'Kg by Picker:bar']);
     expect(board.summaries[0].title).toBe('By Picker');
+  });
+});
+
+describe('cross-filter (a click on a group)', () => {
+  const on = (keys: string[], column = 'c1', part: CrossFilter['part'] = 'month'): CrossFilter => ({
+    sheetId: qc.sheetId, source: 'chart', column, part, keys, labels: keys, name: 'Date',
+  });
+  const sum = { id: 'x', title: '', column: 'c9', aggregate: 'sum', visual: 'card', groupBy: '', groupPart: 'value', goal: null, higherIsBetter: true, decimals: null } as const;
+
+  it('keeps only the rows of the group clicked, as the other visuals work them out', () => {
+    expect(filteredSheet(formulas, qc, on(['2026-06'])).rows.length).toBe(2);
+    expect(kpiValue(formulas, filteredSheet(formulas, qc, on(['2026-06'])), sum)).toBe(38);
+    expect(kpiValue(formulas, filteredSheet(formulas, qc, on(['2026-07'])), sum)).toBe(16);
+  });
+
+  it('keeps the groups of every one clicked, and the blank group by its key', () => {
+    expect(kpiValue(formulas, filteredSheet(formulas, qc, on(['2026-06', '2026-07'])), sum)).toBe(54);
+    expect(filteredSheet(formulas, qc, on(['\uFFFF'])).rows.length).toBe(1);
+  });
+
+  it('leaves the table alone with no filter, one of another table, or a column that is gone', () => {
+    expect(filteredSheet(formulas, qc, null)).toBe(qc);
+    expect(filteredSheet(formulas, qc, { ...on(['2026-06']), sheetId: 99 })).toBe(qc);
+    expect(filteredSheet(formulas, qc, on(['2026-06'], 'nope'))).toBe(qc);
+  });
+
+  it('gives each summary row its group key', () => {
+    const summary = { id: 's', title: 'By zone', groupBy: 'c2', groupPart: 'value' as const, measures: [{ column: '', aggregate: 'count' as const }] };
+    expect(summaryResult(formulas, qc, summary)!.rows.every((row) => typeof row.key === 'string')).toBe(true);
   });
 });

@@ -38,12 +38,12 @@
         <app-icon name="building" [size]="17" />
         <span class="nav-label">UKMAC</span>
       </a>
-      <a class="nav-link" routerLink="/settings" routerLinkActive="active" #bi="routerLinkActive" title="Connections & backup">
+      <a class="nav-link" routerLink="/settings" routerLinkActive="active" #bi="routerLinkActive" title="Settings">
         @if (bi.isActive) {
           <span class="nav-pill"></span>
         }
         <app-icon name="chart" [size]="17" />
-        <span class="nav-label">Connections & backup</span>
+        <span class="nav-label">Settings</span>
         @if (powerBi.auto()) {
           <span class="badge success live">live</span>
         }
@@ -90,6 +90,18 @@
           }
         </a>
         @if (openMacId() === mac.macId) {
+          @if (showDataCheck()) {
+            <a class="nav-link" [routerLink]="['/mac', mac.macId, 'data-check']" routerLinkActive="active" #dcLink="routerLinkActive" title="Data Check: which columns still have nothing entered">
+              @if (dcLink.isActive) {
+                <span class="nav-pill"></span>
+              }
+              <app-icon name="clipboard" [size]="17" />
+              <span class="nav-label">Data Check</span>
+              @if (dataToFill() && !shell.collapsed()) {
+                <span class="mac-code" [title]="dataToFill() + ' columns still need input'">{{ dataToFill() }}</span>
+              }
+            </a>
+          }
           @if (layoutGroup() || showZoneMap()) {
             @if (!shell.collapsed()) {
               <span class="nav-section-label">Farm Layout</span>
@@ -157,11 +169,11 @@
 
   <div class="sidebar-footer">
     <a class="user-menu-trigger" routerLink="/settings" title="Where the data is kept">
-      <span class="avatar is-sm"><app-icon name="laptop" [size]="14" /></span>
+      <span class="avatar is-sm">@if (who().initial) { {{ who().initial }} } @else { <app-icon name="laptop" [size]="14" /> }</span>
       @if (!shell.collapsed()) {
         <span class="user-menu-info">
-          <span class="user-name">This Mac</span>
-          <span class="user-sub">{{ store.saving() > 0 ? 'Saving…' : 'Everything saved here' }}</span>
+          <span class="user-name">{{ who().name }}</span>
+          <span class="user-sub">{{ store.saving() > 0 ? 'Saving…' : who().sub }}</span>
         </span>
         <span class="user-menu-end"><app-icon name="settings" [size]="15" /></span>
       }

@@ -4,6 +4,7 @@ mod client_seal;
 mod commands;
 mod db;
 mod google;
+mod ids;
 mod links;
 mod macfile;
 mod model;
@@ -51,6 +52,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             access::unowned_macs,
             access::claim_macs,
+            commands::computer_name,
             commands::list_macs,
             commands::create_mac,
             commands::update_mac,

@@ -1,3 +1,4 @@
+import { formatPattern } from "./number-format";
 import type { FormulaNode } from "./parse-formula";
 
 /** A value a formula works with or gives: a number, text, Yes / No, a
@@ -278,6 +279,19 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
         : new FormulaError("#DIV/0!", "No rows match, so nothing to average");
     },
   },
+  AVERAGEIFS: {
+    arity: [3, 255],
+    columns: [0, ...Array.from({ length: 127 }, (_, at) => 1 + at * 2)],
+    run: ([results, ...conditions]) => {
+      const rows = matchingAll(results, conditions, "AVERAGEIFS");
+      if (isError(rows)) return rows;
+      const numbers = numbersIn([rows]);
+      if (isError(numbers)) return numbers;
+      return numbers.length
+        ? numbers.reduce((sum, number) => sum + number, 0) / numbers.length
+        : new FormulaError("#DIV/0!", "No rows match, so nothing to average");
+    },
+  },
   BLANK: { arity: [0, 0], run: () => null },
   CONCAT: {
     arity: [1, Infinity],
@@ -355,6 +369,21 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
       return isError(value) ? evaluate(nodes[1]) : value;
     },
   },
+  IFS: {
+    // Condition / value pairs, the first condition that holds gives its value (TRUE last: the rest); none: #N/A.
+    arity: [2, Infinity],
+    lazy: true,
+    run: (_args, _scope, nodes, evaluate) => {
+      if (nodes.length % 2 !== 0)
+        return new FormulaError("#VALUE!", "IFS takes a condition and a value, in pairs");
+      for (let at = 0; at < nodes.length; at += 2) {
+        const test = toBoolean(scalar(evaluate(nodes[at])));
+        if (isError(test)) return test;
+        if (test) return evaluate(nodes[at + 1]);
+      }
+      return new FormulaError("#N/A", "No condition of IFS holds");
+    },
+  },
   INT: { arity: [1, 1], run: ([x]) => math(x, Math.floor) },
   ISBLANK: {
     arity: [1, 1],
@@ -409,6 +438,17 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
     },
   },
   MONTH: { arity: [1, 1], run: ([date]) => datePart(date, 2) },
+  N: {
+    // A number as a number, a Yes as 1, anything else (text, a blank) as 0.
+    arity: [1, 1],
+    run: ([value]) => {
+      const item = scalar(value);
+      if (isError(item)) return item;
+      if (typeof item === "number") return item;
+      if (typeof item === "boolean") return item ? 1 : 0;
+      return 0;
+    },
+  },
   NOT: {
     arity: [1, 1],
     run: ([value]) => {
@@ -482,6 +522,20 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
       return isError(numbers)
         ? numbers
         : numbers.reduce((sum, number) => sum + number, 0);
+    },
+  },
+  TEXT: {
+    // A number as its format writes it ("0%", "0.00", "0.0%"); text and blanks as they are.
+    arity: [2, 2],
+    run: ([value, pattern]) => {
+      const item = scalar(value);
+      const format = toText(scalar(pattern));
+      if (isError(item)) return item;
+      if (isError(format)) return format;
+      if (typeof item === "number") return formatPattern(item, format);
+      if (typeof item === "string" && item.trim() !== "" && Number.isFinite(Number(item)))
+        return formatPattern(Number(item), format);
+      return toText(item);
     },
   },
   TODAY: { arity: [0, 0], run: (_args, scope) => scope.today },

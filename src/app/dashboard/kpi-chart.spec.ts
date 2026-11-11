@@ -40,6 +40,13 @@ describe('KpiChart: the newer charts', () => {
     expect(el.querySelectorAll('circle').length).toBe(4);
   });
 
+  it('line: names every point when its label is short enough to fit under it', () => {
+    const days = Array.from({ length: 10 }, (_, index) => ({ label: `D${index + 1}`, value: 100 + index }));
+    const el = draw('line', days);
+    const names = [...el.querySelectorAll('svg text.axis')].map((text) => text.textContent?.trim());
+    for (const day of days) expect(names).toContain(day.label);
+  });
+
   it('waterfall: a step per group rising from where the one before ended, then a Total of them all', () => {
     const el = draw('waterfall');
     const bars = [...el.querySelectorAll('rect')];
@@ -146,5 +153,35 @@ describe('KpiChart: the newer charts', () => {
     for (const type of ['lollipop', 'dot', 'pareto', 'polar'] as const) {
       expect(draw(type, []).textContent).toContain('No rows to chart yet.');
     }
+  });
+
+  it('column timeline: a place for every day that scrolls sideways, a bar only on the days with rows', () => {
+    const days: ChartPoint[] = Array.from({ length: 30 }, (_, index) => {
+      const day = String(index + 1).padStart(2, '0');
+      const has = index === 0 || index === 9 || index === 29;
+      return { key: `2026-07-${day}`, label: `${day}/07/2026`, value: has ? 100 : 0, ...(has ? {} : { empty: true }) };
+    });
+    const fixture = TestBed.createComponent(KpiChart);
+    fixture.componentRef.setInput('points', days);
+    fixture.componentRef.setInput('visual', 'column');
+    fixture.componentRef.setInput('timeline', true);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('rect').length).toBe(3);
+    // Every one of the 30 days is named (the year on the first only), the axis is kept apart from what scrolls.
+    const named = [...el.querySelectorAll('.day-scroll text.axis')].map((text) => text.textContent?.trim());
+    expect(named.length).toBe(30);
+    expect(named[0]).toBe('01/07/2026');
+    expect(named[1]).toBe('02/07');
+    expect(el.querySelectorAll('.day-axis text.axis').length).toBe(5);
+    // Wider than the room there is (30 days × the room each needs), so it scrolls.
+    const svg = el.querySelector('.day-scroll svg')!;
+    expect(Number(svg.getAttribute('width'))).toBeGreaterThan(30 * 60);
+    // Without the timeline, the 30 points are grouped to 12 as before.
+    const plain = TestBed.createComponent(KpiChart);
+    plain.componentRef.setInput('points', days.map(({ empty, ...point }) => point));
+    plain.componentRef.setInput('visual', 'column');
+    plain.detectChanges();
+    expect((plain.nativeElement as HTMLElement).querySelectorAll('rect').length).toBe(12);
   });
 });

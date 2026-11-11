@@ -8,9 +8,10 @@ function pending(run: (onEvent: (event: UpdateEvent) => void) => Promise<void> =
   return { version: '0.2.0', currentVersion: '0.1.0', body: 'Faster tables', downloadAndInstall: async (onEvent) => run(onEvent ?? (() => {})) };
 }
 
-function setup(found: PendingUpdate | null | Error) {
+function setup(found: PendingUpdate | null | Error, quietly = false) {
   const relaunch = vi.fn(async () => {});
   const backend: UpdaterBackend = {
+    ...(quietly ? { installsQuietly: () => true } : {}),
     version: async () => '0.1.0',
     check: async () => {
       if (found instanceof Error) throw found;
@@ -178,5 +179,64 @@ describe('baseName', () => {
     expect(baseName('/Users/a/Farm A.ukmac')).toBe('Farm A.ukmac');
     expect(baseName('C:\\Users\\a\\Farm A.ukmac')).toBe('Farm A.ukmac');
     expect(baseName('plain.xlsx')).toBe('plain.xlsx');
+  });
+
+  describe('where it can be put in place while the app runs (the Mac)', () => {
+    it('installs the new version by itself, with no restart and no click, and says it starts next time', async () => {
+      vi.useFakeTimers();
+      try {
+        const made = setup(pending(), true);
+        const first = made.updater.checkOnStart(10);
+        await vi.advanceTimersByTimeAsync(20);
+        await first;
+        expect(made.updater.state()).toBe('ready');
+        expect(made.updater.installedVersion()).toBe('0.2.0');
+        // Nothing is offered any more, and the app was not restarted.
+        expect(made.updater.offered()).toBe(false);
+        expect(made.relaunch).not.toHaveBeenCalled();
+        expect(made.toasts.items().map((toast) => toast.text)).toEqual(['Version 0.2.0 is installed. It starts the next time you open the app.']);
+        expect(made.toasts.items()[0].action?.label).toBe('Restart now');
+        // The next look finds the same version (this copy is still the old one): it is not downloaded again or offered again.
+        await made.updater.check(true);
+        expect(made.updater.state()).toBe('ready');
+        expect(made.updater.offered()).toBe(false);
+        await vi.advanceTimersByTimeAsync(20000);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('opens the installed version when asked to', async () => {
+      const made = setup(pending(), true);
+      await made.updater.check();
+      // (the quiet install runs from the start-up look; here it is driven the way the start-up look does)
+      vi.useFakeTimers();
+      try {
+        const first = made.updater.checkOnStart(1);
+        await vi.advanceTimersByTimeAsync(10);
+        await first;
+        await made.updater.restartNow();
+        expect(made.relaunch).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(20000);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('leaves the Update button to try again when the quiet install fails', async () => {
+      vi.useFakeTimers();
+      try {
+        const made = setup(pending(async () => { throw new Error('signature verification failed'); }), true);
+        const first = made.updater.checkOnStart(10);
+        await vi.advanceTimersByTimeAsync(20);
+        await first;
+        expect(made.updater.state()).toBe('available');
+        expect(made.updater.offered()).toBe(true);
+        expect(made.relaunch).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(20000);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

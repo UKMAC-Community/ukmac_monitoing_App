@@ -120,6 +120,8 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
          PRAGMA busy_timeout = 5000;",
     )?;
     migrate(&mut conn)?;
+    // A table that gained an ID column since the app last ran has its rows numbered.
+    crate::ids::fill_all(&mut conn)?;
     Ok(conn)
 }
 

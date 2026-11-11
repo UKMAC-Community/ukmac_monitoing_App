@@ -22,6 +22,11 @@ export interface UpdaterBackend {
   version(): Promise<string>;
   check(): Promise<PendingUpdate | null>;
   relaunch(): Promise<void>;
+  /**
+   * The new version can be put in place while the app keeps running (the Mac swaps the app on disk and the open window goes on as it
+   * was). Not so on Windows, whose installer closes the app. Left out: no.
+   */
+  installsQuietly?(): boolean;
 }
 
 /** The real thing: the Tauri updater and process plugins, loaded only when asked for. */
@@ -29,13 +34,15 @@ export const tauriUpdater: UpdaterBackend = {
   version: async () => (await import('@tauri-apps/api/app')).getVersion(),
   check: async () => (await import('@tauri-apps/plugin-updater')).check(),
   relaunch: async () => (await import('@tauri-apps/plugin-process')).relaunch(),
+  installsQuietly: () => /Mac/i.test(navigator.userAgent),
 };
 
-export type UpdateState = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'installed' | 'error';
+export type UpdateState = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'installed' | 'ready' | 'error';
 
 /**
- * Updates from inside the app: look at the releases page, say what is new, and on a click
- * download it, install it (the signature is checked first) and restart.
+ * Updates from inside the app: look at the releases page, say what is new. Where the new version can go in while the app runs (the
+ * Mac) it is downloaded and installed by itself (the signature is checked first), with no restart: the open app goes on as it is
+ * and the new version is the one that opens next time ('ready'). Elsewhere it waits for a click, which downloads, installs and restarts.
  */
 @Injectable({ providedIn: 'root' })
 export class AppUpdater {
@@ -48,6 +55,8 @@ export class AppUpdater {
   readonly update = signal<PendingUpdate | null>(null);
   readonly error = signal<string | null>(null);
   readonly lastChecked = signal<Date | null>(null);
+  /** The version that is installed but not open yet (it starts the next time the app is opened). */
+  readonly installedVersion = signal<string | null>(null);
   /** Bytes downloaded and the whole size, when the server says it. */
   readonly downloaded = signal(0);
   readonly total = signal<number | null>(null);
@@ -90,7 +99,47 @@ export class AppUpdater {
     const found = this.update();
     if (found && found.version !== this.told) {
       this.told = found.version;
+      if (this.backend.installsQuietly?.()) {
+        await this.installQuietly();
+        return;
+      }
       this.toasts.show(`Version ${found.version} is ready.`, 'info', { label: 'Update', run: () => void this.install() }, 15000);
+    }
+  }
+
+  /** Download and put the new version in place without restarting: it is the one that opens next time. A failure leaves the Update button to try again. */
+  private async installQuietly() {
+    const found = this.update();
+    if (!found || this.busy()) return;
+    this.state.set('downloading');
+    this.error.set(null);
+    this.downloaded.set(0);
+    this.total.set(null);
+    try {
+      await found.downloadAndInstall((event) => {
+        if (event.event === 'Started') this.total.set(event.data.contentLength ?? null);
+        else if (event.event === 'Progress') this.downloaded.update((bytes) => bytes + event.data.chunkLength);
+      });
+      this.installedVersion.set(found.version);
+      this.update.set(null);
+      this.state.set('ready');
+      this.toasts.show(`Version ${found.version} is installed. It starts the next time you open the app.`, 'info', { label: 'Restart now', run: () => void this.restartNow() }, 12000);
+    } catch (error) {
+      this.error.set(friendly(errorText(error)));
+      this.state.set('available');
+    }
+  }
+
+  /** Open the version that was installed in the background now (waits, a few seconds at most, for an edit being saved). */
+  async restartNow() {
+    if (this.state() !== 'ready') return;
+    this.state.set('installed');
+    try {
+      await this.untilQuiet();
+      await this.backend.relaunch();
+    } catch (error) {
+      this.error.set(friendly(errorText(error)));
+      this.state.set('error');
     }
   }
 
@@ -102,6 +151,12 @@ export class AppUpdater {
     try {
       const found = await this.backend.check();
       this.lastChecked.set(new Date());
+      // The version already put in place is not offered again while this copy of the app is still the old one.
+      if (found && found.version === this.installedVersion()) {
+        this.update.set(null);
+        this.state.set('ready');
+        return;
+      }
       this.update.set(found);
       this.state.set(found ? 'available' : 'current');
     } catch (error) {

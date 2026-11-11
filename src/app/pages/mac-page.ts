@@ -3,7 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { Icon } from '../components/icon';
 import { MacMap3d } from '../components/mac-map-3d';
-import { buildZoneLayout, mapCentre, plotCard, plotShapes } from '../zonemap/zone-layout';
+import { buildZoneLayout, filterLayout, mapCentre, plotCard, plotShapes, plotShowOptions, showsPlot, type PlotShow } from '../zonemap/zone-layout';
 import { ChiliDashboard } from '../dashboard/chili-dashboard';
 import { ChiliDashboardExport } from '../dashboard/chili-dashboard-export';
 import { ChiliDashboardVersions } from '../dashboard/chili-dashboard-versions';
@@ -70,6 +70,9 @@ const HEADING_ICONS: Record<string, string> = {
               [shapes]="shapes()"
               [selected]="pickedPlot()"
               [card]="plotCard()"
+              [filters]="shows()"
+              [filter]="show()"
+              (filterChange)="setShow($any($event))"
               (picked)="pickPlot($event)"
               (cleared)="pickedPlot.set(null)"
             />
@@ -109,7 +112,7 @@ const HEADING_ICONS: Record<string, string> = {
         <section class="tools" aria-label="Chili tools">
           <span class="tools-label"><app-icon name="sprout" [size]="14" /> Chili</span>
           <button type="button" class="pill" (click)="googleOpen.set(true)"><app-icon name="table" [size]="16" /> <span>Import from Google Sheets</span></button>
-          <a class="pill" routerLink="/settings"><app-icon name="chart" [size]="16" /> <span>Connections & backup</span></a>
+          <a class="pill" routerLink="/settings"><app-icon name="chart" [size]="16" /> <span>Settings</span></a>
           <button type="button" class="pill" (click)="exportMac(mac)"><app-icon name="download" [size]="16" /> <span>Export for Power BI</span></button>
         </section>
       </div>
@@ -207,11 +210,20 @@ export class MacPage {
       this.store.sheets().find((sheet) => sheet.templateKey === 'zone-records') ?? null,
     ),
   );
+  /** Which plots the map shows: all, the zones (in use), or the rest (water, not in use…), as on the Zone Map. */
+  readonly show = signal<PlotShow>('all');
+  readonly shows = computed(() => plotShowOptions(this.layout()));
   /** The plots drawn on the satellite, as the Zone Map shows them. */
-  readonly shapes = computed(() => plotShapes(this.layout()));
-  /** Where the map looks: the MAC's own place, else the middle of its plots (a MAC opened from a file has no place of its own). */
+  readonly shapes = computed(() => plotShapes(filterLayout(this.layout(), this.show())));
+  setShow(show: PlotShow) {
+    this.show.set(show);
+    // A plot picked that is not shown now is let go of.
+    const picked = this.layout().cells.find((cell) => cell.id === this.pickedPlot());
+    if (picked && !showsPlot(picked, show)) this.pickedPlot.set(null);
+  }
+  /** Where the map looks: the MAC's own place, else the middle of its plots (a MAC opened from a file has no place of its own). It does not follow the filter. */
   place(mac: { latitude: number | null; longitude: number | null }) {
-    return mapCentre(mac, this.shapes());
+    return mapCentre(mac, plotShapes(this.layout()));
   }
   /** The plot picked on the map: the camera goes to it, its card over it (as on the Zone Map). */
   readonly pickedPlot = signal<string | null>(null);

@@ -5,9 +5,11 @@ import { RouterLink } from '@angular/router';
 import { GoogleSignIn } from '../components/google-sign-in';
 import { Icon } from '../components/icon';
 import { Api, errorText } from '../core/api';
+import { AutoSync } from '../core/auto-sync';
 import { Google } from '../core/google';
 import type { DatabaseInfo, GoogleLink, GoogleStatus } from '../core/models';
 import { PowerBi } from '../core/powerbi';
+import { ACCENTS, COLUMN_SPACINGS, ROW_HEIGHTS, Theme } from '../core/theme';
 import { Toasts } from '../core/toast';
 import { AppUpdater } from '../core/updater';
 import { baseName } from '../core/paths';
@@ -22,10 +24,77 @@ import { baseName } from '../core/paths';
       <header class="page-header">
         <a class="page-back-icon" routerLink="/" title="Back to UKMAC" aria-label="Back"><app-icon name="arrow-left" [size]="16" /></a>
         <div class="page-header-text">
-          <h1 class="page-title">Connections & backup</h1>
-          <p class="page-desc">Bring Google Sheets in, take the tables into Power BI, and keep a copy of everything.</p>
+          <h1 class="page-title">Settings</h1>
+          <p class="page-desc">How the app looks, your Google account, Power BI, backups and updates.</p>
         </div>
       </header>
+
+      <div class="columns">
+        <div>
+          <span class="section-label">Theme</span>
+          <section class="card">
+            <div class="row-head">
+              <span class="tile-icon"><app-icon name="sparkles" [size]="18" /></span>
+              <div class="grow">
+                <h2 class="card-title">Look of the app</h2>
+                <p class="card-desc">Pick the colour and how roomy the tables are. It is kept on this computer and changes at once.</p>
+              </div>
+            </div>
+            <div class="setting-row theme-row">
+              <div class="setting-text">
+                <span class="setting-title">Colour</span>
+                <span class="setting-desc">Buttons, links and what is picked.</span>
+              </div>
+              <div class="swatches" role="group" aria-label="Colour">
+                @for (item of accents; track item.value) {
+                  <button type="button" class="swatch" [attr.aria-pressed]="theme.accent() === item.value" [title]="item.label" [attr.aria-label]="item.label" (click)="theme.update({ accent: item.value })">
+                    <span class="dot" [style.background]="item.swatch">
+                      @if (theme.accent() === item.value) {
+                        <app-icon name="check" [size]="12" />
+                      }
+                    </span>
+                  </button>
+                }
+              </div>
+            </div>
+            <div class="setting-row theme-row">
+              <div class="setting-text">
+                <span class="setting-title">Row height</span>
+                <span class="setting-desc">How tall a table's rows are.</span>
+              </div>
+              <div class="segmented is-sm" role="group" aria-label="Row height">
+                @for (item of rowHeights; track item.value) {
+                  <button type="button" class="segment" [attr.aria-pressed]="theme.rowHeight() === item.value" (click)="theme.update({ rowHeight: item.value })">{{ item.label }}</button>
+                }
+              </div>
+            </div>
+            <div class="setting-row theme-row">
+              <div class="setting-text">
+                <span class="setting-title">Column spacing</span>
+                <span class="setting-desc">The room at the sides of a table's cells.</span>
+              </div>
+              <div class="segmented is-sm" role="group" aria-label="Column spacing">
+                @for (item of columnSpacings; track item.value) {
+                  <button type="button" class="segment" [attr.aria-pressed]="theme.columnSpacing() === item.value" (click)="theme.update({ columnSpacing: item.value })">{{ item.label }}</button>
+                }
+              </div>
+            </div>
+            <div class="preview" aria-hidden="true">
+              @for (row of [0, 1, 2, 3]; track row) {
+                <div class="preview-row" [class.head]="row === 0" [attr.data-density]="theme.rowHeight()" [attr.data-spacing]="theme.columnSpacing()">
+                  @for (width of [28, 40, 22, 32]; track width) {
+                    <span class="preview-cell"><i [style.width.px]="width * 1.6"></i></span>
+                  }
+                </div>
+              }
+            </div>
+            <div class="setting-row theme-row">
+              <div class="setting-text"><span class="setting-desc">Every table in the app follows these choices.</span></div>
+              <button type="button" class="btn btn-secondary btn-sm" (click)="theme.reset()">Back to the defaults</button>
+            </div>
+          </section>
+        </div>
+      </div>
 
       <div class="columns">
         <div>
@@ -41,6 +110,16 @@ import { baseName } from '../core/paths';
                 </p>
               </div>
             </div>
+            <label class="setting-row">
+              <span class="setting-text">
+                <span class="setting-title">Sync automatically</span>
+                <span class="setting-desc">
+                  Every table linked to a Google Sheet is read again by itself, within about 30 seconds of a change in the sheet, while the app is open.
+                  A table open in Open in sheet waits until you close it.
+                </span>
+              </span>
+              <input type="checkbox" class="switch" [checked]="autoSync.on()" (change)="autoSync.setOn($any($event.target).checked)" />
+            </label>
 
             @if (google.status(); as g) {
               @if (g.signedIn) {
@@ -319,7 +398,7 @@ import { baseName } from '../core/paths';
               <div class="grow">
                 <h2 class="card-title">Updates</h2>
                 <p class="card-desc">
-                  Get the newest version without installing again. It downloads, installs and restarts the app; your tables stay as they are.
+                  New versions download and install by themselves in the background. The app keeps running as it is and uses the new version the next time you open it; your tables stay as they are.
                 </p>
               </div>
             </div>
@@ -332,6 +411,7 @@ import { baseName } from '../core/paths';
                     @case ('available') { Version {{ updater.update()?.version }} is ready. }
                     @case ('downloading') { Downloading version {{ updater.update()?.version }}@if (updater.percent() !== null) { : {{ updater.percent() }}% } … }
                     @case ('installed') { Installed. Restarting… }
+                    @case ('ready') { Version {{ updater.installedVersion() }} is installed. It is used the next time you open the app. }
                     @case ('current') { You have the newest version. }
                     @case ('error') { <span class="update-error">{{ updater.error() }}</span> }
                     @default { Not checked yet. }
@@ -340,7 +420,9 @@ import { baseName } from '../core/paths';
                 <code class="path">{{ updater.version() ? 'UKMAC Monitoring ' + updater.version() : 'UKMAC Monitoring' }}</code>
               </div>
               <div class="actions">
-                @if (updater.state() === 'available' || updater.state() === 'downloading' || updater.state() === 'installed') {
+                @if (updater.state() === 'ready') {
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="updater.restartNow()">Restart now</button>
+                } @else if (updater.state() === 'available' || updater.state() === 'downloading' || updater.state() === 'installed') {
                   <button type="button" class="btn btn-primary btn-sm" [disabled]="updater.busy()" (click)="updater.install()">
                     <app-icon name="download" /> Update and restart
                   </button>
@@ -365,6 +447,20 @@ import { baseName } from '../core/paths';
     </div>
   `,
   styles: `
+    .theme-row { align-items: center; }
+    .swatches { display: inline-flex; gap: 10px; }
+    .swatch { padding: 3px; border: 2px solid transparent; border-radius: 50%; background: none; cursor: pointer; display: inline-flex; }
+    .swatch[aria-pressed='true'] { border-color: var(--accent); }
+    .swatch .dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; }
+    .preview { margin: 14px 0 6px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); overflow: hidden; color: var(--text-muted); }
+    .preview-row { display: flex; align-items: center; height: 40px; border-top: var(--hairline) solid var(--border); background: var(--surface-solid); transition: height 0.2s var(--ease); }
+    .preview-row.head { border-top: 0; background: var(--fill); }
+    .preview-row[data-density='default'] { height: 48px; }
+    .preview-row[data-density='comfortable'] { height: 56px; }
+    .preview-cell { padding: 0 16px; transition: padding 0.2s var(--ease); }
+    .preview-row[data-spacing='narrow'] .preview-cell { padding: 0 10px; }
+    .preview-row[data-spacing='wide'] .preview-cell { padding: 0 24px; }
+    .preview-cell i { display: block; height: 6px; border-radius: 3px; background: currentColor; opacity: 0.25; }
     .update-status { display: block; }
     .update-error { color: var(--danger, #b42318); }
     .release-notes { margin: 6px 0 0; white-space: pre-wrap; font: inherit; font-size: 0.8125rem; line-height: 1.5; color: var(--text-muted); max-height: 220px; overflow: auto; }
@@ -409,6 +505,11 @@ import { baseName } from '../core/paths';
 export class SettingsPage implements OnInit {
   readonly powerBi = inject(PowerBi);
   readonly google = inject(Google);
+  readonly autoSync = inject(AutoSync);
+  readonly theme = inject(Theme);
+  readonly accents = ACCENTS;
+  readonly rowHeights = ROW_HEIGHTS;
+  readonly columnSpacings = COLUMN_SPACINGS;
   readonly updater = inject(AppUpdater);
   private readonly api = inject(Api);
   private readonly toasts = inject(Toasts);

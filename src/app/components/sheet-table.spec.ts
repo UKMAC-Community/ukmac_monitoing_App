@@ -46,12 +46,22 @@ describe('SheetTable: boxes and groups that fold', () => {
     return { fixture, el, heads, click, button };
   }
 
-  it('offers a fold on every named box and group of two or more columns', () => {
+  it('offers a fold on each stage only, not on the groups inside it', () => {
     const { el, heads } = show();
     expect(heads().length).toBe(8);
-    // Three boxes, and the "Seedling" groups of two columns (the one-column "Other" has nothing to fold).
     expect(el.querySelectorAll('tr.boxes:first-of-type button.fold').length).toBe(3);
-    expect(el.querySelectorAll('tr.boxes:nth-of-type(2) button.fold').length).toBe(3);
+    expect(el.querySelectorAll('tr.boxes:nth-of-type(2) button.fold').length).toBe(0);
+    expect(el.querySelectorAll('tr.boxes:nth-of-type(2) th.group').length).toBe(5);
+  });
+
+  it('writes a numbered stage as "Stage 1 · …"', () => {
+    const numbered = makeSheet(42, 'QA/QC', [col('a', 'Date'), col('b', 'Leaf', { box: '1 · Transplant (0 DAT)' }), col('c', 'Vigor', { box: '1 · Transplant (0 DAT)' })], []);
+    const fixture = TestBed.createComponent(SheetTable);
+    fixture.componentRef.setInput('sheet', numbered);
+    fixture.componentRef.setInput('rows', numbered.rows);
+    fixture.componentRef.setInput('formulas', new WorkbookFormulas([numbered], '2026-11-10'));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('th.box button')?.textContent?.trim()).toBe('Stage 1 · Transplant (0 DAT)');
   });
 
   it('folds a box to its first column, its name still over it, and opens it again', () => {
@@ -67,12 +77,15 @@ describe('SheetTable: boxes and groups that fold', () => {
     expect(heads().length).toBe(8);
   });
 
-  it('shows no fold for a group inside a folded box, and folds a group by itself', () => {
-    const { el, heads, click } = show();
-    click('tr.boxes:nth-of-type(2) button.fold', 1); // Stage 2's "Seedling" group
-    expect(heads().length).toBe(7);
-    click('tr.boxes:first-of-type button.fold', 0); // Stage 1 folded
-    expect(el.querySelectorAll('tr.boxes:nth-of-type(2) th.group button.fold').length).toBe(2); // Stage 1's group has none now
+  it('folds a group by itself only in a table with no stages', () => {
+    const plain = makeSheet(43, 'Nursery', [col('a', 'Total', { group: 'Seedlings' }), col('b', 'Healthy', { group: 'Seedlings' }), col('c', 'Note')], []);
+    const fixture = TestBed.createComponent(SheetTable);
+    fixture.componentRef.setInput('sheet', plain);
+    fixture.componentRef.setInput('rows', plain.rows);
+    fixture.componentRef.setInput('formulas', new WorkbookFormulas([plain], '2026-11-10'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('th.group button.fold').length).toBe(1);
   });
 
   it('folds all, opens all, and keeps what is folded for the table', () => {

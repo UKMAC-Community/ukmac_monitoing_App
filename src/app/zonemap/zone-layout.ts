@@ -201,6 +201,37 @@ export function buildZoneLayout(zones: SheetWithRows | null, records: SheetWithR
   return { areas, cells };
 }
 
+/** Which plots the map shows: all of them, the zones (plots in use with a zone number), or the rest (not in use, water, an old chili plot…). */
+export type PlotShow = 'all' | 'zones' | 'other';
+
+export function showsPlot(cell: ZoneCell, show: PlotShow): boolean {
+  return show === 'all' || (show === 'zones') === (cell.usage === 'normal' && cell.section !== null);
+}
+
+/** The choices of a filter over the plots, with how many plots each shows: what a page's switch says. */
+export function plotShowOptions(layout: ZoneLayout): { value: PlotShow; label: string; count: number; title: string }[] {
+  const zones = layout.cells.filter((cell) => showsPlot(cell, 'zones')).length;
+  return [
+    { value: 'all', label: 'All', count: layout.cells.length, title: 'Every plot' },
+    { value: 'zones', label: 'Zones', count: zones, title: 'The zones: plots in use, that can be planted' },
+    { value: 'other', label: 'Other', count: layout.cells.length - zones, title: 'Not in use, water and the rest that is not a zone' },
+  ];
+}
+
+/** The layout with only the plots to show, each staying where it is (the same layout when all are shown). */
+export function filterLayout(layout: ZoneLayout, show: PlotShow): ZoneLayout {
+  if (show === 'all') return layout;
+  const areas = layout.areas
+    .map((area) => ({
+      ...area,
+      sections: area.sections
+        .map((section) => ({ ...section, cells: section.cells.filter((cell) => showsPlot(cell, show)) }))
+        .filter((section) => section.cells.length),
+    }))
+    .filter((area) => area.sections.length);
+  return { areas, cells: layout.cells.filter((cell) => showsPlot(cell, show)) };
+}
+
 /** The plots with an outline, as shapes for the satellite map. */
 export function plotShapes(layout: ZoneLayout): MapShape[] {
   return layout.cells
@@ -240,7 +271,8 @@ export function usageWord(cell: ZoneCell) {
 
 /** A picked plot's card on the satellite map: its zone and use, and its latest record. */
 export function plotCard(cell: ZoneCell): PlotCard {
-  const place = `Zone ${cell.zone}${cell.section ? ' · ' + cell.section : ''}`;
+  // Only a plot with a zone number is in a zone: another (an old chili plot, a pond…) is named by its area alone.
+  const place = cell.section !== null ? `Zone ${cell.zone} · ${cell.section}` : cell.zone;
   const lines = [[place, usageWord(cell), cell.capacity ? `${cell.capacity} plants max` : ''].filter(Boolean).join(' · ')];
   const last = cell.records[0];
   if (last) {

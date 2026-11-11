@@ -8,6 +8,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/mac-layout').then((m) => m.MacLayout),
     children: [
       { path: '', loadComponent: () => import('./pages/mac-page').then((m) => m.MacPage) },
+      { path: 'data-check', loadComponent: () => import('./pages/data-check-page').then((m) => m.DataCheckPage), title: 'Data Check' },
       { path: 'zone-map', loadComponent: () => import('./pages/zone-map-page').then((m) => m.ZoneMapPage), title: 'Zone Map', canDeactivate: [(page: { canLeave(): Promise<boolean> | boolean }) => page.canLeave()] },
       { path: 'table/:sheetId', loadComponent: () => import('./pages/sheet-page').then((m) => m.SheetPage) },
     ],

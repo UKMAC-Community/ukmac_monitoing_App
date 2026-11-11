@@ -6,13 +6,17 @@ import { filter, map } from 'rxjs';
 import { Icon } from './components/icon';
 import { SignInGate } from './components/sign-in-gate';
 import { UpdateButton } from './components/update-button';
+import { Api } from './core/api';
 import { Google } from './core/google';
+import { AutoSync } from './core/auto-sync';
 import { MacList } from './core/mac-list';
 import { PowerBi } from './core/powerbi';
 import { Shell } from './core/shell';
+import { Theme } from './core/theme';
 import { Toasts } from './core/toast';
 import { AppUpdater } from './core/updater';
 import { WorkbookStore } from './core/workbook-store';
+import { tableGaps } from './dashboard/data-gaps';
 
 const HEADING_ICONS: Record<string, string> = {
   Setup: 'map',
@@ -41,9 +45,24 @@ export class App implements OnInit {
   readonly toasts = inject(Toasts);
   readonly powerBi = inject(PowerBi);
   readonly google = inject(Google);
+  private readonly autoSync = inject(AutoSync);
+  private readonly api = inject(Api);
   private readonly updater = inject(AppUpdater);
   readonly shell = inject(Shell);
+  /** Applies the accent colour and table sizing the person chose in Settings (it works on creation). */
+  private readonly theme = inject(Theme);
   private readonly router = inject(Router);
+
+  /** The name this computer has, for the sidebar's foot (empty until it is read, or when it can't be). */
+  readonly computer = signal('');
+
+  /** Who the sidebar's foot names: the Google account signed in (its name, else its email), else this computer by its own name. */
+  readonly who = computed(() => {
+    const status = this.google.status();
+    const account = status?.signedIn ? (status.name || status.email || '').trim() : '';
+    if (account) return { name: account, initial: account[0].toUpperCase(), sub: status?.email && status.email !== account ? status.email : 'Signed in with Google' };
+    return { name: this.computer() || 'This Mac', initial: '', sub: 'Everything saved here' };
+  });
 
   /** Who is signed in; undefined until Google has been asked. */
   private account: string | null | undefined;
@@ -102,6 +121,21 @@ export class App implements OnInit {
     return !words || 'zone map farm layout'.includes(words);
   });
 
+  /** The Data Check page, unless the menu search leaves it out. */
+  readonly showDataCheck = computed(() => {
+    const words = this.find().trim().toLowerCase();
+    return !words || 'data check missing empty columns records'.includes(words);
+  });
+
+  /** How many columns, over the open MAC's tables with records, still need input: what the Data Check link counts. */
+  readonly dataToFill = computed(() =>
+    this.store.sheets().reduce((sum, sheet) => {
+      if (!sheet.rows.length) return sum;
+      const gaps = tableGaps(sheet);
+      return sum + gaps.none + gaps.partly;
+    }, 0),
+  );
+
   /** Everything else, as the system's "Farm Progress" groups. */
   readonly progressGroups = computed(() => this.shownHeadings().filter((group) => group.heading !== 'Setup'));
 
@@ -127,12 +161,13 @@ export class App implements OnInit {
   readonly crumbs = computed<Crumb[]>(() => {
     const url = this.url();
     const crumbs: Crumb[] = [{ label: 'UKMAC', link: ['/'] }];
-    if (url.startsWith('/settings')) crumbs.push({ label: 'Connections & backup' });
+    if (url.startsWith('/settings')) crumbs.push({ label: 'Settings' });
     const mac = this.store.mac();
     const match = /^\/mac\/(\d+)(?:\/table\/(\d+))?/.exec(url);
     if (match && mac) {
       crumbs.push({ label: mac.macName, link: ['/mac', mac.macId] });
       if (url.includes('/zone-map')) crumbs.push({ label: 'Zone Map' });
+      if (url.includes('/data-check')) crumbs.push({ label: 'Data Check' });
       const sheet = match[2] ? this.store.sheet(Number(match[2])) : null;
       if (sheet) crumbs.push({ label: sheet.heading }, { label: sheet.title });
     }
@@ -161,9 +196,10 @@ export class App implements OnInit {
   }
 
   ngOnInit() {
+    void this.api.computerName().then((name) => this.computer.set(name.trim())).catch(() => undefined);
     void this.macs.refresh();
     void this.powerBi.init();
-    void this.google.init();
+    void this.google.init().then(() => this.autoSync.init());
     // A restart for an update waits while an edit is being saved or a Google sheet is being read.
     this.updater.writing = () => this.store.saving() > 0 || this.google.syncing().size > 0;
     void this.updater.checkOnStart();

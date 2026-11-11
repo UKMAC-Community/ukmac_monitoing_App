@@ -3,7 +3,7 @@ import before from './fixtures/qa-qc-columns-before.json';
 import current from './fixtures/qa-qc-columns.json';
 import { columnIdentity, columnsToLimit, columnsToRemove, isUntouched, missingTemplateColumns, retiredColumns, upgradesItself, withTemplateColumns } from './template-columns';
 
-/** A QA/QC table made before the template followed the old sheet (72 columns), and the template now (299). */
+/** A QA/QC table made before the template followed the old sheet (72 columns), and the template now (287: the sheet's own columns). */
 const old = before as Column[];
 const template = current as Column[];
 const templateIds = new Set(template.map(columnIdentity));
@@ -19,16 +19,18 @@ const at = (columns: Column[], stage: string, group: string | undefined, name: s
   columns.findIndex((column) => column.box?.startsWith(`${stage} ·`) && (column.group ?? '') === (group ?? '') && column.name === name);
 
 describe('what the template changed in the QA/QC table', () => {
-  it('drops 34 columns of the old form and keeps the other 38: no planned dates or days, no plant averages, no pest totals, no QC record', () => {
-    expect(retired).toHaveLength(34);
-    expect(STAYING).toBe(38);
+  it('drops 39 columns of the old form and keeps the other 33: no planned dates or days, no plant averages, no pest totals, no QC record', () => {
+    expect(retired).toHaveLength(39);
+    expect(STAYING).toBe(33);
     expect(retired.filter((column) => column.box === 'QC record')).toHaveLength(2);
     expect(retired.filter((column) => column.name === 'Date')).toHaveLength(10);
     expect(retired.filter((column) => column.name === 'Days after transplant')).toHaveLength(10);
     expect(retired.filter((column) => column.group === 'Plant average')).toHaveLength(10);
-    // What the dashboards read stays.
+    // What the dashboards read stays; the sums and checks the sheet does not have are gone.
     const names = template.map((column) => column.name);
-    for (const needed of ['Live plant', 'Dead plant', 'Marketable', 'Harvested', 'Yield per plant', 'Zone']) expect(names).toContain(needed);
+    for (const gone of ['Harvested', 'Harvest rounds', 'Yield per plant']) expect(names).not.toContain(gone);
+    expect(names.filter((name) => name.endsWith(' check'))).toEqual([]);
+    for (const needed of ['Live plant', 'Dead plant', 'Marketable', 'Zone']) expect(names).toContain(needed);
   });
 
   it('gives each stage the sheet\'s observation date first, and the sheet\'s groups, 20 plants to a measure', () => {
@@ -44,7 +46,7 @@ describe('bringing a QA/QC table up to date with the template', () => {
   it('finds the columns the template has gained, and none the table has', () => {
     const missing = missingTemplateColumns(old, template);
     expect(missing).toHaveLength(NEW);
-    expect(NEW).toBe(261);
+    expect(NEW).toBe(254);
     const names = missing.map((column) => column.name);
     expect(names).toContain('Flower abortion');
     expect(names).toContain('1st Date');
@@ -53,18 +55,18 @@ describe('bringing a QA/QC table up to date with the template', () => {
     expect(names).toContain('W21');
     expect(names).toContain('Notes');
     expect(names).toContain('30 DAT Vegetative');
-    expect(names.filter((name) => name.endsWith(' check'))).toHaveLength(7);
+    expect(names.filter((name) => name.endsWith(' check'))).toHaveLength(0);
     expect(names.filter((name) => /P#\d+$/.test(name))).toHaveLength(140);
     expect(names.filter((name) => /^\d+[AB]$/.test(name))).toHaveLength(40);
     expect(missingTemplateColumns(old, old)).toEqual([]);
   });
 
   it('takes off the old columns that hold no value, and leaves one that does', () => {
-    expect(retiredColumns(old, retired)).toHaveLength(34);
-    expect(columnsToRemove(old, retired, () => false)).toHaveLength(34);
+    expect(retiredColumns(old, retired)).toHaveLength(39);
+    expect(columnsToRemove(old, retired, () => false)).toHaveLength(39);
     const vigor = old.find((column) => column.name === 'Vigor score (1–5)')!;
     const going = columnsToRemove(old, retired, (column) => column.key === vigor.key);
-    expect(going).toHaveLength(33);
+    expect(going).toHaveLength(38);
     expect(going.map((column) => column.key)).not.toContain(vigor.key);
     // Nothing the template still has is ever taken off, even if no row has a value in it.
     expect(columnsToRemove(old, retired, () => false).every((column) => !templateIds.has(columnIdentity(column)))).toBe(true);
@@ -112,7 +114,6 @@ describe('bringing a QA/QC table up to date with the template', () => {
     expect(at(merged, health, 'Pest/Disease Status 0–150 DAT (No. affected)', 'W21')).toBe(at(merged, health, weekly, 'W1 Date') + 41);
     const end = '10';
     expect(at(merged, end, 'Cumulative Yield', '1st Date')).toBe(at(merged, end, 'Cumulative Yield', 'Total plant') + 1);
-    expect(at(merged, end, 'Cumulative Yield', 'Yield per plant')).toBe(at(merged, end, 'Cumulative Yield', '5th Harvest') + 1);
     // Every new column is inside its stage's run of columns.
     for (const column of merged.filter((item) => item.key === '' && item.box)) {
       const same = merged.map((item, index) => (item.box === column.box ? index : -1)).filter((index) => index >= 0);

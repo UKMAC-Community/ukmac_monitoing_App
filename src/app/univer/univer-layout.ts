@@ -220,7 +220,7 @@ export function numberFormat(column: Column): string {
 }
 
 export function columnStyleId(column: Column) {
-  return `col-${column.type}`;
+  return column.auto ? 'col-auto' : `col-${column.type}`;
 }
 
 // ------------------------------------------------------------------ values
@@ -424,7 +424,10 @@ export function gridStyles(
   };
   for (const column of columns) {
     if (column.type === 'formula') continue;
-    styles[columnStyleId(column)] = { n: { pattern: numberFormat(column) } };
+    // An ID: a plain whole number (no thousands comma), lined up left.
+    styles[columnStyleId(column)] = column.auto
+      ? { n: { pattern: '0' }, ht: ALIGN_LEFT }
+      : { n: { pattern: numberFormat(column) } };
   }
   return styles;
 }
@@ -605,7 +608,7 @@ export function diffRecords(
   columns: readonly Column[],
   linkOptions: (column: Column) => readonly string[] = () => [],
 ): GridDiff {
-  const entry = columns.filter((column) => column.type !== 'formula');
+  const entry = columns.filter((column) => column.type !== 'formula' && !column.auto);
   const options = new Map(entry.map((column) => [column.key, linkOptions(column)]));
   const byId = new Map(rows.map((row) => [row.rowId, row]));
   const seen = new Set<number>();

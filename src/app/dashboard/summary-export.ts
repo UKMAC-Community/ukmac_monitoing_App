@@ -13,9 +13,11 @@ export async function buildSummaryWorkbook(title: string, summaries: { title: st
     for (let n = 2; used.has(sheetName.toLowerCase()); n += 1) sheetName = `${sheetName.slice(0, 28)} ${n}`;
     used.add(sheetName.toLowerCase());
     const sheet = book.addWorksheet(sheetName);
-    sheet.addRow([result.header, ...result.columns]);
-    for (const row of result.rows) sheet.addRow([row.label, ...row.values]);
-    const total = sheet.addRow(['Total', ...result.totals]);
+    // A table grouped twice has a second label column (a day, then its zone numbers).
+    const second = result.header2 !== undefined;
+    sheet.addRow([result.header, ...(second ? [result.header2] : []), ...result.columns]);
+    for (const row of result.rows) sheet.addRow([row.label, ...(second ? [row.label2 ?? ''] : []), ...row.values]);
+    const total = sheet.addRow(['Total', ...(second ? [''] : []), ...result.totals]);
     total.font = { bold: true };
     styleHeader(sheet);
     sheet.columns.forEach((column, index) => (column.width = index === 0 ? 24 : 16));

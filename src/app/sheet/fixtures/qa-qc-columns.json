@@ -1,2785 +1,2674 @@
 [
- {
-  "aliases": [
-   "Planting Date"
-  ],
-  "key": "c1",
-  "name": "Date",
-  "required": true,
-  "type": "date"
- },
- {
-  "aliases": [
-   "Block"
-  ],
-  "key": "c2",
-  "name": "Zone",
-  "required": true,
-  "source": "'Zones'[Plot]",
-  "type": "link"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "key": "c3",
-  "name": "0 DAT Transplant",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "group": "Seedling Leaf Stage (No.)",
-  "key": "c4",
-  "min": 0.0,
-  "name": "4–5, good",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "group": "Seedling Leaf Stage (No.)",
-  "key": "c5",
-  "min": 0.0,
-  "name": "3, >5",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "group": "Seedling Leaf Stage (No.)",
-  "key": "c6",
-  "min": 0.0,
-  "name": "Disease",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "group": "Seedling Health / Vigor (No.)",
-  "key": "c7",
-  "min": 0.0,
-  "name": "Healthy",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "group": "Seedling Health / Vigor (No.)",
-  "key": "c8",
-  "min": 0.0,
-  "name": "Medium",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "group": "Seedling Health / Vigor (No.)",
-  "key": "c9",
-  "min": 0.0,
-  "name": "Wilt",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "formula": "=IF(COUNT([1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › 4–5, good],[1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › 3, >5],[1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › Disease])<3,\"\",IF(SUM([1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › 4–5, good],[1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › 3, >5],[1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › Disease])=20,\"OK\",SUM([1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › 4–5, good],[1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › 3, >5],[1 · Transplant (0 DAT) › Seedling Leaf Stage (No.) › Disease])&\" of \"&20))",
-  "group": "Seedling Leaf Stage (No.)",
-  "key": "c10",
-  "name": "Leaf stage check",
-  "required": false,
-  "type": "formula"
- },
- {
-  "box": "1 · Transplant (0 DAT)",
-  "formula": "=IF(COUNT([1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Healthy],[1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Medium],[1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Wilt])<3,\"\",IF(SUM([1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Healthy],[1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Medium],[1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Wilt])=20,\"OK\",SUM([1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Healthy],[1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Medium],[1 · Transplant (0 DAT) › Seedling Health / Vigor (No.) › Wilt])&\" of \"&20))",
-  "group": "Seedling Health / Vigor (No.)",
-  "key": "c11",
-  "name": "Health check",
-  "required": false,
-  "type": "formula"
- },
- {
-  "box": "2 · Establishment (7 DAT)",
-  "key": "c12",
-  "name": "7 DAT Establishment",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "2 · Establishment (7 DAT)",
-  "group": "Plant Survival (No.)",
-  "key": "c13",
-  "min": 0.0,
-  "name": "Live plant",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "2 · Establishment (7 DAT)",
-  "formula": "=IF([Live plant]=\"\",\"\",20-[Live plant])",
-  "group": "Plant Survival (No.)",
-  "key": "c14",
-  "name": "Dead plant",
-  "required": false,
-  "type": "formula"
- },
- {
-  "box": "2 · Establishment (7 DAT)",
-  "group": "New Growth (No.)",
-  "key": "c15",
-  "min": 0.0,
-  "name": "Upright plants",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "2 · Establishment (7 DAT)",
-  "group": "New Growth (No.)",
-  "key": "c16",
-  "min": 0.0,
-  "name": "Uneven / Wilt",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "2 · Establishment (7 DAT)",
-  "formula": "=IF(OR([2 · Establishment (7 DAT) › Plant Survival (No.) › Live plant]=\"\",COUNT([2 · Establishment (7 DAT) › New Growth (No.) › Upright plants],[2 · Establishment (7 DAT) › New Growth (No.) › Uneven / Wilt])<2),\"\",IF(SUM([2 · Establishment (7 DAT) › New Growth (No.) › Upright plants],[2 · Establishment (7 DAT) › New Growth (No.) › Uneven / Wilt])=[2 · Establishment (7 DAT) › Plant Survival (No.) › Live plant],\"OK\",SUM([2 · Establishment (7 DAT) › New Growth (No.) › Upright plants],[2 · Establishment (7 DAT) › New Growth (No.) › Uneven / Wilt])&\" of \"&[2 · Establishment (7 DAT) › Plant Survival (No.) › Live plant]))",
-  "group": "New Growth (No.)",
-  "key": "c17",
-  "name": "Growth check",
-  "required": false,
-  "type": "formula"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "key": "c18",
-  "name": "30 DAT Vegetative",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c19",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#1",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c20",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#2",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c21",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#3",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c22",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#4",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c23",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#5",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c24",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#6",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c25",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#7",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c26",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#8",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c27",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#9",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c28",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#10",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c29",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#11",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c30",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#12",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c31",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#13",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c32",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#14",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c33",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#15",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c34",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#16",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c35",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#17",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c36",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#18",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c37",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#19",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Vigor Score (1–5)",
-  "key": "c38",
-  "max": 5.0,
-  "min": 1.0,
-  "name": "P#20",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c39",
-  "min": 0.0,
-  "name": "P#1",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c40",
-  "min": 0.0,
-  "name": "P#2",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c41",
-  "min": 0.0,
-  "name": "P#3",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c42",
-  "min": 0.0,
-  "name": "P#4",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c43",
-  "min": 0.0,
-  "name": "P#5",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c44",
-  "min": 0.0,
-  "name": "P#6",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c45",
-  "min": 0.0,
-  "name": "P#7",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c46",
-  "min": 0.0,
-  "name": "P#8",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c47",
-  "min": 0.0,
-  "name": "P#9",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c48",
-  "min": 0.0,
-  "name": "P#10",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c49",
-  "min": 0.0,
-  "name": "P#11",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c50",
-  "min": 0.0,
-  "name": "P#12",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c51",
-  "min": 0.0,
-  "name": "P#13",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c52",
-  "min": 0.0,
-  "name": "P#14",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c53",
-  "min": 0.0,
-  "name": "P#15",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c54",
-  "min": 0.0,
-  "name": "P#16",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c55",
-  "min": 0.0,
-  "name": "P#17",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c56",
-  "min": 0.0,
-  "name": "P#18",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c57",
-  "min": 0.0,
-  "name": "P#19",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Plant Height (cm)",
-  "key": "c58",
-  "min": 0.0,
-  "name": "P#20",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c59",
-  "min": 0.0,
-  "name": "1A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c60",
-  "min": 0.0,
-  "name": "2A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c61",
-  "min": 0.0,
-  "name": "3A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c62",
-  "min": 0.0,
-  "name": "4A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c63",
-  "min": 0.0,
-  "name": "5A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c64",
-  "min": 0.0,
-  "name": "6A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c65",
-  "min": 0.0,
-  "name": "7A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c66",
-  "min": 0.0,
-  "name": "8A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c67",
-  "min": 0.0,
-  "name": "9A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c68",
-  "min": 0.0,
-  "name": "10A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c69",
-  "min": 0.0,
-  "name": "11A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c70",
-  "min": 0.0,
-  "name": "12A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c71",
-  "min": 0.0,
-  "name": "13A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c72",
-  "min": 0.0,
-  "name": "14A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c73",
-  "min": 0.0,
-  "name": "15A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c74",
-  "min": 0.0,
-  "name": "16A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c75",
-  "min": 0.0,
-  "name": "17A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c76",
-  "min": 0.0,
-  "name": "18A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c77",
-  "min": 0.0,
-  "name": "19A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter A (cm) – widest direction",
-  "key": "c78",
-  "min": 0.0,
-  "name": "20A",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c79",
-  "min": 0.0,
-  "name": "1B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c80",
-  "min": 0.0,
-  "name": "2B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c81",
-  "min": 0.0,
-  "name": "3B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c82",
-  "min": 0.0,
-  "name": "4B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c83",
-  "min": 0.0,
-  "name": "5B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c84",
-  "min": 0.0,
-  "name": "6B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c85",
-  "min": 0.0,
-  "name": "7B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c86",
-  "min": 0.0,
-  "name": "8B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c87",
-  "min": 0.0,
-  "name": "9B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c88",
-  "min": 0.0,
-  "name": "10B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c89",
-  "min": 0.0,
-  "name": "11B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c90",
-  "min": 0.0,
-  "name": "12B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c91",
-  "min": 0.0,
-  "name": "13B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c92",
-  "min": 0.0,
-  "name": "14B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c93",
-  "min": 0.0,
-  "name": "15B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c94",
-  "min": 0.0,
-  "name": "16B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c95",
-  "min": 0.0,
-  "name": "17B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c96",
-  "min": 0.0,
-  "name": "18B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c97",
-  "min": 0.0,
-  "name": "19B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Canopy Diameter B (cm) – perpendicular direction",
-  "key": "c98",
-  "min": 0.0,
-  "name": "20B",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c99",
-  "min": 0.0,
-  "name": "P#1",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c100",
-  "min": 0.0,
-  "name": "P#2",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c101",
-  "min": 0.0,
-  "name": "P#3",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c102",
-  "min": 0.0,
-  "name": "P#4",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c103",
-  "min": 0.0,
-  "name": "P#5",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c104",
-  "min": 0.0,
-  "name": "P#6",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c105",
-  "min": 0.0,
-  "name": "P#7",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c106",
-  "min": 0.0,
-  "name": "P#8",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c107",
-  "min": 0.0,
-  "name": "P#9",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c108",
-  "min": 0.0,
-  "name": "P#10",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c109",
-  "min": 0.0,
-  "name": "P#11",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c110",
-  "min": 0.0,
-  "name": "P#12",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c111",
-  "min": 0.0,
-  "name": "P#13",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c112",
-  "min": 0.0,
-  "name": "P#14",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c113",
-  "min": 0.0,
-  "name": "P#15",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c114",
-  "min": 0.0,
-  "name": "P#16",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c115",
-  "min": 0.0,
-  "name": "P#17",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c116",
-  "min": 0.0,
-  "name": "P#18",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c117",
-  "min": 0.0,
-  "name": "P#19",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "3 · Vegetative (30 DAT)",
-  "group": "Branching (No. branches/plant)",
-  "key": "c118",
-  "min": 0.0,
-  "name": "P#20",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "key": "c119",
-  "name": "45 DAT Flowering",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c120",
-  "min": 0.0,
-  "name": "P#1",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c121",
-  "min": 0.0,
-  "name": "P#2",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c122",
-  "min": 0.0,
-  "name": "P#3",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c123",
-  "min": 0.0,
-  "name": "P#4",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c124",
-  "min": 0.0,
-  "name": "P#5",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c125",
-  "min": 0.0,
-  "name": "P#6",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c126",
-  "min": 0.0,
-  "name": "P#7",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c127",
-  "min": 0.0,
-  "name": "P#8",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c128",
-  "min": 0.0,
-  "name": "P#9",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c129",
-  "min": 0.0,
-  "name": "P#10",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c130",
-  "min": 0.0,
-  "name": "P#11",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c131",
-  "min": 0.0,
-  "name": "P#12",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c132",
-  "min": 0.0,
-  "name": "P#13",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c133",
-  "min": 0.0,
-  "name": "P#14",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c134",
-  "min": 0.0,
-  "name": "P#15",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c135",
-  "min": 0.0,
-  "name": "P#16",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c136",
-  "min": 0.0,
-  "name": "P#17",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c137",
-  "min": 0.0,
-  "name": "P#18",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c138",
-  "min": 0.0,
-  "name": "P#19",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Plant Flowering – Flowers per Plant (No.)",
-  "key": "c139",
-  "min": 0.0,
-  "name": "P#20",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "4 · Flowering (45 DAT)",
-  "group": "Flower Abortion",
-  "key": "c140",
-  "max": 100.0,
-  "min": 0.0,
-  "name": "Flower abortion",
-  "required": false,
-  "type": "percentage"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "key": "c141",
-  "name": "60 DAT Fruit set",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Fruit Orientation (No.)",
-  "key": "c142",
-  "min": 0.0,
-  "name": "Upright",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Fruit Orientation (No.)",
-  "key": "c143",
-  "min": 0.0,
-  "name": "Mixed",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Fruit Orientation (No.)",
-  "key": "c144",
-  "min": 0.0,
-  "name": "Different",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Fruit Shape (No.)",
-  "key": "c145",
-  "min": 0.0,
-  "name": "True-to-type",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Fruit Shape (No.)",
-  "key": "c146",
-  "min": 0.0,
-  "name": "Variability",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Fruit Shape (No.)",
-  "key": "c147",
-  "min": 0.0,
-  "name": "Off-type",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "formula": "=IF(COUNT([5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Upright],[5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Mixed],[5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Different])<3,\"\",IF(SUM([5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Upright],[5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Mixed],[5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Different])=50,\"OK\",SUM([5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Upright],[5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Mixed],[5 · Fruit set (60 DAT) › Fruit Orientation (No.) › Different])&\" of \"&50))",
-  "group": "Fruit Orientation (No.)",
-  "key": "c148",
-  "name": "Orientation check",
-  "required": false,
-  "type": "formula"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "formula": "=IF(COUNT([5 · Fruit set (60 DAT) › Fruit Shape (No.) › True-to-type],[5 · Fruit set (60 DAT) › Fruit Shape (No.) › Variability],[5 · Fruit set (60 DAT) › Fruit Shape (No.) › Off-type])<3,\"\",IF(SUM([5 · Fruit set (60 DAT) › Fruit Shape (No.) › True-to-type],[5 · Fruit set (60 DAT) › Fruit Shape (No.) › Variability],[5 · Fruit set (60 DAT) › Fruit Shape (No.) › Off-type])=50,\"OK\",SUM([5 · Fruit set (60 DAT) › Fruit Shape (No.) › True-to-type],[5 · Fruit set (60 DAT) › Fruit Shape (No.) › Variability],[5 · Fruit set (60 DAT) › Fruit Shape (No.) › Off-type])&\" of \"&50))",
-  "group": "Fruit Shape (No.)",
-  "key": "c149",
-  "name": "Shape check",
-  "required": false,
-  "type": "formula"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c150",
-  "min": 0.0,
-  "name": "P#1",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c151",
-  "min": 0.0,
-  "name": "P#2",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c152",
-  "min": 0.0,
-  "name": "P#3",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c153",
-  "min": 0.0,
-  "name": "P#4",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c154",
-  "min": 0.0,
-  "name": "P#5",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c155",
-  "min": 0.0,
-  "name": "P#6",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c156",
-  "min": 0.0,
-  "name": "P#7",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c157",
-  "min": 0.0,
-  "name": "P#8",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c158",
-  "min": 0.0,
-  "name": "P#9",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c159",
-  "min": 0.0,
-  "name": "P#10",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c160",
-  "min": 0.0,
-  "name": "P#11",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c161",
-  "min": 0.0,
-  "name": "P#12",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c162",
-  "min": 0.0,
-  "name": "P#13",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c163",
-  "min": 0.0,
-  "name": "P#14",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c164",
-  "min": 0.0,
-  "name": "P#15",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c165",
-  "min": 0.0,
-  "name": "P#16",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c166",
-  "min": 0.0,
-  "name": "P#17",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c167",
-  "min": 0.0,
-  "name": "P#18",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c168",
-  "min": 0.0,
-  "name": "P#19",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "5 · Fruit set (60 DAT)",
-  "group": "Young/Developing Fruits (No. fruits/plant)",
-  "key": "c169",
-  "min": 0.0,
-  "name": "P#20",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "key": "c170",
-  "name": "75 DAT First Harvest",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "key": "c171",
-  "name": "Harvest date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c172",
-  "min": 0.0,
-  "name": "P#1",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c173",
-  "min": 0.0,
-  "name": "P#2",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c174",
-  "min": 0.0,
-  "name": "P#3",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c175",
-  "min": 0.0,
-  "name": "P#4",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c176",
-  "min": 0.0,
-  "name": "P#5",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c177",
-  "min": 0.0,
-  "name": "P#6",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c178",
-  "min": 0.0,
-  "name": "P#7",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c179",
-  "min": 0.0,
-  "name": "P#8",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c180",
-  "min": 0.0,
-  "name": "P#9",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c181",
-  "min": 0.0,
-  "name": "P#10",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c182",
-  "min": 0.0,
-  "name": "P#11",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c183",
-  "min": 0.0,
-  "name": "P#12",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c184",
-  "min": 0.0,
-  "name": "P#13",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c185",
-  "min": 0.0,
-  "name": "P#14",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c186",
-  "min": 0.0,
-  "name": "P#15",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c187",
-  "min": 0.0,
-  "name": "P#16",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c188",
-  "min": 0.0,
-  "name": "P#17",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c189",
-  "min": 0.0,
-  "name": "P#18",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c190",
-  "min": 0.0,
-  "name": "P#19",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Length (cm)",
-  "key": "c191",
-  "min": 0.0,
-  "name": "P#20",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c192",
-  "min": 0.0,
-  "name": "P#1",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c193",
-  "min": 0.0,
-  "name": "P#2",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c194",
-  "min": 0.0,
-  "name": "P#3",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c195",
-  "min": 0.0,
-  "name": "P#4",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c196",
-  "min": 0.0,
-  "name": "P#5",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c197",
-  "min": 0.0,
-  "name": "P#6",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c198",
-  "min": 0.0,
-  "name": "P#7",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c199",
-  "min": 0.0,
-  "name": "P#8",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c200",
-  "min": 0.0,
-  "name": "P#9",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c201",
-  "min": 0.0,
-  "name": "P#10",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c202",
-  "min": 0.0,
-  "name": "P#11",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c203",
-  "min": 0.0,
-  "name": "P#12",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c204",
-  "min": 0.0,
-  "name": "P#13",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c205",
-  "min": 0.0,
-  "name": "P#14",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c206",
-  "min": 0.0,
-  "name": "P#15",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c207",
-  "min": 0.0,
-  "name": "P#16",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c208",
-  "min": 0.0,
-  "name": "P#17",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c209",
-  "min": 0.0,
-  "name": "P#18",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c210",
-  "min": 0.0,
-  "name": "P#19",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "6 · First Harvest (75 DAT)",
-  "group": "Fruit Diameter (cm)",
-  "key": "c211",
-  "min": 0.0,
-  "name": "P#20",
-  "required": false,
-  "type": "number",
-  "unit": "cm"
- },
- {
-  "box": "7 · Maturity (75 DAT+)",
-  "key": "c212",
-  "name": "75 DAT+ Maturity",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "7 · Maturity (75 DAT+)",
-  "group": "Fruit Color (No.)",
-  "key": "c213",
-  "min": 0.0,
-  "name": "Green",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "7 · Maturity (75 DAT+)",
-  "group": "Fruit Color (No.)",
-  "key": "c214",
-  "min": 0.0,
-  "name": "Turning",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "7 · Maturity (75 DAT+)",
-  "group": "Fruit Color (No.)",
-  "key": "c215",
-  "min": 0.0,
-  "name": "Red",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "7 · Maturity (75 DAT+)",
-  "formula": "=IF(COUNT([7 · Maturity (75 DAT+) › Fruit Color (No.) › Green],[7 · Maturity (75 DAT+) › Fruit Color (No.) › Turning],[7 · Maturity (75 DAT+) › Fruit Color (No.) › Red])<3,\"\",IF(SUM([7 · Maturity (75 DAT+) › Fruit Color (No.) › Green],[7 · Maturity (75 DAT+) › Fruit Color (No.) › Turning],[7 · Maturity (75 DAT+) › Fruit Color (No.) › Red])=50,\"OK\",SUM([7 · Maturity (75 DAT+) › Fruit Color (No.) › Green],[7 · Maturity (75 DAT+) › Fruit Color (No.) › Turning],[7 · Maturity (75 DAT+) › Fruit Color (No.) › Red])&\" of \"&50))",
-  "group": "Fruit Color (No.)",
-  "key": "c216",
-  "name": "Color check",
-  "required": false,
-  "type": "formula"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "key": "c217",
-  "name": "75–150 DAT Harvest",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Marketable Fruit (kg)",
-  "key": "c218",
-  "min": 0.0,
-  "name": "Total",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Marketable Fruit (kg)",
-  "key": "c219",
-  "min": 0.0,
-  "name": "Marketable",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "formula": "=IF(OR([8 · Harvest (75–150 DAT) › Marketable Fruit (kg) › Total]=\"\",[8 · Harvest (75–150 DAT) › Marketable Fruit (kg) › Marketable]=\"\"),\"\",IF([8 · Harvest (75–150 DAT) › Marketable Fruit (kg) › Marketable]<=[8 · Harvest (75–150 DAT) › Marketable Fruit (kg) › Total],\"OK\",\"More than total\"))",
-  "group": "Marketable Fruit (kg)",
-  "key": "c220",
-  "name": "Marketable check",
-  "required": false,
-  "type": "formula"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Rejected (kg)",
-  "key": "c221",
-  "min": 0.0,
-  "name": "Pest damage",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Rejected (kg)",
-  "key": "c222",
-  "min": 0.0,
-  "name": "Disease",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Rejected (kg)",
-  "key": "c223",
-  "min": 0.0,
-  "name": "Too small",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Rejected (kg)",
-  "key": "c224",
-  "min": 0.0,
-  "name": "Deformed",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Rejected (kg)",
-  "key": "c225",
-  "min": 0.0,
-  "name": "Rot",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Rejected (kg)",
-  "key": "c226",
-  "min": 0.0,
-  "name": "Color reject",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "formula": "=IF(COUNT([8 · Harvest (75–150 DAT) › Rejected (kg) › Pest damage],[8 · Harvest (75–150 DAT) › Rejected (kg) › Disease],[8 · Harvest (75–150 DAT) › Rejected (kg) › Too small],[8 · Harvest (75–150 DAT) › Rejected (kg) › Deformed],[8 · Harvest (75–150 DAT) › Rejected (kg) › Rot],[8 · Harvest (75–150 DAT) › Rejected (kg) › Color reject])<6,\"\",SUM([8 · Harvest (75–150 DAT) › Rejected (kg) › Pest damage],[8 · Harvest (75–150 DAT) › Rejected (kg) › Disease],[8 · Harvest (75–150 DAT) › Rejected (kg) › Too small],[8 · Harvest (75–150 DAT) › Rejected (kg) › Deformed],[8 · Harvest (75–150 DAT) › Rejected (kg) › Rot],[8 · Harvest (75–150 DAT) › Rejected (kg) › Color reject]))",
-  "group": "Rejected (kg)",
-  "key": "c227",
-  "name": "Total",
-  "required": false,
-  "type": "formula",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c228",
-  "min": 0.0,
-  "name": "Harvest rounds",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c229",
-  "min": 0.0,
-  "name": "Harvested",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c230",
-  "min": 0.0,
-  "name": "Total plant",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c231",
-  "name": "1st Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c232",
-  "min": 0.0,
-  "name": "1st Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c233",
-  "name": "2nd Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c234",
-  "min": 0.0,
-  "name": "2nd Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c235",
-  "name": "3rd Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c236",
-  "min": 0.0,
-  "name": "3rd Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c237",
-  "name": "4th Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c238",
-  "min": 0.0,
-  "name": "4th Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c239",
-  "name": "5th Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "8 · Harvest (75–150 DAT)",
-  "group": "Cumulative Yield",
-  "key": "c240",
-  "min": 0.0,
-  "name": "5th Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "key": "c241",
-  "name": "75–150 DAT Plant Health",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c242",
-  "name": "W1 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c243",
-  "min": 0.0,
-  "name": "W1",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c244",
-  "name": "W2 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c245",
-  "min": 0.0,
-  "name": "W2",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c246",
-  "name": "W3 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c247",
-  "min": 0.0,
-  "name": "W3",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c248",
-  "name": "W4 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c249",
-  "min": 0.0,
-  "name": "W4",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c250",
-  "name": "W5 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c251",
-  "min": 0.0,
-  "name": "W5",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c252",
-  "name": "W6 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c253",
-  "min": 0.0,
-  "name": "W6",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c254",
-  "name": "W7 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c255",
-  "min": 0.0,
-  "name": "W7",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c256",
-  "name": "W8 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c257",
-  "min": 0.0,
-  "name": "W8",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c258",
-  "name": "W9 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c259",
-  "min": 0.0,
-  "name": "W9",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c260",
-  "name": "W10 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–70 DAT (No. affected)",
-  "key": "c261",
-  "min": 0.0,
-  "name": "W10",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c262",
-  "name": "W11 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c263",
-  "min": 0.0,
-  "name": "W11",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c264",
-  "name": "W12 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c265",
-  "min": 0.0,
-  "name": "W12",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c266",
-  "name": "W13 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c267",
-  "min": 0.0,
-  "name": "W13",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c268",
-  "name": "W14 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c269",
-  "min": 0.0,
-  "name": "W14",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c270",
-  "name": "W15 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c271",
-  "min": 0.0,
-  "name": "W15",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c272",
-  "name": "W16 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c273",
-  "min": 0.0,
-  "name": "W16",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c274",
-  "name": "W17 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c275",
-  "min": 0.0,
-  "name": "W17",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c276",
-  "name": "W18 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c277",
-  "min": 0.0,
-  "name": "W18",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c278",
-  "name": "W19 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c279",
-  "min": 0.0,
-  "name": "W19",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c280",
-  "name": "W20 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c281",
-  "min": 0.0,
-  "name": "W20",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c282",
-  "name": "W21 Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "9 · Plant Health (75–150 DAT)",
-  "group": "Pest/Disease Status 0–150 DAT (No. affected)",
-  "key": "c283",
-  "min": 0.0,
-  "name": "W21",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "10 · End of Cycles",
-  "key": "c284",
-  "name": "End of Cycles",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c285",
-  "min": 0.0,
-  "name": "Harvest rounds",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c286",
-  "min": 0.0,
-  "name": "Harvested",
-  "required": false,
-  "type": "number",
-  "unit": "kg"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c287",
-  "min": 0.0,
-  "name": "Total plant",
-  "required": false,
-  "type": "number"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c288",
-  "name": "1st Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c289",
-  "min": 0.0,
-  "name": "1st Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c290",
-  "name": "2nd Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c291",
-  "min": 0.0,
-  "name": "2nd Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c292",
-  "name": "3rd Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c293",
-  "min": 0.0,
-  "name": "3rd Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c294",
-  "name": "4th Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c295",
-  "min": 0.0,
-  "name": "4th Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c296",
-  "name": "5th Date",
-  "required": false,
-  "type": "date"
- },
- {
-  "box": "10 · End of Cycles",
-  "group": "Cumulative Yield",
-  "key": "c297",
-  "min": 0.0,
-  "name": "5th Harvest",
-  "required": false,
-  "type": "number",
-  "unit": "kg/plant"
- },
- {
-  "box": "10 · End of Cycles",
-  "formula": "=IF(OR([10 · End of Cycles › Harvested]=\"\",[10 · End of Cycles › Total plant]=\"\",[10 · End of Cycles › Total plant]=0),\"\",[10 · End of Cycles › Harvested]/[10 · End of Cycles › Total plant])",
-  "group": "Cumulative Yield",
-  "key": "c298",
-  "name": "Yield per plant",
-  "required": false,
-  "type": "formula",
-  "unit": "kg"
- },
- {
-  "aliases": [
-   "Outside",
-   "Other › Outside"
-  ],
-  "key": "c299",
-  "name": "Notes",
-  "required": false,
-  "type": "text"
- }
+  {
+    "aliases": [
+      "Planting Date"
+    ],
+    "key": "c1",
+    "name": "Date",
+    "required": true,
+    "type": "date"
+  },
+  {
+    "aliases": [
+      "Block"
+    ],
+    "key": "c2",
+    "name": "Zone",
+    "required": true,
+    "source": "'Zones'[Plot]",
+    "type": "link"
+  },
+  {
+    "box": "1 · Transplant (0 DAT)",
+    "key": "c3",
+    "name": "0 DAT Transplant",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "1 · Transplant (0 DAT)",
+    "group": "Seedling Leaf Stage (No.)",
+    "key": "c4",
+    "min": 0.0,
+    "name": "4–5, good",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "1 · Transplant (0 DAT)",
+    "group": "Seedling Leaf Stage (No.)",
+    "key": "c5",
+    "min": 0.0,
+    "name": "3, >5",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "1 · Transplant (0 DAT)",
+    "group": "Seedling Leaf Stage (No.)",
+    "key": "c6",
+    "min": 0.0,
+    "name": "Disease",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "1 · Transplant (0 DAT)",
+    "group": "Seedling Health / Vigor (No.)",
+    "key": "c7",
+    "min": 0.0,
+    "name": "Healthy",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "1 · Transplant (0 DAT)",
+    "group": "Seedling Health / Vigor (No.)",
+    "key": "c8",
+    "min": 0.0,
+    "name": "Medium",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "1 · Transplant (0 DAT)",
+    "group": "Seedling Health / Vigor (No.)",
+    "key": "c9",
+    "min": 0.0,
+    "name": "Wilt",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "2 · Establishment (7 DAT)",
+    "key": "c10",
+    "name": "7 DAT Establishment",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "2 · Establishment (7 DAT)",
+    "group": "Plant Survival (No.)",
+    "key": "c11",
+    "min": 0.0,
+    "name": "Live plant",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "2 · Establishment (7 DAT)",
+    "formula": "=IF([Live plant]=\"\",\"\",20-[Live plant])",
+    "group": "Plant Survival (No.)",
+    "key": "c12",
+    "name": "Dead plant",
+    "required": false,
+    "type": "formula"
+  },
+  {
+    "box": "2 · Establishment (7 DAT)",
+    "group": "New Growth (No.)",
+    "key": "c13",
+    "min": 0.0,
+    "name": "Upright plants",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "2 · Establishment (7 DAT)",
+    "group": "New Growth (No.)",
+    "key": "c14",
+    "min": 0.0,
+    "name": "Uneven / Wilt",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "key": "c15",
+    "name": "30 DAT Vegetative",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c16",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#1",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c17",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#2",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c18",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#3",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c19",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#4",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c20",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#5",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c21",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#6",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c22",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#7",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c23",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#8",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c24",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#9",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c25",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#10",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c26",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#11",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c27",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#12",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c28",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#13",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c29",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#14",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c30",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#15",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c31",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#16",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c32",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#17",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c33",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#18",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c34",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#19",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Vigor Score (1–5)",
+    "key": "c35",
+    "max": 5.0,
+    "min": 1.0,
+    "name": "P#20",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c36",
+    "min": 0.0,
+    "name": "P#1",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c37",
+    "min": 0.0,
+    "name": "P#2",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c38",
+    "min": 0.0,
+    "name": "P#3",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c39",
+    "min": 0.0,
+    "name": "P#4",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c40",
+    "min": 0.0,
+    "name": "P#5",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c41",
+    "min": 0.0,
+    "name": "P#6",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c42",
+    "min": 0.0,
+    "name": "P#7",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c43",
+    "min": 0.0,
+    "name": "P#8",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c44",
+    "min": 0.0,
+    "name": "P#9",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c45",
+    "min": 0.0,
+    "name": "P#10",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c46",
+    "min": 0.0,
+    "name": "P#11",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c47",
+    "min": 0.0,
+    "name": "P#12",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c48",
+    "min": 0.0,
+    "name": "P#13",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c49",
+    "min": 0.0,
+    "name": "P#14",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c50",
+    "min": 0.0,
+    "name": "P#15",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c51",
+    "min": 0.0,
+    "name": "P#16",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c52",
+    "min": 0.0,
+    "name": "P#17",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c53",
+    "min": 0.0,
+    "name": "P#18",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c54",
+    "min": 0.0,
+    "name": "P#19",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Plant Height (cm)",
+    "key": "c55",
+    "min": 0.0,
+    "name": "P#20",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c56",
+    "min": 0.0,
+    "name": "1A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c57",
+    "min": 0.0,
+    "name": "2A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c58",
+    "min": 0.0,
+    "name": "3A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c59",
+    "min": 0.0,
+    "name": "4A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c60",
+    "min": 0.0,
+    "name": "5A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c61",
+    "min": 0.0,
+    "name": "6A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c62",
+    "min": 0.0,
+    "name": "7A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c63",
+    "min": 0.0,
+    "name": "8A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c64",
+    "min": 0.0,
+    "name": "9A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c65",
+    "min": 0.0,
+    "name": "10A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c66",
+    "min": 0.0,
+    "name": "11A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c67",
+    "min": 0.0,
+    "name": "12A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c68",
+    "min": 0.0,
+    "name": "13A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c69",
+    "min": 0.0,
+    "name": "14A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c70",
+    "min": 0.0,
+    "name": "15A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c71",
+    "min": 0.0,
+    "name": "16A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c72",
+    "min": 0.0,
+    "name": "17A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c73",
+    "min": 0.0,
+    "name": "18A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c74",
+    "min": 0.0,
+    "name": "19A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter A (cm) – widest direction",
+    "key": "c75",
+    "min": 0.0,
+    "name": "20A",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c76",
+    "min": 0.0,
+    "name": "1B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c77",
+    "min": 0.0,
+    "name": "2B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c78",
+    "min": 0.0,
+    "name": "3B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c79",
+    "min": 0.0,
+    "name": "4B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c80",
+    "min": 0.0,
+    "name": "5B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c81",
+    "min": 0.0,
+    "name": "6B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c82",
+    "min": 0.0,
+    "name": "7B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c83",
+    "min": 0.0,
+    "name": "8B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c84",
+    "min": 0.0,
+    "name": "9B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c85",
+    "min": 0.0,
+    "name": "10B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c86",
+    "min": 0.0,
+    "name": "11B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c87",
+    "min": 0.0,
+    "name": "12B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c88",
+    "min": 0.0,
+    "name": "13B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c89",
+    "min": 0.0,
+    "name": "14B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c90",
+    "min": 0.0,
+    "name": "15B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c91",
+    "min": 0.0,
+    "name": "16B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c92",
+    "min": 0.0,
+    "name": "17B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c93",
+    "min": 0.0,
+    "name": "18B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c94",
+    "min": 0.0,
+    "name": "19B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Canopy Diameter B (cm) – perpendicular direction",
+    "key": "c95",
+    "min": 0.0,
+    "name": "20B",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c96",
+    "min": 0.0,
+    "name": "P#1",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c97",
+    "min": 0.0,
+    "name": "P#2",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c98",
+    "min": 0.0,
+    "name": "P#3",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c99",
+    "min": 0.0,
+    "name": "P#4",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c100",
+    "min": 0.0,
+    "name": "P#5",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c101",
+    "min": 0.0,
+    "name": "P#6",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c102",
+    "min": 0.0,
+    "name": "P#7",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c103",
+    "min": 0.0,
+    "name": "P#8",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c104",
+    "min": 0.0,
+    "name": "P#9",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c105",
+    "min": 0.0,
+    "name": "P#10",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c106",
+    "min": 0.0,
+    "name": "P#11",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c107",
+    "min": 0.0,
+    "name": "P#12",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c108",
+    "min": 0.0,
+    "name": "P#13",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c109",
+    "min": 0.0,
+    "name": "P#14",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c110",
+    "min": 0.0,
+    "name": "P#15",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c111",
+    "min": 0.0,
+    "name": "P#16",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c112",
+    "min": 0.0,
+    "name": "P#17",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c113",
+    "min": 0.0,
+    "name": "P#18",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c114",
+    "min": 0.0,
+    "name": "P#19",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "3 · Vegetative (30 DAT)",
+    "group": "Branching (No. branches/plant)",
+    "key": "c115",
+    "min": 0.0,
+    "name": "P#20",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "key": "c116",
+    "name": "45 DAT Flowering",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c117",
+    "min": 0.0,
+    "name": "P#1",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c118",
+    "min": 0.0,
+    "name": "P#2",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c119",
+    "min": 0.0,
+    "name": "P#3",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c120",
+    "min": 0.0,
+    "name": "P#4",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c121",
+    "min": 0.0,
+    "name": "P#5",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c122",
+    "min": 0.0,
+    "name": "P#6",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c123",
+    "min": 0.0,
+    "name": "P#7",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c124",
+    "min": 0.0,
+    "name": "P#8",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c125",
+    "min": 0.0,
+    "name": "P#9",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c126",
+    "min": 0.0,
+    "name": "P#10",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c127",
+    "min": 0.0,
+    "name": "P#11",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c128",
+    "min": 0.0,
+    "name": "P#12",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c129",
+    "min": 0.0,
+    "name": "P#13",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c130",
+    "min": 0.0,
+    "name": "P#14",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c131",
+    "min": 0.0,
+    "name": "P#15",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c132",
+    "min": 0.0,
+    "name": "P#16",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c133",
+    "min": 0.0,
+    "name": "P#17",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c134",
+    "min": 0.0,
+    "name": "P#18",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c135",
+    "min": 0.0,
+    "name": "P#19",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Plant Flowering – Flowers per Plant (No.)",
+    "key": "c136",
+    "min": 0.0,
+    "name": "P#20",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "4 · Flowering (45 DAT)",
+    "group": "Flower Abortion",
+    "key": "c137",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "Flower abortion",
+    "required": false,
+    "type": "percentage"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "key": "c138",
+    "name": "60 DAT Fruit set",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Fruit Orientation (No.)",
+    "key": "c139",
+    "min": 0.0,
+    "name": "Upright",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Fruit Orientation (No.)",
+    "key": "c140",
+    "min": 0.0,
+    "name": "Mixed",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Fruit Orientation (No.)",
+    "key": "c141",
+    "min": 0.0,
+    "name": "Different",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Fruit Shape (No.)",
+    "key": "c142",
+    "min": 0.0,
+    "name": "True-to-type",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Fruit Shape (No.)",
+    "key": "c143",
+    "min": 0.0,
+    "name": "Variability",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Fruit Shape (No.)",
+    "key": "c144",
+    "min": 0.0,
+    "name": "Off-type",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c145",
+    "min": 0.0,
+    "name": "P#1",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c146",
+    "min": 0.0,
+    "name": "P#2",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c147",
+    "min": 0.0,
+    "name": "P#3",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c148",
+    "min": 0.0,
+    "name": "P#4",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c149",
+    "min": 0.0,
+    "name": "P#5",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c150",
+    "min": 0.0,
+    "name": "P#6",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c151",
+    "min": 0.0,
+    "name": "P#7",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c152",
+    "min": 0.0,
+    "name": "P#8",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c153",
+    "min": 0.0,
+    "name": "P#9",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c154",
+    "min": 0.0,
+    "name": "P#10",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c155",
+    "min": 0.0,
+    "name": "P#11",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c156",
+    "min": 0.0,
+    "name": "P#12",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c157",
+    "min": 0.0,
+    "name": "P#13",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c158",
+    "min": 0.0,
+    "name": "P#14",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c159",
+    "min": 0.0,
+    "name": "P#15",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c160",
+    "min": 0.0,
+    "name": "P#16",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c161",
+    "min": 0.0,
+    "name": "P#17",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c162",
+    "min": 0.0,
+    "name": "P#18",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c163",
+    "min": 0.0,
+    "name": "P#19",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "5 · Fruit set (60 DAT)",
+    "group": "Young/Developing Fruits (No. fruits/plant)",
+    "key": "c164",
+    "min": 0.0,
+    "name": "P#20",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "key": "c165",
+    "name": "75 DAT First Harvest",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "key": "c166",
+    "name": "Harvest date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c167",
+    "min": 0.0,
+    "name": "P#1",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c168",
+    "min": 0.0,
+    "name": "P#2",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c169",
+    "min": 0.0,
+    "name": "P#3",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c170",
+    "min": 0.0,
+    "name": "P#4",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c171",
+    "min": 0.0,
+    "name": "P#5",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c172",
+    "min": 0.0,
+    "name": "P#6",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c173",
+    "min": 0.0,
+    "name": "P#7",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c174",
+    "min": 0.0,
+    "name": "P#8",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c175",
+    "min": 0.0,
+    "name": "P#9",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c176",
+    "min": 0.0,
+    "name": "P#10",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c177",
+    "min": 0.0,
+    "name": "P#11",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c178",
+    "min": 0.0,
+    "name": "P#12",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c179",
+    "min": 0.0,
+    "name": "P#13",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c180",
+    "min": 0.0,
+    "name": "P#14",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c181",
+    "min": 0.0,
+    "name": "P#15",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c182",
+    "min": 0.0,
+    "name": "P#16",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c183",
+    "min": 0.0,
+    "name": "P#17",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c184",
+    "min": 0.0,
+    "name": "P#18",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c185",
+    "min": 0.0,
+    "name": "P#19",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Length (cm)",
+    "key": "c186",
+    "min": 0.0,
+    "name": "P#20",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c187",
+    "min": 0.0,
+    "name": "P#1",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c188",
+    "min": 0.0,
+    "name": "P#2",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c189",
+    "min": 0.0,
+    "name": "P#3",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c190",
+    "min": 0.0,
+    "name": "P#4",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c191",
+    "min": 0.0,
+    "name": "P#5",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c192",
+    "min": 0.0,
+    "name": "P#6",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c193",
+    "min": 0.0,
+    "name": "P#7",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c194",
+    "min": 0.0,
+    "name": "P#8",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c195",
+    "min": 0.0,
+    "name": "P#9",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c196",
+    "min": 0.0,
+    "name": "P#10",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c197",
+    "min": 0.0,
+    "name": "P#11",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c198",
+    "min": 0.0,
+    "name": "P#12",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c199",
+    "min": 0.0,
+    "name": "P#13",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c200",
+    "min": 0.0,
+    "name": "P#14",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c201",
+    "min": 0.0,
+    "name": "P#15",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c202",
+    "min": 0.0,
+    "name": "P#16",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c203",
+    "min": 0.0,
+    "name": "P#17",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c204",
+    "min": 0.0,
+    "name": "P#18",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c205",
+    "min": 0.0,
+    "name": "P#19",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "6 · First Harvest (75 DAT)",
+    "group": "Fruit Diameter (cm)",
+    "key": "c206",
+    "min": 0.0,
+    "name": "P#20",
+    "required": false,
+    "type": "number",
+    "unit": "cm"
+  },
+  {
+    "box": "7 · Maturity (75 DAT+)",
+    "key": "c207",
+    "name": "75 DAT+ Maturity",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "7 · Maturity (75 DAT+)",
+    "group": "Fruit Color (No.)",
+    "key": "c208",
+    "min": 0.0,
+    "name": "Green",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "7 · Maturity (75 DAT+)",
+    "group": "Fruit Color (No.)",
+    "key": "c209",
+    "min": 0.0,
+    "name": "Turning",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "7 · Maturity (75 DAT+)",
+    "group": "Fruit Color (No.)",
+    "key": "c210",
+    "min": 0.0,
+    "name": "Red",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "key": "c211",
+    "name": "75–150 DAT Harvest",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Marketable Fruit (kg)",
+    "key": "c212",
+    "min": 0.0,
+    "name": "Total",
+    "required": false,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Marketable Fruit (kg)",
+    "key": "c213",
+    "min": 0.0,
+    "name": "Marketable",
+    "required": false,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Rejected (kg)",
+    "key": "c214",
+    "min": 0.0,
+    "name": "Pest damage",
+    "required": false,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Rejected (kg)",
+    "key": "c215",
+    "min": 0.0,
+    "name": "Disease",
+    "required": false,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Rejected (kg)",
+    "key": "c216",
+    "min": 0.0,
+    "name": "Too small",
+    "required": false,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Rejected (kg)",
+    "key": "c217",
+    "min": 0.0,
+    "name": "Deformed",
+    "required": false,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Rejected (kg)",
+    "key": "c218",
+    "min": 0.0,
+    "name": "Rot",
+    "required": false,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Rejected (kg)",
+    "key": "c219",
+    "min": 0.0,
+    "name": "Color reject",
+    "required": false,
+    "type": "number",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "formula": "=IF(COUNT([8 · Harvest (75–150 DAT) › Rejected (kg) › Pest damage],[8 · Harvest (75–150 DAT) › Rejected (kg) › Disease],[8 · Harvest (75–150 DAT) › Rejected (kg) › Too small],[8 · Harvest (75–150 DAT) › Rejected (kg) › Deformed],[8 · Harvest (75–150 DAT) › Rejected (kg) › Rot],[8 · Harvest (75–150 DAT) › Rejected (kg) › Color reject])<6,\"\",SUM([8 · Harvest (75–150 DAT) › Rejected (kg) › Pest damage],[8 · Harvest (75–150 DAT) › Rejected (kg) › Disease],[8 · Harvest (75–150 DAT) › Rejected (kg) › Too small],[8 · Harvest (75–150 DAT) › Rejected (kg) › Deformed],[8 · Harvest (75–150 DAT) › Rejected (kg) › Rot],[8 · Harvest (75–150 DAT) › Rejected (kg) › Color reject]))",
+    "group": "Rejected (kg)",
+    "key": "c220",
+    "name": "Total",
+    "required": false,
+    "type": "formula",
+    "unit": "kg"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c221",
+    "min": 0.0,
+    "name": "Total plant",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c222",
+    "name": "1st Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c223",
+    "min": 0.0,
+    "name": "1st Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c224",
+    "name": "2nd Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c225",
+    "min": 0.0,
+    "name": "2nd Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c226",
+    "name": "3rd Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c227",
+    "min": 0.0,
+    "name": "3rd Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c228",
+    "name": "4th Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c229",
+    "min": 0.0,
+    "name": "4th Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c230",
+    "name": "5th Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "8 · Harvest (75–150 DAT)",
+    "group": "Cumulative Yield",
+    "key": "c231",
+    "min": 0.0,
+    "name": "5th Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "key": "c232",
+    "name": "75–150 DAT Plant Health",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c233",
+    "name": "W1 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c234",
+    "min": 0.0,
+    "name": "W1",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c235",
+    "name": "W2 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c236",
+    "min": 0.0,
+    "name": "W2",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c237",
+    "name": "W3 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c238",
+    "min": 0.0,
+    "name": "W3",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c239",
+    "name": "W4 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c240",
+    "min": 0.0,
+    "name": "W4",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c241",
+    "name": "W5 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c242",
+    "min": 0.0,
+    "name": "W5",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c243",
+    "name": "W6 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c244",
+    "min": 0.0,
+    "name": "W6",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c245",
+    "name": "W7 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c246",
+    "min": 0.0,
+    "name": "W7",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c247",
+    "name": "W8 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c248",
+    "min": 0.0,
+    "name": "W8",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c249",
+    "name": "W9 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c250",
+    "min": 0.0,
+    "name": "W9",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c251",
+    "name": "W10 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–70 DAT (No. affected)",
+    "key": "c252",
+    "min": 0.0,
+    "name": "W10",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c253",
+    "name": "W11 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c254",
+    "min": 0.0,
+    "name": "W11",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c255",
+    "name": "W12 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c256",
+    "min": 0.0,
+    "name": "W12",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c257",
+    "name": "W13 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c258",
+    "min": 0.0,
+    "name": "W13",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c259",
+    "name": "W14 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c260",
+    "min": 0.0,
+    "name": "W14",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c261",
+    "name": "W15 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c262",
+    "min": 0.0,
+    "name": "W15",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c263",
+    "name": "W16 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c264",
+    "min": 0.0,
+    "name": "W16",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c265",
+    "name": "W17 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c266",
+    "min": 0.0,
+    "name": "W17",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c267",
+    "name": "W18 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c268",
+    "min": 0.0,
+    "name": "W18",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c269",
+    "name": "W19 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c270",
+    "min": 0.0,
+    "name": "W19",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c271",
+    "name": "W20 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c272",
+    "min": 0.0,
+    "name": "W20",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c273",
+    "name": "W21 Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "9 · Plant Health (75–150 DAT)",
+    "group": "Pest/Disease Status 0–150 DAT (No. affected)",
+    "key": "c274",
+    "min": 0.0,
+    "name": "W21",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "key": "c275",
+    "name": "End of Cycles",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c276",
+    "min": 0.0,
+    "name": "Total plant",
+    "required": false,
+    "type": "number"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c277",
+    "name": "1st Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c278",
+    "min": 0.0,
+    "name": "1st Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c279",
+    "name": "2nd Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c280",
+    "min": 0.0,
+    "name": "2nd Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c281",
+    "name": "3rd Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c282",
+    "min": 0.0,
+    "name": "3rd Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c283",
+    "name": "4th Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c284",
+    "min": 0.0,
+    "name": "4th Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c285",
+    "name": "5th Date",
+    "required": false,
+    "type": "date"
+  },
+  {
+    "box": "10 · End of Cycles",
+    "group": "Cumulative Yield",
+    "key": "c286",
+    "min": 0.0,
+    "name": "5th Harvest",
+    "required": false,
+    "type": "number",
+    "unit": "kg/plant"
+  },
+  {
+    "aliases": [
+      "Outside",
+      "Other › Outside"
+    ],
+    "key": "c287",
+    "name": "Notes",
+    "required": false,
+    "type": "text"
+  }
 ]

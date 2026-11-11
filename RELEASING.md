@@ -18,11 +18,23 @@ Also: Settings > Actions > General > Workflow permissions can stay on the defaul
 
 ## Each release
 
-1. Raise the version (it must be newer than the installed one; the first release can be 0.1.1) in `src-tauri/tauri.conf.json`,
-   `src-tauri/Cargo.toml` and `package.json`. The workflow stops if they differ.
-2. Commit and push, then `git tag v0.1.1 && git push origin v0.1.1` (the tag must match the version).
-3. GitHub Actions makes a draft release, builds Mac (Apple chip and Intel) and Windows, signs the updates, and only then publishes it.
-4. Running apps find it under Settings > Updates > Check for updates (and offer it a few seconds after they start).
+**Just push to `main`.** The workflow (`.github/workflows/release.yml`) then:
+
+1. runs the tests (`npx ng test`); if one fails, nothing is released;
+2. works out the next version: one patch above the last published release (0.1.7 → 0.1.8), or the version written in
+   `tauri.conf.json` if you raised it higher on purpose (for a new minor or major);
+3. builds Mac (Apple chip and Intel) and Windows with that version, signs the update files and makes a draft release;
+4. publishes it only when every build worked. Running apps then offer it a few seconds after they start, or under
+   Settings > Updates > Check for updates.
+
+The version numbers in the files in the repo are not touched by this (the build uses its own copy), so they can fall behind
+the releases; that is harmless. Put `[skip release]` anywhere in a commit message to push without releasing.
+The "Run workflow" button on the Actions page releases the current `main` the same way.
+
+The older way still works: raise the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json`
+(all three the same), commit, then `git tag vX.Y.Z && git push origin vX.Y.Z` (the tag must match the version).
+
+Every push to `main` now reaches every installed app, so push only what is ready.
 
 ## Local builds
 

@@ -30,6 +30,8 @@ import type {
 /** The local backend (src-tauri/src/commands.rs): the SQLite file on this Mac. */
 @Injectable({ providedIn: 'root' })
 export class Api {
+  /** The name this computer has (empty when it can't be read). */
+  computerName() { return invoke<string>('computer_name'); }
   aiStatus() { return invoke<AiStatus>('ai_status'); }
   aiSaveConnection(input: AiConnectionInput) { return invoke<AiStatus>('ai_save_connection', { input }); }
   aiClearConnection() { return invoke<AiStatus>('ai_clear_connection'); }

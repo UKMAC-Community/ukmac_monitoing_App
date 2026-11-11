@@ -351,15 +351,21 @@ export class UniverSheet {
       );
       const at = engine.rowsWithId(new Set(markers));
       const ids: { row: number; column: number; cell: GridCell }[] = [];
+      // The ID the app numbered the new row with shows at once.
+      const autoAt = plan.columns.findIndex((column) => column.auto);
       saved.forEach((row, index) => {
         const gridRow = at.get(markers[index]);
         added.set(markers[index], row.rowId);
-        if (gridRow !== undefined)
+        if (gridRow !== undefined) {
           ids.push({
             row: gridRow,
             column: plan.idColumn,
             cell: { v: String(row.rowId), t: CELL_TEXT },
           });
+          const given = autoAt >= 0 ? row.data[plan.columns[autoAt].key] : undefined;
+          const shown = given ? toGridCell(plan.columns[autoAt], given) : null;
+          if (shown) ids.push({ row: gridRow, column: autoAt, cell: shown });
+        }
       });
       engine.write(ids);
     }

@@ -4,6 +4,7 @@ import type {
   GroupPart,
   Kpi,
   KpiAggregate,
+  KpiView,
   KpiVisual,
   SheetWithRows,
   SummaryMeasure,
@@ -34,6 +35,7 @@ export const KPI_AGGREGATES: { value: KpiAggregate; label: string }[] = [
 export const KPI_VISUALS: { value: KpiVisual; label: string }[] = [
   { value: 'card', label: 'Card' },
   { value: 'column', label: 'Column chart' },
+  { value: 'stacked', label: 'Stacked column chart' },
   { value: 'bar', label: 'Bar chart' },
   { value: 'line', label: 'Line chart' },
   { value: 'area', label: 'Area chart' },
@@ -67,6 +69,17 @@ export const KPI_PALETTE = [
   '#1AAB40',
 ];
 
+/** A chili's own colours: a ripe one is red, an unripe one green (a series called so is drawn so). */
+export const RIPE_COLOR = '#D32F2F';
+export const UNRIPE_COLOR = '#43A047';
+
+/** A stacked series' colour: its fruit's colour when it is the ripe or the unripe one, else the palette's by its place. */
+export function seriesColour(label: string, index: number): string {
+  if (/\bunripe\b/i.test(label)) return UNRIPE_COLOR;
+  if (/\bripe\b/i.test(label)) return RIPE_COLOR;
+  return KPI_PALETTE[index % KPI_PALETTE.length];
+}
+
 export const GOOD_COLOR = '#1A7F37';
 export const BAD_COLOR = '#C4314B';
 
@@ -97,6 +110,7 @@ const blank = (value: FormulaScalar) => value === null || value === '' || isForm
 /** Values reduced as Power BI's card does: the rows' count, the filled ones', the distinct ones', or the numbers' sum, average, smallest or largest. */
 export function reduceValues(values: readonly FormulaScalar[], aggregate: KpiAggregate): number | null {
   if (aggregate === 'count') return values.length;
+  if (aggregate === 'list') return null;
   const filled = values.filter((value) => !blank(value));
   if (aggregate === 'count_values') return filled.length;
   if (aggregate === 'distinct') {
@@ -107,6 +121,17 @@ export function reduceValues(values: readonly FormulaScalar[], aggregate: KpiAgg
   if (aggregate === 'sum') return numbers.reduce((total, n) => total + n, 0);
   if (aggregate === 'average') return numbers.reduce((total, n) => total + n, 0) / numbers.length;
   return aggregate === 'min' ? Math.min(...numbers) : Math.max(...numbers);
+}
+
+/** The distinct values written out, in order (A-01, A-02…): a summary's `list`. */
+export function listValues(values: readonly FormulaScalar[]): string {
+  const seen = new Map<string, string>();
+  for (const value of values) {
+    if (blank(value)) continue;
+    const text = String(value).trim();
+    if (text && !seen.has(text.toLowerCase())) seen.set(text.toLowerCase(), text);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join(', ');
 }
 
 /** A column's value on every row (formula columns worked out); a missing column: null. */
@@ -125,7 +150,7 @@ export function kpiValue(formulas: WorkbookFormulas, sheet: SheetWithRows, kpi: 
 
 export function kpiColumnGone(sheet: SheetWithRows, kpi: Kpi) {
   const gone = (key: string) => !!key && !sheet.columns.some((column) => column.key === key);
-  return gone(kpi.column) || (hasAxis(kpi.visual) && gone(kpi.groupBy));
+  return gone(kpi.column) || (hasAxis(kpi.visual) && gone(kpi.groupBy)) || (kpi.more ?? []).some((measure) => gone(measure.column));
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -156,16 +181,21 @@ export interface Group {
 export function groupRows(formulas: WorkbookFormulas, sheet: SheetWithRows, key: string, part: GroupPart): Group[] | null {
   const values = columnValues(formulas, sheet, key);
   if (!values) return null;
+  return groupIndexes(values, values.map((_, index) => index), part);
+}
+
+/** Some rows (their indexes) grouped by a column's values, in order; a row with no value is the last group, "(blank)". */
+function groupIndexes(values: readonly FormulaScalar[], indexes: readonly number[], part: GroupPart): Group[] {
   const groups = new Map<string, Group>();
-  values.forEach((value, index) => {
-    const group = groupOf(value, part) ?? { key: '￿', label: '(blank)' };
+  for (const index of indexes) {
+    const group = groupOf(values[index], part) ?? { key: '\uffff', label: '(blank)' };
     const known = groups.get(group.key) ?? { ...group, rows: [] };
     known.rows.push(index);
     groups.set(group.key, known);
-  });
+  }
   return [...groups.values()].sort((a, b) => {
-    if (a.key === '￿') return 1;
-    if (b.key === '￿') return -1;
+    if (a.key === '\uffff') return 1;
+    if (b.key === '\uffff') return -1;
     const na = Number(a.key);
     const nb = Number(b.key);
     if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
@@ -176,6 +206,37 @@ export function groupRows(formulas: WorkbookFormulas, sheet: SheetWithRows, key:
 export interface ChartPoint {
   label: string;
   value: number;
+  /** The group it is (what a click on it filters the other visuals by); none: not one group (Other, a total). */
+  key?: string;
+  /** A day of a timeline with no rows: drawn as a gap. */
+  empty?: boolean;
+}
+
+/** A stacked column chart's one value across the groups (the groups are the same in every series). */
+export interface ChartSeries {
+  label: string;
+  points: ChartPoint[];
+}
+
+/** A stacked chart's series: the chart's own value, then each of its `more`, per group. */
+export function chartSeries(formulas: WorkbookFormulas, sheet: SheetWithRows, kpi: Kpi): ChartSeries[] {
+  const groups = groupRows(formulas, sheet, kpi.groupBy, kpi.groupPart);
+  if (!groups) return [];
+  const measures: SummaryMeasure[] = [{ column: kpi.column, aggregate: kpi.aggregate }, ...(kpi.more ?? [])];
+  return measures.flatMap((measure) => {
+    const values = columnValues(formulas, sheet, measure.column);
+    if (!values) return [];
+    return [
+      {
+        label: measureLabel(sheet, measure),
+        points: groups.map((group) => ({
+          key: group.key,
+          label: group.label,
+          value: reduceValues(group.rows.map((index) => values[index]), measure.aggregate) ?? 0,
+        })),
+      },
+    ];
+  });
 }
 
 /** A chart's points: its column worked out per group. */
@@ -183,20 +244,40 @@ export function chartPoints(formulas: WorkbookFormulas, sheet: SheetWithRows, kp
   const values = columnValues(formulas, sheet, kpi.column);
   const groups = groupRows(formulas, sheet, kpi.groupBy, kpi.groupPart);
   if (!values || !groups) return [];
-  return groups.map((group) => ({
+  const points: ChartPoint[] = groups.map((group) => ({
+    key: group.key,
     label: group.label,
     value: reduceValues(
       group.rows.map((index) => values[index]),
       kpi.aggregate,
     ) ?? 0,
   }));
+  return kpi.timeline && kpi.visual === 'column' && kpi.groupPart === 'value' ? everyDay(points) : points;
+}
+
+/** The days of a chart as a timeline: every day from the first to the last, a day with no rows an empty point (the blank group stays last). */
+function everyDay(points: ChartPoint[]): ChartPoint[] {
+  const days = points.filter((point) => point.key && isIsoDate(point.key));
+  if (!days.length || days.length !== points.filter((point) => point.label !== '(blank)').length) return points;
+  const byDay = new Map(days.map((point) => [point.key!, point]));
+  const filled: ChartPoint[] = [];
+  const end = Date.UTC(+days[days.length - 1].key!.slice(0, 4), +days[days.length - 1].key!.slice(5, 7) - 1, +days[days.length - 1].key!.slice(8, 10));
+  for (let t = Date.UTC(+days[0].key!.slice(0, 4), +days[0].key!.slice(5, 7) - 1, +days[0].key!.slice(8, 10)); t <= end; t += 86_400_000) {
+    const iso = new Date(t).toISOString().slice(0, 10);
+    filled.push(byDay.get(iso) ?? { key: iso, label: formatDate(iso), value: 0, empty: true });
+  }
+  return [...filled, ...points.filter((point) => point.label === '(blank)')];
 }
 
 export interface SummaryResult {
   header: string;
+  /** A table grouped twice (a day, then each zone number in it): what the second column is called. */
+  header2?: string;
   columns: string[];
-  rows: { label: string; values: (number | null)[] }[];
-  totals: (number | null)[];
+  /** `key` and `label` are the first column's group; `label2` is the second's (none: a table grouped once). */
+  rows: { key: string; label: string; label2?: string; values: (number | string | null)[] }[];
+  /** A `list` column's total is blank: the whole list would be as long as the table. */
+  totals: (number | string | null)[];
 }
 
 /** A summary worked out: a line per group, a value per measure, and the whole table's under them. */
@@ -204,22 +285,57 @@ export function summaryResult(formulas: WorkbookFormulas, sheet: SheetWithRows, 
   const groupColumn = sheet.columns.find((column) => column.key === summary.groupBy);
   const groups = groupRows(formulas, sheet, summary.groupBy, summary.groupPart);
   if (!groupColumn || !groups) return null;
+  const thenColumn = summary.thenBy ? sheet.columns.find((column) => column.key === summary.thenBy) : undefined;
+  const thenValues = thenColumn ? columnValues(formulas, sheet, thenColumn.key) : null;
+  const thenPart = summary.thenPart ?? 'value';
   const measures = summary.measures.map((measure) => ({
     measure,
     values: columnValues(formulas, sheet, measure.column),
   }));
-  const part = summary.groupPart === 'month' ? ' (month)' : summary.groupPart === 'year' ? ' (year)' : '';
+  const partOf = (part: GroupPart) => (part === 'month' ? ' (month)' : part === 'year' ? ' (year)' : '');
+  const valuesOf = (indexes: readonly number[]) =>
+    measures.map(({ measure, values }) =>
+      !values ? null : measure.aggregate === 'list' ? listValues(indexes.map((index) => values[index])) : reduceValues(indexes.map((index) => values[index]), measure.aggregate),
+    );
   return {
-    header: dashboardColumnName(sheet.columns, groupColumn) + part,
+    header: dashboardColumnName(sheet.columns, groupColumn) + partOf(summary.groupPart),
+    ...(thenColumn && thenValues ? { header2: dashboardColumnName(sheet.columns, thenColumn) + partOf(thenPart) } : {}),
     columns: measures.map(({ measure }) => measureLabel(sheet, measure)),
-    rows: groups.map((group) => ({
-      label: group.label,
-      values: measures.map(({ measure, values }) =>
-        values ? reduceValues(group.rows.map((index) => values[index]), measure.aggregate) : null,
-      ),
-    })),
-    totals: measures.map(({ measure, values }) => (values ? reduceValues(values, measure.aggregate) : null)),
+    rows: groups.flatMap((group) =>
+      thenColumn && thenValues
+        ? // Inside each group, a line for each of the second column's (the first group's key stays, so a click still keeps its rows).
+          groupIndexes(thenValues, group.rows, thenPart).map((inner) => ({ key: group.key, label: group.label, label2: inner.label, values: valuesOf(inner.rows) }))
+        : [{ key: group.key, label: group.label, values: valuesOf(group.rows) }],
+    ),
+    totals: measures.map(({ measure, values }) => (!values ? null : measure.aggregate === 'list' ? '' : reduceValues(values, measure.aggregate))),
   };
+}
+
+/**
+ * What a click on a group of a visual keeps in the others, as in Power BI: the rows of the group(s)
+ * clicked, the column they were grouped by and how. The visual clicked still shows every group
+ * (the clicked ones lit, the rest dimmed).
+ */
+export interface CrossFilter {
+  sheetId: number;
+  /** The visual it was clicked in (a chart's or a summary's id). */
+  source: string;
+  column: string;
+  part: GroupPart;
+  /** The groups kept (their keys), and what to call them. */
+  keys: string[];
+  labels: string[];
+  /** What the column is called, for the chip: "Zone number". */
+  name: string;
+}
+
+/** The rows `filter` keeps (the sheet itself when there is none, it is of another table, or its column is gone). */
+export function filteredSheet(formulas: WorkbookFormulas, sheet: SheetWithRows, filter: CrossFilter | null): SheetWithRows {
+  if (!filter || filter.sheetId !== sheet.sheetId) return sheet;
+  const groups = groupRows(formulas, sheet, filter.column, filter.part);
+  if (!groups) return sheet;
+  const kept = new Set(groups.filter((group) => filter.keys.includes(group.key)).flatMap((group) => group.rows));
+  return { ...sheet, rows: sheet.rows.filter((_, index) => kept.has(index)) };
 }
 
 export function measureLabel(sheet: SheetWithRows, measure: SummaryMeasure) {
@@ -286,14 +402,39 @@ function chart(
   aggregate: KpiAggregate,
   groupBy: Column | undefined,
   groupPart: GroupPart = 'value',
+  extra: Partial<Kpi> = {},
 ): Kpi | null {
   if (column === undefined || !groupBy) return null;
-  return { ...card(title, column, aggregate)!, visual, groupBy: groupBy.key, groupPart };
+  return { ...card(title, column, aggregate)!, visual, groupBy: groupBy.key, groupPart, ...extra };
 }
 
-function summary(title: string, groupBy: Column | undefined, groupPart: GroupPart, measures: (SummaryMeasure | null)[]): SummaryTable | null {
+function stackedChart(
+  title: string,
+  column: Column,
+  aggregate: KpiAggregate,
+  groupBy: Column,
+  groupPart: GroupPart,
+  more: SummaryMeasure[],
+): Kpi {
+  return { ...card(title, column, aggregate)!, visual: 'stacked', groupBy: groupBy.key, groupPart, more };
+}
+
+function summary(
+  title: string,
+  groupBy: Column | undefined,
+  groupPart: GroupPart,
+  measures: (SummaryMeasure | null)[],
+  then?: Column,
+): SummaryTable | null {
   if (!groupBy) return null;
-  return { id: newId(), title, groupBy: groupBy.key, groupPart, measures: measures.filter((m): m is SummaryMeasure => !!m) };
+  return {
+    id: newId(),
+    title,
+    groupBy: groupBy.key,
+    groupPart,
+    ...(then ? { thenBy: then.key, thenPart: 'value' as const } : {}),
+    measures: measures.filter((m): m is SummaryMeasure => !!m),
+  };
 }
 
 function measure(column: Column | undefined | '', aggregate: KpiAggregate, label?: string): SummaryMeasure | null {
@@ -311,8 +452,8 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
       const live = pick('Live plant', '2 ·');
       const dead = pick('Dead plant', '2 ·');
       const marketable = pick('Marketable', '8 ·');
-      const harvested = pick('Harvested', '10 ·');
-      const yieldPer = pick('Yield per plant', '10 ·');
+      // The sheet's own total of the harvest (the first Total of the Harvest stage, over the Marketable fruit).
+      const harvested = pick('Total', '8 ·');
       const zone = pick('Zone');
       const date = pick('Date', '');
       kpis = [
@@ -321,19 +462,11 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
         card('Live plants (of 20)', live, 'average', { goal: 18, decimals: 1 }),
         card('Dead plants', dead, 'sum', { higherIsBetter: false }),
         card('Marketable fruit (kg)', marketable, 'sum', { decimals: 1 }),
-        card('Yield per plant (kg)', yieldPer, 'average', { decimals: 2 }),
+        card('Harvest total (kg)', harvested, 'sum', { decimals: 1 }),
         chart('Live plants by zone', 'column', live, 'average', zone),
         chart('Marketable fruit by month (kg)', 'line', marketable, 'sum', date, 'month'),
       ];
-      summaries = [
-        summary('By zone', zone, 'value', [
-          measure('', 'count', 'QC records'),
-          measure(live, 'average', 'Live plants (avg)'),
-          measure(dead, 'sum', 'Dead plants'),
-          measure(marketable, 'sum', 'Marketable (kg)'),
-          measure(harvested, 'sum', 'Harvested (kg)'),
-        ]),
-      ];
+      // No By zone table: the charts and cards say it, and the rows are under them.
       break;
     }
     case 'nursery-batches': {
@@ -343,38 +476,158 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
       const percent = pick('Healthy %');
       const batch = pick('Batch number') ?? pick('Batch #');
       const supply = pick('Supply date start') ?? pick('Supply date');
+      // The charts open on each batch and switch to each month: Batch | Month (a table with no batch or no date has the one it can).
+      const switchOf = (what: string): KpiView[] | undefined =>
+        batch && supply
+          ? [
+              { label: 'Batch', groupBy: batch.key, groupPart: 'value', title: `${what} by batch` },
+              { label: 'Month', groupBy: supply.key, groupPart: 'month', title: `${what} by month` },
+            ]
+          : undefined;
+      const withSwitch = (kpi: Kpi | null, what: string): Kpi | null => {
+        const views = switchOf(what);
+        return kpi && views ? { ...kpi, views } : kpi;
+      };
+      const seedlings = withSwitch(
+        chart(`Seedlings by ${batch ? 'batch' : 'month'}`, 'column', total, 'sum', batch ?? supply, batch ? 'value' : 'month'),
+        'Seedlings',
+      );
+      // The unhealthy seedlings only, stacked by what was wrong with them: every problem the table counts
+      // (a table with none of these columns has no such chart: the seedlings chart already has each month).
+      const problems = ['Stem rot', 'Leaf rot', 'Smaller', 'Disease', 'Physical damage'].map((name) => pick(name)).filter((column): column is Column => !!column);
+      const group = batch ?? supply;
+      const unhealthy =
+        problems.length && group
+          ? withSwitch(
+              stackedChart(`Unhealthy seedlings by ${batch ? 'batch' : 'month'}`, problems[0], 'sum', group, batch ? 'value' : 'month', problems.slice(1).map((column) => ({ column: column.key, aggregate: 'sum' as const }))),
+              'Unhealthy seedlings',
+            )
+          : null;
       kpis = [
         card('Batches', '', 'count'),
         card('Seedlings', total, 'sum'),
         card('Healthy seedlings', healthy, 'sum'),
-        card('Healthy %', percent, 'average', { goal: 90, decimals: 1 }),
-        chart('Seedlings by batch', 'column', total, 'sum', batch),
-        chart('Seedlings by month', 'line', total, 'sum', supply, 'month'),
+        card('Healthy %', percent, 'average', { decimals: 1 }),
+        seedlings,
+        unhealthy,
       ];
+      break;
+    }
+    case 'batches': {
+      // How many batches there are and which varieties they are of (the names an older table may still have: Plant type).
+      const batch = pick('Batch number') ?? pick('Batch #');
+      const variety = pick('Variety name') ?? pick('Plant type');
+      kpis = [
+        card('Batches', batch ?? '', batch ? 'distinct' : 'count'),
+        card('Varieties', variety, 'distinct'),
+        chart('Batches by variety', 'bar', '', 'count', variety),
+      ];
+      summaries = [summary('By variety', variety, 'value', [measure('', 'count', 'Batches')])];
       break;
     }
     case 'zone-records': {
       const plot = pick('Zone plot');
+      // The plots are added up by the zone number they belong to (a table without that column keeps adding them up by plot).
+      const zoneNumber = pick('Zone number');
       const plants = pick('Plant count');
       const replant = pick('Replant count');
       const dead = pick('Dead plant');
       const date = pick('Record date');
+      const day = pick('Day number');
+      const byDay = day ? chart('Plant count by day number', 'line', plants, 'sum', day) : chart('Dead plants by month', 'line', dead, 'sum', date, 'month');
+      const planted: Kpi | null =
+        day && date && byDay
+          ? {
+              ...byDay,
+              views: [
+                { label: 'Day', groupBy: day.key, groupPart: 'value', title: 'Plant count by day number' },
+                { label: 'Month', groupBy: date.key, groupPart: 'month', title: 'Plant count by month' },
+              ],
+            }
+          : byDay;
       kpis = [
         card('Records', '', 'count'),
         card('Plants', plants, 'sum'),
         card('Replanted', replant, 'sum'),
         card('Dead plants', dead, 'sum', { higherIsBetter: false }),
-        chart('Plants by zone plot', 'column', plants, 'sum', plot),
-        chart('Dead plants by month', 'line', dead, 'sum', date, 'month'),
+        chart(zoneNumber ? 'Plants by zone number' : 'Plants by zone plot', 'column', plants, 'sum', zoneNumber ?? plot),
+        // The plant count of each day number, day by day (a table without a Day number column keeps the dead plants by month).
+        // It opens on the day number and switches to each month of the record date: Day | Month.
+        planted,
       ];
       summaries = [
-        summary('By zone plot', plot, 'value', [
+        summary(zoneNumber ? 'By zone number' : 'By zone plot', zoneNumber ?? plot, 'value', [
           measure('', 'count', 'Records'),
           measure(plants, 'sum', 'Plants'),
           measure(replant, 'sum', 'Replanted'),
           measure(dead, 'sum', 'Dead'),
         ]),
       ];
+      break;
+    }
+    case 'zone-measurement': {
+      const plot = pick('Zone plot');
+      // The plots are added up by the zone number they belong to (a table without that column keeps adding them up by plot).
+      const zoneNumber = pick('Zone number');
+      const area = pick('Area in plan');
+      const width = pick('Actual width');
+      const length = pick('Actual length');
+      const by = zoneNumber ?? plot;
+      kpis = [
+        card('Rows', '', 'count'),
+        area ? card(columnLabel(area), area, 'sum') : null,
+        width ? card(columnLabel(width), width, 'sum') : null,
+        length ? card(columnLabel(length), length, 'sum') : null,
+        area && by ? chart(`${columnLabel(area)} by ${zoneNumber ? 'zone number' : 'zone plot'}`, 'bar', area, 'sum', by) : null,
+      ];
+      summaries = by
+        ? [
+            summary(zoneNumber ? 'By zone number' : 'By zone plot', by, 'value', [
+              measure('', 'count', 'Rows'),
+              ...[area, width, length].filter((column): column is Column => !!column).map((column) => measure(column, 'sum')),
+            ]),
+          ]
+        : [];
+      break;
+    }
+    case 'harvest': {
+      // The farm's harvests added up: each day (every plot of that day together), and each zone number (over all the days);
+      // the ripe and the unripe kilos apart (the table's own Ripe yield / Unripe yield).
+      const plot = pick('Zone plot');
+      const zoneNumber = pick('Zone number');
+      const harvestDate = pick('Date harvest');
+      const total = pick('Harvest yield');
+      const ripe = pick('Ripe yield');
+      const unripe = pick('Unripe yield');
+      kpis = [
+        card('Harvests', '', 'count'),
+        card('Harvest yield (kg)', total, 'sum', { decimals: 1 }),
+        card('Ripe (kg)', ripe, 'sum', { decimals: 1 }),
+        card('Unripe (kg)', unripe, 'sum', { decimals: 1 }),
+        // Every day on the way, the days nothing was harvested left empty: a line of its own that scrolls sideways.
+        (() => {
+          const byDay = chart('Harvest yield by day', 'column', total, 'sum', harvestDate);
+          // It opens on every day and switches to only the days with a harvest, as it was: Every day | Harvest days.
+          const views: KpiView[] | undefined = harvestDate
+            ? [
+                { label: 'Every day', groupBy: harvestDate.key, groupPart: 'value', title: 'Harvest yield by day', timeline: true },
+                { label: 'Harvest days', groupBy: harvestDate.key, groupPart: 'value', title: 'Harvest yield by day', timeline: false },
+              ]
+            : undefined;
+          return byDay ? { ...byDay, timeline: true, wide: true, ...(views ? { views } : {}) } : null;
+        })(),
+        // How much each zone number gave over all the days, a line of its own with the total of the chart in a box beside it
+        // (a table with no Zone number column has no such chart).
+        (() => {
+          // The ripe and the unripe kilos stacked in each zone number, the total of the two (the harvest yield) as a line over them.
+          const stacked = ripe && unripe ? { visual: 'stacked' as const, more: [{ column: unripe.key, aggregate: 'sum' as const }], totalLine: true } : {};
+          const byZone = chart('Harvest yield by zone number (kg)', 'column', ripe && unripe ? ripe : total, 'sum', zoneNumber, 'value', { decimals: 1, ...stacked });
+          return byZone ? { ...byZone, wide: true, total: 'Total yield (kg)' } : null;
+        })(),
+      ];
+      // What the farm asks of them: on a day, how much and from which plots; in a zone number, how much and from which plots.
+      const measures = [measure(plot, 'list', 'Zone plots'), measure(total, 'sum', 'Total yield (kg)'), measure(ripe, 'sum', 'Ripe (kg)'), measure(unripe, 'sum', 'Unripe (kg)')];
+      summaries = [summary('By date', harvestDate, 'value', measures), summary('By zone number', zoneNumber, 'value', measures)];
       break;
     }
     case 'zones': {
@@ -441,7 +694,8 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
 
 /** From a table's columns: its rows counted, its numbers added up, by its first date's months and its first pick-list. */
 function genericDashboard(sheet: SheetWithRows): Dashboard {
-  const numbers = sheet.columns.filter((column) => column.type === 'number' || column.type === 'percentage');
+  // (An ID the app numbers is not a measure.)
+  const numbers = sheet.columns.filter((column) => !column.auto && (column.type === 'number' || column.type === 'percentage'));
   const date = sheet.columns.find((column) => column.type === 'date');
   const category = sheet.columns.find((column) => column.type === 'link' || column.type === 'choice' || column.type === 'yesno');
   const first = numbers[0];

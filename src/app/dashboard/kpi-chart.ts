@@ -7,14 +7,17 @@ import {
   ElementRef,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 
 import type { KpiVisual } from '../core/models';
-import { BAD_COLOR, formatNumber, GOOD_COLOR, KPI_PALETTE, type ChartPoint } from './dashboard-model';
+import { BAD_COLOR, formatNumber, GOOD_COLOR, KPI_PALETTE, seriesColour, type ChartPoint, type ChartSeries } from './dashboard-model';
 
 const HEIGHT = 230;
 const MAX_GROUPS = 12;
+/** A timeline's room for each day: enough to name it ("05/09/2026"). */
+const DAY_SLOT = 76;
 
 /** A nice round top for an axis: 1, 2, 2.5 or 5 × a power of ten. */
 function niceMax(value: number) {
@@ -33,6 +36,7 @@ function short(label: string, length: number) {
 const IN_ORDER: KpiVisual[] = ['line', 'area', 'waterfall'];
 
 interface Tile {
+  key?: string;
   label: string;
   value: number;
   x: number;
@@ -42,7 +46,7 @@ interface Tile {
 }
 
 /** Boxes sized by value, each as square as can be (the squarified treemap) inside `w` × `h`. */
-function squarify(items: { label: string; value: number }[], w: number, h: number): Tile[] {
+function squarify(items: { key?: string; label: string; value: number }[], w: number, h: number): Tile[] {
   const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
   const nodes = items.map((item) => ({ ...item, area: (item.value / total) * w * h }));
   const out: Tile[] = [];
@@ -62,7 +66,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
       const width = sum / room.h;
       let top = y;
       for (const cell of cells) {
-        out.push({ label: cell.label, value: cell.value, x, y: top, w: width, h: cell.area / width });
+        out.push({ key: cell.key, label: cell.label, value: cell.value, x, y: top, w: width, h: cell.area / width });
         top += cell.area / width;
       }
       x += width;
@@ -71,7 +75,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
       const height = sum / room.w;
       let left = x;
       for (const cell of cells) {
-        out.push({ label: cell.label, value: cell.value, x: left, y, w: cell.area / height, h: height });
+        out.push({ key: cell.key, label: cell.label, value: cell.value, x: left, y, w: cell.area / height, h: height });
         left += cell.area / height;
       }
       y += height;
@@ -120,7 +124,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
       <div class="round">
         <svg [attr.width]="pieSize" [attr.height]="pieSize" viewBox="-1 -1 2 2" role="img" [attr.aria-label]="label()">
           @for (slice of slices(); track slice.label; let i = $index) {
-            <path [attr.d]="slice.path" [attr.fill]="colour(i)" stroke="#fff" stroke-width="0.01">
+            <path [attr.d]="slice.path" [attr.fill]="colour(i)" stroke="#fff" stroke-width="0.01" [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" (click)="choose(slice, $event)">
               <title>{{ slice.label }}: {{ format(slice.value) }} ({{ slice.percent }}%)</title>
             </path>
           }
@@ -130,7 +134,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
         </svg>
         <ul class="legend">
           @for (slice of slices(); track slice.label; let i = $index) {
-            <li>
+            <li [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" (click)="choose(slice, $event)">
               <span class="dot" [style.background]="colour(i)"></span>
               <span class="name">{{ slice.label }}</span>
               <span class="num">{{ format(slice.value) }} · {{ slice.percent }}%</span>
@@ -140,12 +144,51 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
       </div>
     } @else {
       @switch (visual()) {
+        @case ('stacked') {
+          @if (stack(); as s) {
+            <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
+              @for (tick of s.ticks; track $index) {
+                <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
+                <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
+              }
+              @for (column of s.columns; track column.label) {
+                <g [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)">
+                @for (part of column.parts; track part.series) {
+                  @if (part.h > 0) {
+                    <rect [attr.x]="column.x" [attr.y]="part.y" [attr.width]="column.w" [attr.height]="part.h" [attr.fill]="seriesColour(part.name, part.series)">
+                      <title>{{ column.label }} · {{ part.name }}: {{ format(part.value) }}</title>
+                    </rect>
+                  }
+                }
+                @if (column.w > 22) {
+                  <text class="value" [attr.x]="column.x + column.w / 2" [attr.y]="column.top - 5" text-anchor="middle">{{ format(column.total) }}</text>
+                }
+                <text class="axis" [attr.x]="column.x + column.w / 2" [attr.y]="height - 8" text-anchor="middle">{{ column.short }}</text>
+                </g>
+              }
+              @if (totalLine() && s.columns.length) {
+                <polyline class="total-line" [attr.points]="s.line" fill="none" [attr.stroke]="totalColour" stroke-width="2.5" stroke-linejoin="round" />
+                @for (column of s.columns; track column.label) {
+                  <circle class="total-line" [attr.cx]="column.x + column.w / 2" [attr.cy]="column.top" r="3.5" [attr.fill]="totalColour" />
+                }
+              }
+            </svg>
+            <ul class="series-legend">
+              @for (name of s.names; track $index; let i = $index) {
+                <li><span class="dot" [style.background]="seriesColour(name, i)"></span>{{ name }}</li>
+              }
+              @if (totalLine()) {
+                <li><span class="dot" [style.background]="totalColour"></span>Total</li>
+              }
+            </ul>
+          } @else { <p class="none">Nothing to stack yet.</p> }
+        }
         @case ('lollipop') {
           @if (comparison(); as c) {
             <svg [attr.width]="width()" [attr.height]="c.height" role="img" [attr.aria-label]="label() || 'Lollipop chart'">
               <line class="zero" [attr.x1]="c.zero" [attr.x2]="c.zero" y1="0" [attr.y2]="c.height - 28" />
               @for (point of c.rows; track $index; let i = $index) {
-                <g [attr.transform]="'translate(0,' + (i * 28 + 4) + ')'">
+                <g [attr.transform]="'translate(0,' + (i * 28 + 4) + ')'" [class.hit]="hit(point.key)" [class.dim]="dim(point.key)" (click)="choose(point, $event)">
                   <text class="axis" x="0" y="16">{{ point.short }}</text>
                   <line [attr.x1]="c.zero" [attr.x2]="point.x" y1="12" y2="12" [attr.stroke]="colour(0)" stroke-width="2.5" />
                   <circle class="comparison-point" [attr.cx]="point.x" cy="12" r="5" [attr.fill]="colour(0)"><title>{{ point.label }}: {{ format(point.value) }}</title></circle>
@@ -164,7 +207,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
             <svg [attr.width]="width()" [attr.height]="c.height" role="img" [attr.aria-label]="label() || 'Dot plot'">
               <line class="zero" [attr.x1]="c.zero" [attr.x2]="c.zero" y1="0" [attr.y2]="c.height - 28" />
               @for (point of c.rows; track $index; let i = $index) {
-                <g [attr.transform]="'translate(0,' + (i * 28 + 4) + ')'">
+                <g [attr.transform]="'translate(0,' + (i * 28 + 4) + ')'" [class.hit]="hit(point.key)" [class.dim]="dim(point.key)" (click)="choose(point, $event)">
                   <text class="axis" x="0" y="16">{{ point.short }}</text>
                   <line class="grid" [attr.x1]="c.left" [attr.x2]="c.right" y1="12" y2="12" />
                   <circle class="comparison-point" [attr.cx]="point.x" cy="12" r="5" [attr.fill]="colour(0)"><title>{{ point.label }}: {{ format(point.value) }}</title></circle>
@@ -187,7 +230,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
                 <text class="axis" [attr.x]="width() - 38" [attr.y]="tick.y + 4">{{ tick.percent }}%</text>
               }
               @for (point of p.rows; track $index) {
-                <rect class="pareto-bar" [attr.x]="point.x" [attr.y]="point.y" [attr.width]="point.w" [attr.height]="point.h" rx="2" [attr.fill]="colour(0)"><title>{{ point.label }}: {{ format(point.value) }}</title></rect>
+                <rect class="pareto-bar" [class.hit]="hit(point.key)" [class.dim]="dim(point.key)" (click)="choose(point, $event)" [attr.x]="point.x" [attr.y]="point.y" [attr.width]="point.w" [attr.height]="point.h" rx="2" [attr.fill]="colour(0)"><title>{{ point.label }}: {{ format(point.value) }}</title></rect>
                 <text class="axis" [attr.x]="point.cx" [attr.y]="height - 8" text-anchor="middle">{{ point.short }}</text>
               }
               <polyline class="cumulative-line" [attr.points]="p.path" fill="none" [attr.stroke]="colour(2)" stroke-width="2.5" stroke-linejoin="round" />
@@ -203,12 +246,12 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
             <div class="round">
               <svg [attr.width]="pieSize" [attr.height]="pieSize" viewBox="-1.05 -1.05 2.1 2.1" role="img" [attr.aria-label]="label() || 'Polar area chart'">
                 @for (sector of p.sectors; track $index; let i = $index) {
-                  <path class="polar-sector" [attr.d]="sector.path" [attr.fill]="colour(i)" stroke="#fff" stroke-width="0.015"><title>{{ sector.label }}: {{ format(sector.value) }} ({{ sector.percent }}%)</title></path>
+                  <path class="polar-sector" [class.hit]="hit(sector.key)" [class.dim]="dim(sector.key)" (click)="choose(sector, $event)" [attr.d]="sector.path" [attr.fill]="colour(i)" stroke="#fff" stroke-width="0.015"><title>{{ sector.label }}: {{ format(sector.value) }} ({{ sector.percent }}%)</title></path>
                 }
               </svg>
               <ul class="legend">
                 @for (sector of p.sectors; track $index; let i = $index) {
-                  <li><span class="dot" [style.background]="colour(i)"></span><span class="name" [title]="sector.label">{{ sector.label }}</span><span class="num">{{ format(sector.value) }} · {{ sector.percent }}%</span></li>
+                  <li [class.hit]="hit(sector.key)" [class.dim]="dim(sector.key)" (click)="choose(sector, $event)"><span class="dot" [style.background]="colour(i)"></span><span class="name" [title]="sector.label">{{ sector.label }}</span><span class="num">{{ format(sector.value) }} · {{ sector.percent }}%</span></li>
                 }
               </ul>
             </div>
@@ -218,7 +261,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
         @case ('bar') {
           <svg [attr.width]="width()" [attr.height]="barHeight()" role="img" [attr.aria-label]="label()">
             @for (bar of bars(); track bar.label; let i = $index) {
-              <g [attr.transform]="'translate(0,' + (i * 28 + 4) + ')'">
+              <g [attr.transform]="'translate(0,' + (i * 28 + 4) + ')'" [class.hit]="hit(bar.key)" [class.dim]="dim(bar.key)" (click)="choose(bar, $event)">
                 <text class="axis" x="0" y="15">{{ bar.short }}</text>
                 <rect [attr.x]="labelWidth" y="3" [attr.width]="bar.size" height="18" rx="2" [attr.fill]="colour(0)">
                   <title>{{ bar.label }}: {{ format(bar.value) }}</title>
@@ -231,7 +274,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
         @case ('funnel') {
           <svg [attr.width]="width()" [attr.height]="stages().length * 30 + 8" role="img" [attr.aria-label]="label()">
             @for (stage of stages(); track stage.label; let i = $index) {
-              <g [attr.transform]="'translate(0,' + (i * 30 + 4) + ')'">
+              <g [attr.transform]="'translate(0,' + (i * 30 + 4) + ')'" [class.hit]="hit(stage.key)" [class.dim]="dim(stage.key)" (click)="choose(stage, $event)">
                 <text class="axis" x="0" y="17">{{ stage.short }}</text>
                 <rect [attr.x]="stage.x" y="2" [attr.width]="stage.size" height="24" rx="2" [attr.fill]="colour(i)">
                   <title>{{ stage.label }}: {{ format(stage.value) }} ({{ stage.pct }}% of the first)</title>
@@ -244,7 +287,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
         @case ('treemap') {
           <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
             @for (tile of tiles(); track tile.label; let i = $index) {
-              <rect [attr.x]="tile.x + 1" [attr.y]="tile.y + 1" [attr.width]="tile.w - 2" [attr.height]="tile.h - 2" rx="3" [attr.fill]="colour(i)">
+              <rect [class.hit]="hit(tile.key)" [class.dim]="dim(tile.key)" (click)="choose(tile, $event)" [attr.x]="tile.x + 1" [attr.y]="tile.y + 1" [attr.width]="tile.w - 2" [attr.height]="tile.h - 2" rx="3" [attr.fill]="colour(i)">
                 <title>{{ tile.label }}: {{ format(tile.value) }}</title>
               </rect>
               @if (tile.w > 56 && tile.h > 34) {
@@ -266,9 +309,12 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
               }
               <polygon [attr.points]="r.shape" [attr.fill]="colour(0)" fill-opacity="0.25" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
               @for (spoke of r.spokes; track spoke.label) {
-                <circle [attr.cx]="spoke.vx" [attr.cy]="spoke.vy" r="3.5" [attr.fill]="colour(0)">
+                <circle [attr.cx]="spoke.vx" [attr.cy]="spoke.vy" r="3.5" [attr.fill]="colour(0)" [class.dim]="dim(spoke.key)">
                   <title>{{ spoke.label }}: {{ format(spoke.value) }}</title>
                 </circle>
+                @if (pickable()) {
+                <circle class="target" [class.hit]="hit(spoke.key)" [class.dim]="dim(spoke.key)" (click)="choose(spoke, $event)" [attr.cx]="spoke.vx" [attr.cy]="spoke.vy" r="12" />
+              }
               }
             </svg>
           } @else {
@@ -282,7 +328,7 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
               <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
             }
             @for (step of steps(); track step.label) {
-              <rect [attr.x]="step.x" [attr.y]="step.y" [attr.width]="step.w" [attr.height]="step.h" rx="2" [attr.fill]="step.colour">
+              <rect [class.hit]="hit(step.key)" [class.dim]="dim(step.key)" (click)="choose(step, $event)" [attr.x]="step.x" [attr.y]="step.y" [attr.width]="step.w" [attr.height]="step.h" rx="2" [attr.fill]="step.colour">
                 <title>{{ step.label }}: {{ step.total ? '' : step.value >= 0 ? '+' : '' }}{{ format(step.value) }}</title>
               </rect>
               @if (step.w > 22) {
@@ -301,9 +347,12 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
             <polygon [attr.points]="areaPath()" [attr.fill]="colour(0)" fill-opacity="0.22" />
             <polyline [attr.points]="linePath()" fill="none" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
             @for (dot of dots(); track $index) {
-              <circle [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.fill]="colour(0)">
+              <circle [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.fill]="colour(0)" [class.dim]="dim(dot.key)">
                 <title>{{ dot.label }}: {{ format(dot.value) }}</title>
               </circle>
+              @if (pickable()) {
+                <circle class="target" [class.hit]="hit(dot.key)" [class.dim]="dim(dot.key)" (click)="choose(dot, $event)" [attr.cx]="dot.x" [attr.cy]="dot.y" r="12" />
+              }
               @if (dot.showLabel) {
                 <text class="axis" [attr.x]="dot.x" [attr.y]="height - 8" text-anchor="middle">{{ dot.short }}</text>
               }
@@ -318,9 +367,12 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
             }
             <polyline [attr.points]="linePath()" fill="none" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
             @for (dot of dots(); track $index) {
-              <circle [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.fill]="colour(0)">
+              <circle [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.fill]="colour(0)" [class.dim]="dim(dot.key)">
                 <title>{{ dot.label }}: {{ format(dot.value) }}</title>
               </circle>
+              @if (pickable()) {
+                <circle class="target" [class.hit]="hit(dot.key)" [class.dim]="dim(dot.key)" (click)="choose(dot, $event)" [attr.cx]="dot.x" [attr.cy]="dot.y" r="12" />
+              }
               @if (dot.showLabel) {
                 <text class="axis" [attr.x]="dot.x" [attr.y]="height - 8" text-anchor="middle">{{ dot.short }}</text>
               }
@@ -328,21 +380,47 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
           </svg>
         }
         @default {
-          <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
-            @for (tick of ticks(); track $index) {
-              <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
-              <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
-            }
-            @for (column of columns(); track column.label) {
-              <rect [attr.x]="column.x" [attr.y]="column.y" [attr.width]="column.w" [attr.height]="column.h" rx="2" [attr.fill]="colour(0)">
-                <title>{{ column.label }}: {{ format(column.value) }}</title>
-              </rect>
-              @if (column.w > 22) {
-                <text class="value" [attr.x]="column.x + column.w / 2" [attr.y]="column.y - 5" text-anchor="middle">{{ format(column.value) }}</text>
+          @if (timeline()) {
+            <div class="timeline">
+              <svg class="day-axis" [attr.width]="left" [attr.height]="height" aria-hidden="true">
+                @for (tick of days().ticks; track $index) {
+                  <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
+                }
+              </svg>
+              <div class="day-scroll">
+                <svg [attr.width]="days().width" [attr.height]="height" role="img" [attr.aria-label]="label()">
+                  @for (tick of days().ticks; track $index) {
+                    <line class="grid" x1="0" [attr.x2]="days().width" [attr.y1]="tick.y" [attr.y2]="tick.y" />
+                  }
+                  @for (column of days().columns; track column.label) {
+                    @if (!column.empty) {
+                      <rect [attr.x]="column.x" [attr.y]="column.y" [attr.width]="column.w" [attr.height]="column.h" rx="2" [attr.fill]="colour(0)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)">
+                        <title>{{ column.label }}: {{ format(column.value) }}</title>
+                      </rect>
+                      <text class="value" [attr.x]="column.mid" [attr.y]="column.y - 5" text-anchor="middle">{{ format(column.value) }}</text>
+                    }
+                    <text class="axis" [attr.x]="column.mid" [attr.y]="height - 8" text-anchor="middle">{{ column.name }}</text>
+                  }
+                </svg>
+              </div>
+            </div>
+          } @else {
+            <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
+              @for (tick of ticks(); track $index) {
+                <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
+                <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
               }
-              <text class="axis" [attr.x]="column.x + column.w / 2" [attr.y]="height - 8" text-anchor="middle">{{ column.short }}</text>
-            }
-          </svg>
+              @for (column of columns(); track column.label) {
+                <rect [attr.x]="column.x" [attr.y]="column.y" [attr.width]="column.w" [attr.height]="column.h" rx="2" [attr.fill]="colour(0)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)">
+                  <title>{{ column.label }}: {{ format(column.value) }}</title>
+                </rect>
+                @if (column.w > 22) {
+                  <text class="value" [attr.x]="column.x + column.w / 2" [attr.y]="column.y - 5" text-anchor="middle">{{ format(column.value) }}</text>
+                }
+                <text class="axis" [attr.x]="column.x + column.w / 2" [attr.y]="height - 8" text-anchor="middle">{{ column.short }}</text>
+              }
+            </svg>
+          }
         }
       }
     }
@@ -351,7 +429,15 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
   styles: `
     :host { display: block; min-width: 0; }
     svg { display: block; overflow: visible; }
+    .total-line { pointer-events: none; }
+    .hit { cursor: pointer; }
+    .dim { opacity: 0.3; }
+    .target { fill: transparent; pointer-events: none; }
+    .target.hit { pointer-events: all; }
     .grid { stroke: #e1dfdd; stroke-width: 1; }
+    .timeline { display: flex; }
+    .day-axis { flex: none; }
+    .day-scroll { flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; }
     .zero { stroke: #8b9390; stroke-width: 1; }
     .chart-note { font-size: 11px; color: #605e5c; line-height: 1.45; margin: 6px 0 0; }
     .axis { font-size: 11px; fill: #605e5c; }
@@ -359,6 +445,8 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
     .big-value { font-size: 30px; fill: #252423; font-weight: 600; font-variant-numeric: tabular-nums; }
     .tile-label { font-size: 11px; fill: #fff; font-weight: 600; }
     .tile-value { font-size: 11px; fill: #fff; opacity: 0.85; }
+    .series-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0 44px; font-size: 12px; color: #252423; }
+    .series-legend li { display: inline-flex; align-items: center; gap: 6px; }
     .none { font-size: 0.8125rem; color: #605e5c; padding: 40px 0; text-align: center; }
     .round { display: flex; align-items: center; gap: 18px; min-height: 200px; }
     .legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; max-height: 210px; overflow: auto; }
@@ -370,12 +458,25 @@ function squarify(items: { label: string; value: number }[], w: number, h: numbe
 })
 export class KpiChart {
   readonly points = input.required<ChartPoint[]>();
+  /** A stacked column chart's values (each over the same groups): stacked on each other, the first at the bottom. */
+  readonly series = input<ChartSeries[]>([]);
   readonly visual = input<KpiVisual>('column');
+  /** A column chart of days drawn as a timeline: every day has its place, the days with no rows left empty. */
+  readonly timeline = input(false);
   readonly decimals = input<number | null>(null);
   readonly label = input('');
   /** A gauge's number, and the goal it is on its way to. */
   readonly value = input<number | null>(null);
   readonly goal = input<number | null>(null);
+  /** The groups lit (their keys): the others are dimmed, as Power BI shows what a click on a group keeps. */
+  readonly selected = input<readonly string[]>([]);
+  /** Whether a click on a group is heard (off in Edit dashboard, where a click picks the tile). */
+  readonly pickable = input(false);
+  /** A stacked chart's totals as a line over its columns. */
+  readonly totalLine = input(false);
+  readonly totalColour = KPI_PALETTE[2];
+  /** A group was clicked; `additive`: with Ctrl / ⌘ / Shift held, to add it to the ones lit. */
+  readonly groupClick = output<{ key: string; label: string; additive: boolean }>();
 
   readonly height = HEIGHT;
   readonly left = 44;
@@ -392,6 +493,23 @@ export class KpiChart {
       destroyRef.onDestroy(() => observer.disconnect());
     });
   }
+
+  hit(key: string | undefined) {
+    return this.pickable() && key !== undefined;
+  }
+
+  dim(key: string | undefined) {
+    return this.selected().length > 0 && (key === undefined || !this.selected().includes(key));
+  }
+
+  choose(point: { key?: string; label: string }, event: Event) {
+    if (!this.hit(point.key)) return;
+    event.stopPropagation();
+    const mouse = event as MouseEvent;
+    this.groupClick.emit({ key: point.key!, label: point.label, additive: mouse.ctrlKey || mouse.metaKey || mouse.shiftKey });
+  }
+
+  readonly seriesColour = seriesColour;
 
   colour(index: number) {
     return KPI_PALETTE[index % KPI_PALETTE.length];
@@ -444,6 +562,61 @@ export class KpiChart {
     });
   });
 
+  /** A timeline: a place of its own for every day, wide enough to name it, so a long stretch scrolls sideways. */
+  readonly days = computed(() => {
+    const points = this.points();
+    const plot = HEIGHT - 28 - 16;
+    const top = niceMax(Math.max(0, ...points.map((point) => point.value)));
+    const w = Math.min(40, DAY_SLOT * 0.62);
+    let year = '';
+    const columns = points.map((point, index) => {
+      // "05/09" under each day; the year too on the first and where it changes.
+      const iso = point.key && /^\d{4}-\d{2}-\d{2}$/.test(point.key) ? point.key : null;
+      const name = iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}${iso.slice(0, 4) !== year ? `/${iso.slice(0, 4)}` : ''}` : point.label;
+      if (iso) year = iso.slice(0, 4);
+      const h = point.empty ? 0 : (Math.max(0, point.value) / top) * plot;
+      return { ...point, name, h, y: 16 + plot - h, w, x: 8 + DAY_SLOT * index + (DAY_SLOT - w) / 2, mid: 8 + DAY_SLOT * index + DAY_SLOT / 2 };
+    });
+    return {
+      columns,
+      // Never narrower than the room there is, so a few days still fill the line.
+      width: Math.max(this.width() - this.left, 16 + DAY_SLOT * points.length),
+      ticks: [0, 1, 2, 3, 4].map((step) => ({
+        y: 16 + plot - (plot * step) / 4,
+        label: formatNumber((top * step) / 4, top < 4 ? 2 : 0),
+      })),
+    };
+  });
+
+  /** The stacked columns: a group's values on top of each other, the scale from 0 to the tallest stack. */
+  readonly stack = computed(() => {
+    const series = this.series();
+    const keys = series[0]?.points.map((point) => point.key) ?? [];
+    const labels = series[0]?.points.map((point) => point.label) ?? [];
+    if (!labels.length) return null;
+    const totals = labels.map((_, index) => series.reduce((sum, item) => sum + Math.max(0, item.points[index]?.value ?? 0), 0));
+    const top = niceMax(Math.max(0, ...totals));
+    const plot = HEIGHT - 28 - 16;
+    const slot = (this.width() - this.left - 8) / labels.length;
+    const w = Math.max(4, Math.min(64, slot * 0.62));
+    const chars = Math.max(4, Math.floor(slot / 6.5));
+    const ticks = [0, 1, 2, 3, 4].map((step) => ({
+      y: 16 + plot - (plot * step) / 4,
+      label: formatNumber((top * step) / 4, top < 4 ? 2 : 0),
+    }));
+    const columns = labels.map((label, index) => {
+      let base = 16 + plot;
+      const parts = series.map((item, seriesIndex) => {
+        const value = item.points[index]?.value ?? 0;
+        const h = (Math.max(0, value) / top) * plot;
+        base -= h;
+        return { series: seriesIndex, name: item.label, value, h, y: base };
+      });
+      return { key: keys[index], label, short: short(label, chars), total: totals[index], top: base, x: this.left + slot * index + (slot - w) / 2, w, parts };
+    });
+    return { ticks, columns, line: columns.map((column) => `${column.x + column.w / 2},${column.top}`).join(' '), names: series.map((item) => item.label) };
+  });
+
   readonly barHeight = computed(() => this.grouped().length * 28 + 8);
 
   readonly bars = computed(() => {
@@ -460,7 +633,10 @@ export class KpiChart {
     const points = this.grouped();
     const plotWidth = this.width() - this.left - 20;
     const plot = HEIGHT - 28 - 16;
-    const every = Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(plotWidth / 70))));
+    // A label is named under every point it has room for: its own width (11px text) and a gap, against the space between points.
+    const slot = points.length > 1 ? plotWidth / (points.length - 1) : plotWidth;
+    const widest = Math.max(1, ...points.map((point) => short(point.label, 10).length)) * 6.5 + 8;
+    const every = Math.max(1, Math.ceil(widest / slot));
     return points.map((point, index) => ({
       ...point,
       short: short(point.label, 10),
@@ -568,6 +744,7 @@ export class KpiChart {
         const label = at(index, 1.14);
         const value = at(index, Math.max(0, point.value) / top);
         return {
+          key: point.key,
           label: point.label,
           short: short(point.label, 12),
           value: point.value,

@@ -39,6 +39,9 @@ pub struct Column {
     pub min: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max: Option<f64>,
+    /// A number the app gives each row by itself (an ID): never typed, never changed, never used twice in the table.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto: bool,
 }
 
 fn text_type() -> String {
@@ -63,6 +66,7 @@ impl Column {
             aliases: Vec::new(),
             min: None,
             max: None,
+            auto: false,
         }
     }
 }

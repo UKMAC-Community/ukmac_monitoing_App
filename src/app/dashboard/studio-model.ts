@@ -1,4 +1,4 @@
-import type { Column, Dashboard, GroupPart, KpiAggregate, KpiVisual, SheetWithRows, SummaryMeasure } from '../core/models';
+import type { Column, Dashboard, GroupPart, KpiAggregate, KpiVisual, KpiView, SheetWithRows, SummaryMeasure } from '../core/models';
 import { isFormulaError } from '../formula/evaluate-formula';
 import type { WorkbookFormulas } from '../formula/sheet-formulas';
 import { columnValues, dashboardColumnName, hasAxis, isDateColumn, newId } from './dashboard-model';
@@ -34,11 +34,22 @@ export interface StudioVisual {
   goal: number | null;
   higherIsBetter: boolean;
   decimals: number | null;
+  /** The chart's switch of ways to group it, kept while its axis is left as the first of them. */
+  views?: KpiView[];
+  /** A column chart of dates drawn day by day, the empty days left empty. */
+  timeline?: boolean;
+  /** A chart's line to itself, and the box with its total beside it. */
+  wide?: boolean;
+  total?: string;
+  /** A table's second column to group by, inside each of its rows' first. */
+  thenBy?: string;
+  thenPart?: GroupPart;
 }
 
 export const STUDIO_TYPES: { type: StudioType; label: string; icon: string }[] = [
   { type: 'card', label: 'Card', icon: 'hash' },
   { type: 'column', label: 'Column chart', icon: 'chart-column' },
+  { type: 'stacked', label: 'Stacked column chart', icon: 'chart-stacked' },
   { type: 'bar', label: 'Bar chart', icon: 'chart-bar' },
   { type: 'line', label: 'Line chart', icon: 'chart-line' },
   { type: 'area', label: 'Area chart', icon: 'chart-area' },
@@ -66,6 +77,7 @@ const AGGREGATE_WORDS: Record<KpiAggregate, string> = {
   average: 'Average',
   min: 'Min',
   max: 'Max',
+  list: 'List',
 };
 
 /** What a value chip can work out: numbers every way, other fields counted. */
@@ -95,9 +107,9 @@ export function wellNames(type: StudioType): { axis: string | null; values: stri
   return { axis: 'X-axis', values: 'Y-axis' };
 }
 
-/** Only a table shows more than one value. */
+/** Only a table and a stacked column chart show more than one value. */
 export function holdsManyValues(type: StudioType) {
-  return type === 'table';
+  return type === 'table' || type === 'stacked';
 }
 
 /** The table's columns as the Data pane lists them: numbers (Σ), dates, and the rest. */
@@ -128,10 +140,17 @@ export function visualsOf(board: Dashboard): StudioVisual[] {
       title: kpi.title,
       axis: hasAxis(kpi.visual) ? kpi.groupBy : '',
       part: kpi.groupPart,
-      values: kpi.column || kpi.aggregate === 'count' ? [{ column: kpi.column, aggregate: kpi.column ? kpi.aggregate : 'count' }] : [],
+      values: [
+        ...(kpi.column || kpi.aggregate === 'count' ? [{ column: kpi.column, aggregate: kpi.column ? kpi.aggregate : 'count' }] : []),
+        ...(kpi.visual === 'stacked' ? (kpi.more ?? []) : []),
+      ],
       goal: kpi.goal,
       higherIsBetter: kpi.higherIsBetter,
       decimals: kpi.decimals,
+      ...(kpi.views?.length ? { views: kpi.views } : {}),
+      ...(kpi.timeline ? { timeline: true } : {}),
+      ...(kpi.wide ? { wide: true } : {}),
+      ...(kpi.total ? { total: kpi.total } : {}),
     })),
     ...board.summaries.map<StudioVisual>((summary) => ({
       id: summary.id,
@@ -140,6 +159,7 @@ export function visualsOf(board: Dashboard): StudioVisual[] {
       axis: summary.groupBy,
       part: summary.groupPart,
       values: summary.measures,
+      ...(summary.thenBy ? { thenBy: summary.thenBy, thenPart: summary.thenPart ?? 'value' } : {}),
       goal: null,
       higherIsBetter: true,
       decimals: null,
@@ -165,11 +185,25 @@ export function boardOf(visuals: readonly StudioVisual[]): Dashboard {
           goal: visual.goal,
           higherIsBetter: visual.higherIsBetter,
           decimals: visual.decimals,
+          ...(visual.type === 'stacked' && visual.values.length > 1 ? { more: visual.values.slice(1) } : {}),
+          // The switch stays while the chart still groups as its first view does; grouped another way by hand, it goes.
+          // It stays a timeline while it is a column chart of the same dates.
+          ...(visual.wide ? { wide: true } : {}),
+          ...(visual.total ? { total: visual.total } : {}),
+          ...(visual.timeline && visual.type === 'column' && visual.part === 'value' ? { timeline: true } : {}),
+          ...(visual.views?.length && visual.views[0].groupBy === visual.axis && visual.views[0].groupPart === visual.part ? { views: visual.views } : {}),
         };
       }),
     summaries: visuals
       .filter((visual) => visual.type === 'table')
-      .map((visual) => ({ id: visual.id, title: visual.title, groupBy: visual.axis, groupPart: visual.part, measures: visual.values })),
+      .map((visual) => ({
+        id: visual.id,
+        title: visual.title,
+        groupBy: visual.axis,
+        groupPart: visual.part,
+        ...(visual.thenBy ? { thenBy: visual.thenBy, thenPart: visual.thenPart ?? 'value' } : {}),
+        measures: visual.values,
+      })),
   };
 }
 

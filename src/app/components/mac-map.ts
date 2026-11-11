@@ -4,6 +4,14 @@ import * as L from 'leaflet';
 const ESRI_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const ESRI_LABELS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
 
+/** One layer of a plot's stack: the colour it shows (none: nothing to show yet, so only an empty frame) and what it stands for. */
+export interface StackPane {
+  fill: string | null;
+  label: string;
+  /** What it says of the plot, in a word or two (a status): told on the map where it is pointed at. */
+  note?: string;
+}
+
 /** A plot (or any area) drawn on the map. */
 export interface MapShape {
   id: string;
@@ -15,6 +23,12 @@ export interface MapShape {
   group?: string;
   groupColor?: string;
   groupText?: string;
+  /** Layers stacked on the plot in 3D, the first at the bottom (the 3D map only; the flat map leaves them out). */
+  stack?: StackPane[];
+  /** A dot of this colour before the plot's name on the 3D map (what the plot comes to as a whole). */
+  badge?: string;
+  /** A few words told beside the pointer on the 3D map when the plot is pointed at (what the plot is, when its name is not shown). */
+  hint?: string;
 }
 
 /** Where a MAC is, on satellite imagery (Esri's, as the system's maps show when there is no Google key); optionally its plots drawn on it. Needs the internet for the tiles. */

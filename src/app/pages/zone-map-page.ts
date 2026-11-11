@@ -10,7 +10,7 @@ import { Api } from '../core/api';
 import { WorkbookStore } from '../core/workbook-store';
 import { formatDate } from '../sheet/columns';
 import { formOf, formProblem, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf, type PlotForm } from '../zonemap/zone-edit';
-import { buildZoneLayout, mapCentre, plotCard, plotShapes, usageWord, type Usage, type ZoneCell } from '../zonemap/zone-layout';
+import { buildZoneLayout, filterLayout, mapCentre, plotCard, plotShapes, showsPlot, usageWord, type PlotShow, type Usage, type ZoneCell } from '../zonemap/zone-layout';
 
 export type ZoneMapView = 'farm' | 'satellite';
 
@@ -70,19 +70,24 @@ export type ZoneMapView = 'farm' | 'satellite';
                 </div>
               }
               @if (!editing()) {
-                @if (canReshape(mac)) {
-                  <button type="button" class="btn btn-secondary btn-sm edit-shapes" title="Drag a plot's corners, or move it whole, on the satellite" (click)="startEdit()"><app-icon name="edit" [size]="13" /> Edit shapes</button>
-                }
+                <div class="segmented is-sm show-switch" role="group" aria-label="Which plots to show">
+                  <button type="button" class="segment" title="Every plot" [attr.aria-pressed]="show() === 'all'" (click)="setShow('all')">All <small>{{ showCounts().all }}</small></button>
+                  <button type="button" class="segment" title="The zones: plots in use that have a zone number" [attr.aria-pressed]="show() === 'zones'" (click)="setShow('zones')">Zones <small>{{ showCounts().zones }}</small></button>
+                  <button type="button" class="segment" title="Not in use, water, an old chili plot: the rest that is not a zone" [attr.aria-pressed]="show() === 'other'" (click)="setShow('other')">Other <small>{{ showCounts().other }}</small></button>
+                </div>
                 <div class="segmented is-sm view-switch" role="group" aria-label="How to see the plots">
                   <button type="button" class="segment" [attr.aria-pressed]="view() === 'satellite'" (click)="setView('satellite')"><app-icon name="map" [size]="13" /> Satellite</button>
                   <button type="button" class="segment" [attr.aria-pressed]="view() === 'farm'" (click)="setView('farm')"><app-icon name="sprout" [size]="13" /> Farm</button>
                 </div>
+                @if (canReshape(mac)) {
+                  <button type="button" class="btn btn-secondary btn-sm edit-shapes" title="Drag a plot's corners, or move it whole, on the satellite" (click)="startEdit()"><app-icon name="edit" [size]="13" /> Edit shapes</button>
+                }
               }
             </div>
             <div class="layout-body">
               @if (view() === 'farm') {
                 <div class="sat-box">
-                  <app-farm-3d [layout]="layout()" [selected]="selectedId()" (picked)="pick($event)" (cleared)="selectedId.set(null)" />
+                  <app-farm-3d [layout]="shown()" [selected]="selectedId()" (picked)="pick($event)" (cleared)="selectedId.set(null)" />
                 </div>
               } @else if (hasMap(mac)) {
                 <div class="sat-box">
@@ -122,7 +127,7 @@ export type ZoneMapView = 'farm' | 'satellite';
                     <p class="muted">This plot has no shape on the map to edit.</p>
                   }
                   <dl>
-                    <dt>Zone</dt><dd>{{ cell.zone }}{{ cell.section ? ' · ' + cell.section : '' }}</dd>
+                    <dt>{{ cell.section !== null ? 'Zone' : 'Area' }}</dt><dd>{{ cell.zone }}{{ cell.section !== null ? ' · ' + cell.section : '' }}</dd>
                     <dt>Place</dt><dd>Row {{ cell.row }}, column {{ cell.column }}</dd>
                     <dt>Use</dt><dd>{{ usageWord(cell) }}</dd>
                     @if (cell.capacity) { <dt>Plant capacity</dt><dd>{{ cell.capacity }}</dd> }
@@ -150,7 +155,7 @@ export type ZoneMapView = 'farm' | 'satellite';
       </div>
 
       @if (formCell(); as cell) {
-        <app-modal [open]="true" [title]="'Edit plot ' + (cell.plot || cell.label)" [subtitle]="'Zone ' + cell.zone + ' · saved into the Zones table'" (closed)="formCell.set(null)">
+        <app-modal [open]="true" [title]="'Edit plot ' + (cell.plot || cell.label)" [subtitle]="(cell.section !== null ? 'Zone ' : '') + cell.zone + ' · saved into the Zones table'" (closed)="formCell.set(null)">
           <form id="plot-form" class="form-stack" (submit)="$event.preventDefault(); saveForm(cell)">
             <div class="form-grid">
               <label class="form-group">
@@ -228,7 +233,7 @@ export type ZoneMapView = 'farm' | 'satellite';
     .layout-body { flex: 1; min-height: 0; }
     .empty { flex: none; margin: 0; padding: 18px 20px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
     .view-row { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; min-height: 28px; }
-    .view-switch { margin-left: auto; }
+    .view-switch { margin-left: 0; }
     .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.8125rem; color: var(--text-muted); }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; }
@@ -246,7 +251,9 @@ export type ZoneMapView = 'farm' | 'satellite';
     .details { flex: none; align-self: flex-start; width: 240px; padding: 14px 16px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid); }
     .details-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
     .details h3 { font-size: 1.0625rem; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
-    .edit-shapes { margin-left: auto; margin-right: 8px; }
+    .show-switch { margin-left: auto; }
+    .show-switch .segment small { margin-left: 4px; font-size: 0.6875rem; font-weight: 500; opacity: 0.65; }
+    .edit-shapes { margin-left: 0; }
     .edit-bar { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .edit-hint { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: 0.8125rem; color: var(--text-muted); }
     .details h4 { margin: 14px 0 6px; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -270,7 +277,8 @@ export class ZoneMapPage {
   }
   /** Where the satellite looks: the MAC's own place, else the middle of its plots (a MAC opened from a file has no place of its own). */
   place(mac: { latitude: number | null; longitude: number | null }) {
-    return mapCentre(mac, this.shapes());
+    // Where the map looks does not follow the filter: it is worked out from every plot.
+    return mapCentre(mac, plotShapes(this.layout()));
   }
   hasMap(mac: { latitude: number | null; longitude: number | null }) {
     return this.place(mac) !== null;
@@ -280,6 +288,22 @@ export class ZoneMapPage {
   private readonly recordsSheet = computed(() => this.store.sheets().find((sheet) => sheet.templateKey === 'zone-records') ?? null);
   readonly layout = computed(() => buildZoneLayout(this.zonesSheet(), this.recordsSheet()));
   readonly selected = computed(() => this.layout().cells.find((cell) => cell.id === this.selectedId()) ?? null);
+
+  /** Which plots the map shows: all, the zones (in use), or the rest (water, not in use…). */
+  readonly show = signal<PlotShow>('zones');
+  /** The layout as that shows it. */
+  readonly shown = computed(() => filterLayout(this.layout(), this.show()));
+  readonly showCounts = computed(() => {
+    const cells = this.layout().cells;
+    const zones = cells.filter((cell) => cell.usage === 'normal').length;
+    return { all: cells.length, zones, other: cells.length - zones };
+  });
+  setShow(show: PlotShow) {
+    this.show.set(show);
+    // A plot picked that is not shown now is let go of (its details would point at nothing on the map).
+    const picked = this.selected();
+    if (picked && !showsPlot(picked, show)) this.selectedId.set(null);
+  }
 
   readonly zonesLink = computed(() => {
     const sheet = this.zonesSheet();
@@ -301,7 +325,7 @@ export class ZoneMapPage {
 
   /** The plots as drawn: while editing, each reshaped one at its new outline. */
   readonly shapes = computed<MapShape[]>(() => {
-    const shapes = plotShapes(this.layout());
+    const shapes = plotShapes(this.shown());
     if (!this.editing()) return shapes;
     this.step();
     const changed = this.history.now;
@@ -367,6 +391,8 @@ export class ZoneMapPage {
     return this.view() === 'satellite' && this.hasMap(mac) && this.layout().cells.some((cell) => cell.outline.length >= 3);
   }
   startEdit() {
+    // Shapes are edited with every plot there.
+    this.show.set('all');
     this.history.reset();
     this.step.update((n) => n + 1);
     this.editing.set(true);

@@ -16,7 +16,7 @@
 
 .title {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   min-width: 0;
   flex: 1;
@@ -25,11 +25,13 @@
 .title h1 {
   font-size: 1rem;
   font-weight: 600;
+  line-height: 1.25;
   white-space: nowrap;
 }
 
 .title .muted {
   font-size: 0.9375rem;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -203,7 +205,7 @@
 }
 
 .kpi-panel.after {
-  margin: 16px 20px 24px;
+  margin: 14px 20px 0;
   padding: 0;
 }
 
@@ -269,11 +271,24 @@
   margin: 16px 20px 0;
 }
 
-.data-card {
+.data-card,
+app-qa-qc-analysis,
+app-qa-qc-map {
   flex: none;
   margin: 16px 20px 0;
   padding: 0;
+}
+
+.data-card,
+app-qa-qc-analysis {
   overflow: hidden;
+}
+
+/* The analysis card sits in the page's column like the other cards (its own margins, as the data card's). */
+app-qa-qc-analysis,
+app-qa-qc-map {
+  display: block;
+  min-width: 0;
 }
 
 .data-head {
@@ -305,6 +320,7 @@
   gap: 5px;
   min-width: 0;
   font-size: 0.75rem;
+  line-height: 1.25;
   color: var(--text-muted);
   white-space: nowrap;
 }
