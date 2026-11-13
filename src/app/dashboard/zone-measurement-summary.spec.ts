@@ -27,6 +27,7 @@ describe('Zone Measurement: the dashboard by zone number', () => {
   it('adds the area up by zone number, not by plot', () => {
     const chart = suggestedDashboard(sheet).kpis.find((kpi) => kpi.visual !== 'card')!;
     expect(chart.title).toBe('Area in plan (m²) by zone number');
+    expect(chart.visual).toBe('column');
     expect(chart.groupBy).toBe(key('Zone number'));
     expect(chartPoints(book, sheet, chart).map((point) => [point.label, point.value])).toEqual([['1', 2200], ['2', 1000]]);
   });

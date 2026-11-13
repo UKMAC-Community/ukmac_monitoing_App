@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { type ComponentFixture, TestBed } from '@angular/core/testing';
 
 import type { KpiVisual } from '../core/models';
 import type { ChartPoint } from './dashboard-model';
@@ -10,6 +10,21 @@ const points: ChartPoint[] = [
   { label: 'Goat', value: 180 },
   { label: 'Bean', value: 140 },
 ];
+
+/** Each chart drawn by `draw`, so a test can hover over it. */
+const drawn = new WeakMap<HTMLElement, ComponentFixture<KpiChart>>();
+
+/** What the hover tooltip says over each mark: "name | line | line" (a line: "name value", or just the value). */
+function tips(el: HTMLElement, selector: string) {
+  const fixture = drawn.get(el)!;
+  return [...el.querySelectorAll(selector)].map((mark) => {
+    mark.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    fixture.detectChanges();
+    const tip = el.querySelector('.tip');
+    const lines = [...(tip?.querySelectorAll('.tip-line') ?? [])].map((line) => [...line.querySelectorAll('span')].map((part) => part.textContent!.trim()).join(' '));
+    return [tip?.querySelector('strong')?.textContent?.trim(), ...lines].join(' | ');
+  });
+}
 
 describe('KpiChart: the newer charts', () => {
   beforeAll(() => {
@@ -28,7 +43,9 @@ describe('KpiChart: the newer charts', () => {
     if (extra.value !== undefined) fixture.componentRef.setInput('value', extra.value);
     if (extra.goal !== undefined) fixture.componentRef.setInput('goal', extra.goal);
     fixture.detectChanges();
-    return fixture.nativeElement as HTMLElement;
+    const el = fixture.nativeElement as HTMLElement;
+    drawn.set(el, fixture);
+    return el;
   }
 
   it('area: the line, and the area under it closed to the axis', () => {
@@ -63,7 +80,7 @@ describe('KpiChart: the newer charts', () => {
     const widths = [...el.querySelectorAll('rect')].map((rect) => Number(rect.getAttribute('width')));
     expect(widths.length).toBe(4);
     expect([...widths].sort((a, b) => b - a)).toEqual(widths);
-    expect(el.querySelector('title')?.textContent).toContain('Chili');
+    expect(tips(el, 'rect')[0]).toBe('Chili | 400 | Of the first 100%');
   });
 
   it('treemap: a box per group, the biggest group the biggest box, all inside the chart', () => {
@@ -101,7 +118,7 @@ describe('KpiChart: the newer charts', () => {
     expect(dots.some((x) => x < zero)).toBe(true);
     expect(dots.some((x) => x > zero)).toBe(true);
     expect(el.querySelector('svg')!.getAttribute('aria-label')).toBe('Lollipop chart');
-    expect([...el.querySelectorAll('title')].map((t) => t.textContent)).toContain('Loss: -10');
+    expect(tips(el, '.comparison-point')).toContain('Loss | -10');
     expect(el.innerHTML).not.toMatch(/NaN|Infinity/);
   });
 
@@ -113,7 +130,7 @@ describe('KpiChart: the newer charts', () => {
     expect(el.innerHTML).not.toMatch(/NaN|Infinity/);
     const zeros = draw('dot', [{ label: 'Zero', value: 0 }]);
     expect(zeros.querySelectorAll('.comparison-point').length).toBe(1);
-    expect(zeros.querySelector('title')!.textContent).toBe('Zero: 0');
+    expect(tips(zeros, '.comparison-point')).toEqual(['Zero | 0']);
     expect(zeros.innerHTML).not.toMatch(/NaN|Infinity/);
     const extremes = draw('dot', [{ label: 'Low', value: -Number.MAX_VALUE }, { label: 'High', value: Number.MAX_VALUE }]);
     for (const circle of extremes.querySelectorAll('.comparison-point')) expect(Number.isFinite(Number(circle.getAttribute('cx')))).toBe(true);
@@ -121,13 +138,13 @@ describe('KpiChart: the newer charts', () => {
 
   it('pareto: ranks contributions and reaches a cumulative 100% on a separate percentage scale', () => {
     const el = draw('pareto', [{ label: 'Small', value: 10 }, { label: 'Large', value: 60 }, { label: 'Middle', value: 30 }]);
-    expect([...el.querySelectorAll('.pareto-bar title')].map((t) => t.textContent)).toEqual(['Large: 60', 'Middle: 30', 'Small: 10']);
-    expect([...el.querySelectorAll('.cumulative-point title')].map((t) => t.textContent)).toEqual(['Large: cumulative 60.0%', 'Middle: cumulative 90.0%', 'Small: cumulative 100.0%']);
+    expect(tips(el, '.pareto-bar')).toEqual(['Large | 60 | Cumulative 60.0%', 'Middle | 30 | Cumulative 90.0%', 'Small | 10 | Cumulative 100.0%']);
+    expect(tips(el, '.cumulative-point')).toEqual(['Large | Cumulative 60.0%', 'Middle | Cumulative 90.0%', 'Small | Cumulative 100.0%']);
     expect(el.querySelector('.cumulative-line')).toBeTruthy();
     expect(el.innerHTML).not.toMatch(/NaN|Infinity/);
     const many = draw('pareto', Array.from({ length: 20 }, (_, i) => ({ label: `Group ${i}`, value: 1 })));
     expect(many.querySelectorAll('.pareto-bar').length).toBe(12);
-    expect([...many.querySelectorAll('.cumulative-point title')].at(-1)!.textContent).toContain('100.0%');
+    expect(tips(many, '.cumulative-point').at(-1)).toContain('100.0%');
     expect(many.textContent).toContain('Remaining groups combined');
   });
 
@@ -183,6 +200,127 @@ describe('KpiChart: the newer charts', () => {
     plain.componentRef.setInput('visual', 'column');
     plain.detectChanges();
     expect((plain.nativeElement as HTMLElement).querySelectorAll('rect').length).toBe(12);
+  });
+});
+
+describe('KpiChart: drawn in, as the web charts are', () => {
+  beforeAll(() => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    };
+  });
+
+  function chartOf(visual: KpiVisual, extra: Record<string, unknown> = {}) {
+    const fixture = TestBed.createComponent(KpiChart);
+    fixture.componentRef.setInput('points', points);
+    fixture.componentRef.setInput('visual', visual);
+    for (const [name, value] of Object.entries(extra)) fixture.componentRef.setInput(name, value);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    drawn.set(el, fixture);
+    return el;
+  }
+
+  it('grows the bars, draws the lines and spins the slices in, the numbers after; a tooltip over each, no slow title', () => {
+    for (const visual of ['column', 'bar', 'waterfall', 'pareto', 'funnel'] as const) {
+      const el = chartOf(visual);
+      expect(el.querySelector('.grow-y, .grow-x'), visual).toBeTruthy();
+      // Its numbers fade in once the bars are up (a pareto has none: its line comes after).
+      if (visual !== 'pareto') expect(el.querySelector('.after'), visual).toBeTruthy();
+    }
+    for (const visual of ['line', 'area'] as const) {
+      const line = chartOf(visual).querySelector('polyline.draw-line') as SVGElement;
+      expect(Number(line.style.getPropertyValue('--len')), visual).toBeGreaterThan(100);
+    }
+    for (const visual of ['pie', 'donut', 'polar'] as const) expect(chartOf(visual).querySelector('g.spin-in'), visual).toBeTruthy();
+    // A stack grows as one (its parts in one group), so it doesn't open up gaps as it rises.
+    const series = [
+      { label: 'Ripe', points: points.map((point) => ({ ...point })) },
+      { label: 'Unripe', points: points.map((point) => ({ ...point, value: 10 })) },
+    ];
+    const stacked = chartOf('stacked', { series });
+    expect(stacked.querySelectorAll('g.grow-y').length).toBe(4);
+    expect(stacked.querySelectorAll('g.grow-y rect').length).toBe(8);
+    // Every kind has the hover tooltip instead of the browser's slow title.
+    for (const visual of ['column', 'bar', 'line', 'area', 'pie', 'donut', 'waterfall', 'pareto', 'polar', 'funnel', 'treemap', 'lollipop', 'dot', 'radar'] as const) {
+      expect(chartOf(visual).querySelector('title'), visual).toBeNull();
+    }
+    expect(tips(chartOf('donut'), 'path')[0]).toBe('Chili | 400 · 40.8%');
+    expect(tips(chartOf('treemap'), 'rect')[0]).toBe('Chili | 400');
+  });
+});
+
+describe('KpiChart: a pie with the names inside', () => {
+  beforeAll(() => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    };
+  });
+
+  // The plants of nine zones, as on Plant Progress.
+  const zones: ChartPoint[] = [19255, 10243, 18942, 10037, 18962, 14028, 19278, 11623, 28500].map((value, index) => ({ label: String(index + 1), key: String(index + 1), value }));
+
+  function pie(data: ChartPoint[], width = 480) {
+    const fixture = TestBed.createComponent(KpiChart);
+    fixture.componentRef.setInput('points', data);
+    fixture.componentRef.setInput('visual', 'pie');
+    fixture.componentRef.setInput('zoneColours', true);
+    fixture.componentInstance.width.set(width);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('writes each zone and its amount inside its slice, with no lines out to the side', () => {
+    const el = pie(zones);
+    const inside = [...el.querySelectorAll('.pie-inside')];
+    expect(inside.length).toBe(9);
+    expect(inside.map((label) => label.querySelector('.pie-in-name')!.textContent!.trim())).toEqual(zones.map((zone) => `Zone ${zone.label}`));
+    expect(inside[8].querySelector('.pie-in-value')!.textContent!.trim()).toBe('28,500');
+    expect(el.querySelectorAll('polyline').length).toBe(0);
+    // Each label is inside the pie.
+    const svg = el.querySelector('svg.pie')!;
+    const [cx, cy] = [Number(svg.getAttribute('width')) / 2, Number(svg.getAttribute('height')) / 2];
+    for (const name of el.querySelectorAll('.pie-in-name')) {
+      expect(Math.hypot(Number(name.getAttribute('x')) - cx, Number(name.getAttribute('y')) - cy)).toBeLessThan(cy);
+    }
+  });
+
+  it('puts a slice too thin for its name outside, on a line to it', () => {
+    // A chart in half a row (as Plants by zone number is): the pie leaves room at the sides for the name outside.
+    const el = pie([...zones, { label: '10', key: '10', value: 400 }], 540);
+    expect(el.querySelectorAll('.pie-inside').length).toBe(9);
+    expect([...el.querySelectorAll('.pie-name')].map((name) => name.textContent!.trim())).toEqual(['Zone 10']);
+    expect(el.querySelectorAll('polyline').length).toBe(1);
+  });
+});
+
+describe('KpiChart: the full name on hover', () => {
+  beforeAll(() => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    };
+  });
+
+  it('writes the whole name of the column under the pointer, which the axis cut short', () => {
+    const fixture = TestBed.createComponent(KpiChart);
+    fixture.componentRef.setInput('points', [{ label: 'NB-2026-11-0001-Long', value: 21800 }, { label: 'NB-2026-11-0002-Long', value: 21500 }]);
+    fixture.componentRef.setInput('visual', 'column');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.tip')).toBeNull();
+    el.querySelector('svg g')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelector('.tip strong')?.textContent).toBe('NB-2026-11-0001-Long');
+    expect(el.querySelector('.tip')?.textContent).toContain('21,800');
+    el.querySelector('svg g')!.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelector('.tip')).toBeNull();
   });
 });
 

@@ -2,7 +2,7 @@ import type { Column } from '../core/models';
 import { WorkbookFormulas } from '../formula/sheet-formulas';
 import columns from '../sheet/fixtures/batches-columns.json';
 import { makeSheet } from '../test-helpers';
-import { chartPoints, kpiValue, summaryResult, suggestedDashboard } from './dashboard-model';
+import { chartPoints, kpiValue, suggestedDashboard } from './dashboard-model';
 
 const batches = columns as Column[];
 const sheet = makeSheet(
@@ -34,7 +34,7 @@ describe('Batches: the dashboard', () => {
       ['Mali', 2],
       ['RED SKY 88', 2],
     ]);
-    const result = summaryResult(book, sheet, board.summaries[0])!;
-    expect(result.rows.map((line) => [line.label, ...line.values])).toEqual([['Mali', 2], ['RED SKY 88', 2]]);
+    // The chart alone: no "By variety" table under it repeating the same counts.
+    expect(board.summaries).toEqual([]);
   });
 });

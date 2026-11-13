@@ -138,7 +138,7 @@ describe('Harvest: its tables by date, and by zone number', () => {
 
   it('gives the day chart a switch: every day (the timeline), or only the days with a harvest', () => {
     const chart = dashboard.kpis.find((kpi) => kpi.title === 'Harvest yield by day')!;
-    expect(chart.views!.map((view) => [view.label, view.timeline])).toEqual([['Every day', true], ['Harvest days', false]]);
+    expect(chart.views!.map((view) => [view.label, view.timeline])).toEqual([['Every day', true], ['Harvest days', true]]);
     const gap = makeSheet(3, 'Harvest', harvest, [pick('A-01', 'ripe', '2026-07-01', 5), pick('A-01', 'ripe', '2026-07-05', 7)], 'harvest');
     const gapBook = new WorkbookFormulas([zoneSheet, gap], '2026-11-10');
     const fixture = TestBed.createComponent(SheetDashboard);
@@ -152,9 +152,10 @@ describe('Harvest: its tables by date, and by zone number', () => {
     expect(tile().textContent).toContain('03/07');
     ([...tile().querySelectorAll('.segmented button')][1] as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(tile().querySelector('.timeline')).toBeNull();
+    // Still on the date line, in date order, but with the empty days left out.
+    expect(tile().querySelector('.timeline')).toBeTruthy();
     expect(tile().textContent).not.toContain('03/07');
-    expect(tile().textContent).toContain('05/07/2026');
+    expect(tile().textContent).toContain('05/07');
   });
 
   it('gives the zone number chart a line of its own with a box of its total beside it', () => {

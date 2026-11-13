@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
+import { CountUp } from '../components/count-up';
 import type { SheetWithRows } from '../core/models';
 import type { WorkbookFormulas } from '../formula/sheet-formulas';
 import { formatNumber, type ChartPoint } from './dashboard-model';
@@ -26,7 +27,7 @@ interface YearTile {
 
 @Component({
   selector: 'app-chili-dashboard',
-  imports: [KpiChart],
+  imports: [CountUp, KpiChart],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="canvas">
@@ -42,7 +43,7 @@ interface YearTile {
           <article class="tile" [style.--i]="i">
             <h3>{{ tile.title }}</h3>
             <div class="body">
-              <span class="value">{{ tile.value }}</span>
+              <span class="value" [appCountUp]="tile.value"></span>
               <span class="note">{{ tile.note }}</span>
               <svg class="trend" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
                 @if (tile.trend.length >= 2) {
@@ -88,6 +89,11 @@ interface YearTile {
     .value { font-size: max(16px, min(42px, 10cqw)); line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--text); }
     .note { font-size: 0.8125rem; color: var(--text-muted); }
     .trend { display: block; width: 100%; flex: 1; min-height: 24px; max-height: 56px; margin-top: 2px; }
+    /* The trend draws itself in from the left once its card is up, as the charts do. */
+    @media (prefers-reduced-motion: no-preference) {
+      .trend { animation: trend-in 900ms cubic-bezier(0.33, 1, 0.68, 1) backwards; animation-delay: calc(var(--i, 0) * 45ms + 200ms); }
+    }
+    @keyframes trend-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
     .charts { display: grid; grid-template-columns: repeat(var(--chart-cols, 2), minmax(0, 1fr)); gap: 12px; }
     .tile.chart { height: auto; min-height: 0; padding: 18px 22px 16px; gap: 10px; }
     .tile.chart h3 { font-weight: 600; color: var(--text); }

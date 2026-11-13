@@ -86,8 +86,10 @@
       </nav>
     </div>
   } @else {
-    <!-- As the system's table page: the table's KPIs and charts, its summaries, then its rows as a table (Open in sheet for the spreadsheet). -->
-    <div class="page-scroll">
+    <!-- As the system's table page: the table's KPIs and charts, its summaries, then its rows as a table (Open in sheet for the spreadsheet).
+         Drawn afresh for each table (keyed on it), so going from one table to the next opens it as a new page: it eases in and its charts draw again. -->
+    @for (key of [sheet.sheetId]; track key) {
+    <div class="page-scroll page-in">
       @if (sheet.templateKey === 'qa-qc-management') {
         <!-- The QA/QC page shows its analysis as a map instead of the dashboard: each plot coloured by its status. -->
         <app-qa-qc-map [sheet]="sheet" [sheets]="store.sheets()" [mac]="store.mac()" />
@@ -170,6 +172,7 @@
         />
       </section>
     </div>
+    }
   }
 
   @if (importMenu(); as menu) {

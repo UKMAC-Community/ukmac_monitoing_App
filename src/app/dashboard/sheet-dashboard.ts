@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 
+import { CountUp } from '../components/count-up';
 import { Icon } from '../components/icon';
 import { Pager, pageSlice, savedPageSize } from '../components/pager';
 import type { Dashboard, GroupPart, Kpi, SheetWithRows, SummaryTable } from '../core/models';
@@ -45,7 +46,7 @@ interface CardView {
  */
 @Component({
   selector: 'app-sheet-dashboard',
-  imports: [Icon, KpiChart, Pager],
+  imports: [CountUp, Icon, KpiChart, Pager],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="canvas" [class.flat]="!selectable()" [class.studio]="selectable()">
@@ -74,7 +75,7 @@ interface CardView {
                   } @else if (card.arrow === 'down') {
                     <app-icon name="arrow-down" [size]="22" />
                   }
-                  <span>{{ card.value }}</span>
+                  <span [appCountUp]="card.value"></span>
                 </p>
                 <p class="foot" [class.gone]="card.gone" [attr.title]="card.foot + (card.delta ? ' ' + card.delta : '')">
                   {{ card.foot }}
@@ -292,6 +293,9 @@ interface CardView {
     .data-table .cell-num { text-align: center; font-variant-numeric: tabular-nums; }
     /* A list of dates (a zone's harvest days) is shown whole, wrapping onto as many lines as it needs. */
     .data-table .list-text.dates { max-width: 340px; overflow: visible; text-overflow: clip; white-space: normal; text-align: left; line-height: 1.5; }
+    /* Rows alternate white, gray, white, gray... (a highlighted or hovered row keeps its own colour). */
+    .data-table tbody tr:nth-child(odd):not(.lit):not(:hover) td { background: #fff; }
+    .data-table tbody tr:nth-child(even):not(.lit):not(:hover) td { background: #f3f2f1; }
     .data-table tr.hit { cursor: pointer; }
     .data-table .list-text { display: inline-block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
     .data-table tr.hit:hover td { background: var(--accent-soft); }
@@ -393,7 +397,7 @@ export class SheetDashboard {
         const viewAt = Math.min(this.viewPicked()[own.id] ?? 0, Math.max(views.length - 1, 0));
         const view = views[viewAt];
         // The chart as the picked view groups it (and calls it); its id stays, so it is the same tile.
-        const kpi: Kpi = view ? { ...own, groupBy: view.groupBy, groupPart: view.groupPart, title: view.title ?? own.title, timeline: view.timeline ?? own.timeline, visual: view.visual ?? own.visual } : own;
+        const kpi: Kpi = view ? { ...own, groupBy: view.groupBy, groupPart: view.groupPart, title: view.title ?? own.title, timeline: view.timeline ?? own.timeline, daysOnly: view.daysOnly ?? own.daysOnly, visual: view.visual ?? own.visual } : own;
         const gauge = !hasAxis(kpi.visual);
         const noValue = !kpi.column && kpi.aggregate !== 'count';
         const rows = this.rowsFor(own.id);

@@ -276,6 +276,8 @@ export interface Kpi {
   views?: KpiView[];
   /** A column chart of dates drawn as a timeline: every day from the first to the last, a day with no rows left empty. */
   timeline?: boolean;
+  /** A timeline that leaves the days with no rows out: only the days there are, in date order. */
+  daysOnly?: boolean;
   /** The chart takes a whole line of the dashboard to itself. */
   wide?: boolean;
   /** A box beside the chart holding the chart's own total, under this name ("Total yield (kg)"). */
@@ -303,6 +305,8 @@ export interface KpiView {
   title?: string;
   /** Drawn as a timeline (every day, the empty ones left empty) or not; unsaid: as the chart is. */
   timeline?: boolean;
+  /** A timeline of only the days there are, in date order (no empty days between). */
+  daysOnly?: boolean;
   /** Drawn as this kind of chart (a Pie | Column switch has one view of each); unsaid: as the chart is. */
   visual?: KpiVisual;
 }

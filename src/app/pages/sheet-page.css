@@ -192,6 +192,13 @@
   flex-direction: column;
 }
 
+/* Each table's page eases in as it opens, from the menu or from another table. */
+@media (prefers-reduced-motion: no-preference) {
+  .page-in {
+    animation: fade 240ms var(--ease) backwards;
+  }
+}
+
 .kpi-panel {
   flex: none;
   margin: 14px 20px 0;

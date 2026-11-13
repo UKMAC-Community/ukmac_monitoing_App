@@ -49,9 +49,9 @@ interface Cell {
       </header>
       <div class="jump">
         <span class="jump-label">Show</span>
-        <button type="button" class="chip" [class.active]="stage() === null" (click)="stage.set(null)">All</button>
+        <button type="button" class="chip" [class.active]="stage() === null" (click)="pick(null)">All</button>
         @for (name of stages(); track name) {
-          <button type="button" class="chip" [class.active]="stage() === name" (click)="stage.set(name)">{{ name }}</button>
+          <button type="button" class="chip" [class.active]="stage() === name" (click)="pick(name)">{{ name }}</button>
         }
       </div>
       @if (!built().rows.length) {
@@ -173,8 +173,11 @@ export class QaQcAnalysis {
 
   /** How many plots a stage shows before "Show all". */
   readonly preview = 5;
-  /** The stages folded away, and the ones showing every plot (the rest show the first few). */
-  private readonly folded = signal<ReadonlySet<string>>(new Set());
+  /**
+   * The stages opened (every stage starts closed, its title only, so the page is a short list to pick from), and the
+   * ones showing every plot (the rest show the first few).
+   */
+  private readonly opened = signal<ReadonlySet<string>>(new Set());
   private readonly everyRow = signal<ReadonlySet<string>>(new Set());
   readonly showFormulas = signal(true);
 
@@ -199,7 +202,7 @@ export class QaQcAnalysis {
         const all = this.everyRow().has(name);
         return {
           stage: name,
-          open: !this.folded().has(name),
+          open: this.opened().has(name),
           all,
           total: rows.length,
           columns: shown,
@@ -210,10 +213,16 @@ export class QaQcAnalysis {
       });
   });
 
-  readonly anyOpen = computed(() => this.stages().some((name) => !this.folded().has(name)));
+  readonly anyOpen = computed(() => this.stages().some((name) => this.opened().has(name)));
+
+  /** One stage on its own from its chip, opened (it is what was asked for); All lists them again as they were. */
+  pick(name: string | null) {
+    this.stage.set(name);
+    if (name !== null) this.opened.update((set) => new Set(set).add(name));
+  }
 
   toggleStage(name: string) {
-    this.folded.update((set) => toggled(set, name));
+    this.opened.update((set) => toggled(set, name));
   }
 
   toggleRows(name: string) {
@@ -222,7 +231,7 @@ export class QaQcAnalysis {
 
   /** Every stage's table opened (showing the first few plots) or folded away. */
   setAll(open: boolean) {
-    this.folded.set(open ? new Set() : new Set(this.stages()));
+    this.opened.set(open ? new Set(this.stages()) : new Set());
   }
 
   private cellOf(formulas: WorkbookFormulas, sheet: SheetWithRows, row: Row, item: AnalysisColumn): Cell {

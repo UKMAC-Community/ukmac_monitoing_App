@@ -286,7 +286,12 @@ export function chartPoints(formulas: WorkbookFormulas, sheet: SheetWithRows, kp
       kpi.aggregate,
     ) ?? 0,
   }));
-  return kpi.timeline && kpi.visual === 'column' && kpi.groupPart === 'value' ? everyDay(points) : points;
+  return kpi.timeline && kpi.visual === 'column' && kpi.groupPart === 'value' ? (kpi.daysOnly ? inDateOrder(points) : everyDay(points)) : points;
+}
+
+/** The days of a chart in date order with no gap days: groups are already in order, the blank group last. */
+function inDateOrder(points: ChartPoint[]): ChartPoint[] {
+  return points.filter((point) => !point.empty);
 }
 
 /** The days of a chart as a timeline: every day from the first to the last, a day with no rows an empty point (the blank group stays last). */
@@ -556,7 +561,7 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
         card('Varieties', variety, 'distinct'),
         chart('Batches by variety', 'bar', '', 'count', variety),
       ];
-      summaries = [summary('By variety', variety, 'value', [measure('', 'count', 'Batches')])];
+      // No "By variety" table under it: it said only what the chart says (each variety's count of batches).
       break;
     }
     case 'zone-records': {
@@ -637,7 +642,7 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
         area ? card(columnLabel(area), area, 'sum') : null,
         width ? card(columnLabel(width), width, 'sum') : null,
         length ? card(columnLabel(length), length, 'sum') : null,
-        area && by ? chart(`${columnLabel(area)} by ${zoneNumber ? 'zone number' : 'zone plot'}`, 'bar', area, 'sum', by, 'value', zoneNumber ? { zoneColours: true } : {}) : null,
+        area && by ? chart(`${columnLabel(area)} by ${zoneNumber ? 'zone number' : 'zone plot'}`, 'column', area, 'sum', by, 'value', zoneNumber ? { zoneColours: true } : {}) : null,
       ];
       summaries = by
         ? [
@@ -670,7 +675,7 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
           const views: KpiView[] | undefined = harvestDate
             ? [
                 { label: 'Every day', groupBy: harvestDate.key, groupPart: 'value', title: 'Harvest yield by day', timeline: true },
-                { label: 'Harvest days', groupBy: harvestDate.key, groupPart: 'value', title: 'Harvest yield by day', timeline: false },
+                { label: 'Harvest days', groupBy: harvestDate.key, groupPart: 'value', title: 'Harvest yield by day', timeline: true, daysOnly: true },
               ]
             : undefined;
           return byDay ? { ...byDay, timeline: true, wide: true, ...(views ? { views } : {}) } : null;
