@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 
 import { Icon } from '../components/icon';
 import { Modal } from '../components/modal';
+import { SegmentedThumb } from '../components/segmented-thumb';
 import { Api } from '../core/api';
 import type { KpiAggregate, SheetWithRows } from '../core/models';
 import { WorkbookStore } from '../core/workbook-store';
@@ -32,7 +33,7 @@ interface ColumnOption { key: string; label: string; field: StudioField }
  */
 @Component({
   selector: 'app-chili-kpi-editor',
-  imports: [Icon, Modal, ChiliDashboard],
+  imports: [Icon, Modal, ChiliDashboard, SegmentedThumb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-modal [open]="true" title="Edit dashboard" subtitle="Every chili MAC shows these. Changes are saved as you make them." size="xwide" (closed)="closed.emit()">

@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { Farm3d } from '../components/farm-3d';
+import { GoogleLinkDialog } from '../components/google-link-dialog';
 import { Icon } from '../components/icon';
 import { MacMap3d, type PlotCard, type Reshaped } from '../components/mac-map-3d';
 import type { MapShape } from '../components/mac-map';
 import { Modal } from '../components/modal';
 import { Api } from '../core/api';
+import { Google } from '../core/google';
 import { WorkbookStore } from '../core/workbook-store';
 import { formatDate } from '../sheet/columns';
 import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf, type PlotForm } from '../zonemap/zone-edit';
@@ -21,7 +23,7 @@ export type ZoneMapView = 'farm' | 'satellite';
  */
 @Component({
   selector: 'app-zone-map-page',
-  imports: [RouterLink, Icon, MacMap3d, Farm3d, Modal],
+  imports: [RouterLink, Icon, MacMap3d, Farm3d, Modal, GoogleLinkDialog],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.mac(); as mac) {
@@ -30,6 +32,17 @@ export type ZoneMapView = 'farm' | 'satellite';
         <h1>Zone Map</h1>
         <span class="badge neutral">{{ mac.macName }}</span>
         <p class="zm-desc">Every plot at its place in its zone. Click a plot for its details, then edit it, or edit its shape on the satellite.</p>
+        @if (zonesSheet(); as zones) {
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm zm-google"
+            [title]="googleLink() ? 'The plots are read from ' + googleLink()!.spreadsheetTitle + ' › ' + googleLink()!.tabTitle + '. Change the link' : 'Read the plots from a Google Sheet: paste its link'"
+            (click)="linkOpen.set(true)"
+          >
+            <app-icon name="table" [size]="14" /> {{ googleLink() ? 'Google Sheet · ' + google.ago(googleLink()!.lastSyncedAt) : 'Link Google Sheet' }}
+          </button>
+          <app-google-link-dialog [open]="linkOpen()" [sheet]="zones" (closed)="linkOpen.set(false)" (redefine)="openZones()" />
+        }
       </header>
 
       <div class="page">
@@ -241,6 +254,7 @@ export type ZoneMapView = 'farm' | 'satellite';
     :host { --cell-w: 52px; --cell-h: 40px; }
     .zm-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 20px; background: var(--surface-solid); border-bottom: var(--hairline) solid var(--border); }
     .zm-head h1 { font-size: 1rem; font-weight: 600; white-space: nowrap; }
+    .zm-google { flex: none; margin-left: auto; white-space: nowrap; }
     .zm-desc { min-width: 0; margin: 0; font-size: 0.8125rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* The page fits the window: compact tiles, then the map card takes what is left and a free band stays under it. */
     .page { padding: 16px 20px 40px; gap: 14px; }
@@ -303,7 +317,7 @@ export class ZoneMapPage {
     return this.place(mac) !== null;
   }
 
-  private readonly zonesSheet = computed(() => this.store.sheets().find((sheet) => sheet.templateKey === 'zones') ?? null);
+  readonly zonesSheet = computed(() => this.store.sheets().find((sheet) => sheet.templateKey === 'zones') ?? null);
   private readonly recordsSheet = computed(() => this.store.sheets().find((sheet) => sheet.templateKey === 'zone-records') ?? null);
   readonly layout = computed(() => buildZoneLayout(this.zonesSheet(), this.recordsSheet()));
   readonly selected = computed(() => this.layout().cells.find((cell) => cell.id === this.selectedId()) ?? null);
@@ -322,6 +336,21 @@ export class ZoneMapPage {
     // A plot picked that is not shown now is let go of (its details would point at nothing on the map).
     const picked = this.selected();
     if (picked && !showsPlot(picked, show)) this.selectedId.set(null);
+  }
+
+  readonly google = inject(Google);
+  private readonly router = inject(Router);
+  readonly linkOpen = signal(false);
+  /** The Google Sheet the Zones table is read from, when it is. */
+  readonly googleLink = computed(() => {
+    const sheet = this.zonesSheet();
+    return sheet ? this.google.linkOf(sheet.sheetId) : null;
+  });
+  /** "Define the rows and columns again" is the table's own page's import: go there. */
+  openZones() {
+    this.linkOpen.set(false);
+    const link = this.zonesLink();
+    if (link) void this.router.navigate(link);
   }
 
   readonly zonesLink = computed(() => {

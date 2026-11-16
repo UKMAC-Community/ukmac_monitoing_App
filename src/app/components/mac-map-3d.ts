@@ -718,6 +718,17 @@ export class MacMap3d implements OnDestroy {
       map.jumpTo(camera);
       // Tipped back, the near side grows: step out a little until every section's name is inside the map (and, on a map brought to chosen plots, each of them with its stack).
       for (let step = 0; step < 12 && !this.fitsAll(map); step++) map.jumpTo({ zoom: map.getZoom() - 0.15 });
+      // A map of stacks: tipped back the farm is shorter than the flat fit reckoned, so come back in while every plot and its stack still fit.
+      if (untracked(() => this.focus())?.length) {
+        for (let step = 0; step < 20 && map.getZoom() < 19; step++) {
+          const zoom = map.getZoom();
+          map.jumpTo({ zoom: zoom + 0.1 });
+          if (!this.fitsAll(map)) {
+            map.jumpTo({ zoom });
+            break;
+          }
+        }
+      }
       this.goal = { center: map.getCenter(), zoom: map.getZoom(), ...camera };
       this.fitted = true;
       // Not shown yet: back to the flat view of the whole farm, to tip back from once its imagery's in.
@@ -1037,19 +1048,22 @@ export class MacMap3d implements OnDestroy {
     if (quiet) this.declutter();
   }
 
-  /** A name that would lie over the name of a plot with a stack (or the plot picked) gives way to it. */
+  /**
+   * No two names lie over each other: one that would gives way. The plot picked keeps its name, then a plot with a stack before one
+   * without, then the nearer before the farther (lower on the screen), so the front rows read whole and the far ones thin out; zoomed
+   * in, the names given way come back. (Since the QA/QC map draws only the plots with a record, every name there has a stack: they
+   * have to give way to each other too, or a hundred names pile up.)
+   */
   private declutter() {
+    const tags = this.plotTags
+      .map((tag) => ({ tag, el: tag.marker.getElement() }))
+      .filter(({ el }) => !el.classList.contains('hide'))
+      .map((item) => ({ ...item, box: item.el.getBoundingClientRect(), rank: item.el.classList.contains('is-picked') ? 0 : item.tag.stacked ? 1 : 2 }));
+    tags.sort((a, b) => a.rank - b.rank || b.box.bottom - a.box.bottom);
     const keep: DOMRect[] = [];
-    const others: HTMLElement[] = [];
-    for (const tag of this.plotTags) {
-      const el = tag.marker.getElement();
-      if (el.classList.contains('hide')) continue;
-      if (tag.stacked || el.classList.contains('is-picked')) keep.push(el.getBoundingClientRect());
-      else others.push(el);
-    }
-    for (const el of others) {
-      const box = el.getBoundingClientRect();
+    for (const { el, box } of tags) {
       if (keep.some((other) => box.left < other.right + 3 && box.right > other.left - 3 && box.top < other.bottom + 3 && box.bottom > other.top - 3)) el.classList.add('hide');
+      else keep.push(box);
     }
   }
 
@@ -1080,7 +1094,8 @@ export class MacMap3d implements OnDestroy {
     const map = this.map;
     if (!map) return;
     this.stopTour();
-    const camera = this.cameraFor(map.getPitch(), map.getBearing());
+    // On a map of stacks it comes in as close as everything still fits, as the first fit does.
+    const camera = this.cameraFor(map.getPitch(), map.getBearing(), undefined, !!this.focus()?.length);
     if (camera) map.easeTo({ ...camera, duration: 700 });
   }
 

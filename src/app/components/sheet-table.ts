@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, input, output, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 
 import type { Column, Row, SheetWithRows } from '../core/models';
 import { formatFormulaValue, isFormulaError } from '../formula/evaluate-formula';
@@ -94,7 +94,7 @@ interface Span {
           }
           <tr>
             @for (item of visible(); track item.column.key) {
-              <th [class.num]="right(item.column)">
+              <th [class.num]="right(item.column)" [class.is-lit]="lit() === item.column.key" [attr.data-col]="item.column.key">
                 <button type="button" class="sort-btn" [class.is-active]="sort()?.key === item.column.key" (click)="sortBy.emit(item.column.key)">
                   {{ label(item.column) }}
                   @if (sort()?.key === item.column.key) {
@@ -109,7 +109,7 @@ interface Span {
           @for (row of shown(); track row.rowId) {
             <tr>
               @for (item of visible(); track item.column.key) {
-                <td [class.num]="right(item.column)" [title]="text(row, item.column)">{{ text(row, item.column) }}</td>
+                <td [class.num]="right(item.column)" [class.is-lit]="lit() === item.column.key" [title]="text(row, item.column)">{{ text(row, item.column) }}</td>
               }
             </tr>
           }
@@ -139,6 +139,10 @@ interface Span {
     .data-table { width: max-content; min-width: 100%; }
     .data-table thead tr:last-child th { min-width: 130px; }
     .data-table th.num, .data-table td.num { text-align: right; }
+    /* A column asked for (from the Data Check): lit for a few seconds, then it fades back. */
+    .data-table th, .data-table td { transition: background-color 600ms ease, box-shadow 600ms ease; }
+    .data-table th.is-lit { background: color-mix(in srgb, var(--accent) 16%, var(--surface-solid)); box-shadow: inset 0 -3px 0 var(--accent); color: var(--accent); }
+    .data-table td.is-lit { background: color-mix(in srgb, var(--accent) 9%, transparent); }
     .data-table th.box, .data-table th.group { text-align: center; color: var(--text); font-weight: 600; background: var(--surface-solid); }
     .data-table thead th { position: sticky; background: var(--surface-solid); z-index: 1; }
     .data-table tr.boxes:nth-child(1) th { top: 0; }
@@ -156,12 +160,18 @@ export class SheetTable {
   readonly sort = input<{ key: string; dir: 1 | -1 } | null>(null);
   readonly searching = input(false);
   readonly sortBy = output<string>();
+  /** A column to bring into view and light up (from the Data Check, or a link): its key. */
+  readonly focusColumn = input<string | null>(null);
+  /** The column lit now (it fades after a few seconds). */
+  readonly lit = signal<string | null>(null);
+  private litTimer: ReturnType<typeof setTimeout> | undefined;
 
   readonly pageSize = signal(savedPageSize());
   readonly page = signal(0);
   /** The box (or group, in a table with no boxes) whose columns are shown with the row's own; null: all of them. */
   readonly stage = signal<string | null>(null);
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly shown = computed(() => pageSlice(this.rows(), this.page(), this.pageSize()));
   readonly showBoxes = computed(() => this.sheet().columns.some((column) => column.box));
@@ -188,13 +198,15 @@ export class SheetTable {
     }
     return hidden;
   });
-  /** The columns of the table that are in view: all, or one stage's with the columns that belong to none (the row's own). */
+  /** The columns of the table that are in view: all, or one stage's with the columns that belong to none (the row's own) and, in a table with no boxes, its Batch group. */
   readonly columns = computed(() => {
     const stage = this.stage();
     const all = this.sheet().columns;
     if (stage === null) return all;
     const part = this.showBoxes() ? (column: Column) => column.box : (column: Column) => column.group;
-    return all.filter((column) => !part(column) || part(column) === stage);
+    // A row is known by its batch (Nursery Progress): that group stays beside whichever group is shown, with the row's ID.
+    const batch = !this.showBoxes() ? 'Batch' : null;
+    return all.filter((column) => !part(column) || part(column) === stage || (batch !== null && column.group === batch));
   });
   /** The columns shown, each with its place among those in view. */
   readonly visible = computed(() =>
@@ -232,11 +244,33 @@ export class SheetTable {
       this.sheet().sheetId;
       untracked(() => this.stage.set(null));
     });
+    // A column asked for: shown (its stage picked apart, its fold opened), scrolled to, and lit for a few seconds.
+    effect(() => {
+      const key = this.focusColumn();
+      const known = this.sheet().columns.some((column) => column.key === key);
+      if (key && known) untracked(() => this.reveal(key));
+    });
     // A new search or sort starts again from the first page.
     effect(() => {
       this.rows();
       untracked(() => this.page.set(0));
     });
+  }
+
+  /** Brings a column into view: every column shown, its fold opened, scrolled to (across and down the page), and lit for a few seconds. */
+  private reveal(key: string) {
+    this.stage.set(null);
+    const at = this.sheet().columns.findIndex((column) => column.key === key);
+    const hiding = this.foldables().filter((run) => this.folded().has(run.id) && at > run.start && at < run.start + run.total);
+    if (hiding.length) {
+      this.folded.update((set) => new Set([...set].filter((id) => !hiding.some((run) => run.id === id))));
+      this.keep();
+    }
+    this.lit.set(key);
+    clearTimeout(this.litTimer);
+    this.litTimer = setTimeout(() => this.lit.set(null), 5000);
+    // After the columns have been drawn.
+    setTimeout(() => this.host.nativeElement.querySelector(`th[data-col="${key}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'center' }), 80);
   }
 
   toTop() {

@@ -262,25 +262,21 @@ function textOf(value: ExcelJS.CellValue, column: Column | undefined, date1904: 
   return String(value).trim();
 }
 
-/** Reads an .xlsx file's rows into the table's columns, checking each value. Nothing is saved. */
-export async function readImport(
-  bytes: ArrayBuffer,
-  fileName: string,
-  sheet: Sheet,
-  ctx: TemplateContext,
-  options: {
-    /** The tab to read (a Google Sheet's tab the user picked); else "Data", else the first with rows. */
-    tab?: string;
-    /** The user's own matches: table column key → the worksheet column (1-based) that fills it. The
-     * file's names aren't used then; a column not matched here is left out, whatever it's called. */
-    columns?: Record<string, number>;
-    /** The row the names are found on, when the reader of the source already knows it (a Google tab's): the guess starts from it. */
-    headerRow?: number;
-    /** Where the names and the data are, once the person has said (or it was read before): used as it is, not guessed. */
-    layout?: FileLayout;
-  } = {},
-): Promise<ImportPreview> {
-  if (!/\.xlsx$/i.test(fileName)) throw new Error('Choose an .xlsx workbook. Save an older .xls file as .xlsx first.');
+/** How a tab is read into a table: which tab, the person's own matches, where the names and the data are. */
+export interface ImportOptions {
+  /** The tab to read (a Google Sheet's tab the user picked); else "Data", else the first with rows. */
+  tab?: string;
+  /** The user's own matches: table column key → the worksheet column (1-based) that fills it. The
+   * file's names aren't used then; a column not matched here is left out, whatever it's called. */
+  columns?: Record<string, number>;
+  /** The row the names are found on, when the reader of the source already knows it (a Google tab's): the guess starts from it. */
+  headerRow?: number;
+  /** Where the names and the data are, once the person has said (or it was read before): used as it is, not guessed. */
+  layout?: FileLayout;
+}
+
+/** A workbook loaded once, to read several of its tabs into several tables (`readImportFrom`). */
+export async function loadImportBook(bytes: ArrayBuffer): Promise<ExcelJS.Workbook> {
   if (bytes.byteLength > MAX_FILE_BYTES) throw new Error('Keep the workbook under 15 MB.');
   const Excel = await loadExcel();
   const book = new Excel.Workbook();
@@ -289,6 +285,17 @@ export async function readImport(
   } catch {
     throw new Error("This workbook can't be read. Use an .xlsx file that isn't password-protected.");
   }
+  return book;
+}
+
+/** Reads an .xlsx file's rows into the table's columns, checking each value. Nothing is saved. */
+export async function readImport(bytes: ArrayBuffer, fileName: string, sheet: Sheet, ctx: TemplateContext, options: ImportOptions = {}): Promise<ImportPreview> {
+  if (!/\.xlsx$/i.test(fileName)) throw new Error('Choose an .xlsx workbook. Save an older .xls file as .xlsx first.');
+  return readImportFrom(await loadImportBook(bytes), fileName, sheet, ctx, options);
+}
+
+/** `readImport` on a workbook already loaded. */
+export function readImportFrom(book: ExcelJS.Workbook, fileName: string, sheet: Sheet, ctx: TemplateContext, options: ImportOptions = {}): ImportPreview {
   const date1904 = Boolean((book.properties as { date1904?: boolean }).date1904);
   const worksheet = options.tab
     ? book.worksheets.find((ws) => ws.name === options.tab)

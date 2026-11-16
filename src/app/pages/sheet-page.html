@@ -23,29 +23,6 @@
       @if (mode() === 'sheet' && problemCount()) {
         <span class="badge danger" title="Cells drawn red don't fit their column: a number, a date, a value from the list"><app-icon name="alert" /> {{ problemCount() }} cell{{ problemCount() === 1 ? '' : 's' }} to check</span>
       }
-      @if (google.linkOf(sheet.sheetId); as link) {
-        <span class="google-chip" [title]="'Connected to the Google Sheet ' + link.spreadsheetTitle + ' › ' + link.tabTitle + ': Sync reads it again'">
-          <app-icon name="table" [size]="13" />
-          <span class="google-chip-name">{{ link.spreadsheetTitle }} › {{ link.tabTitle }}</span>
-          <span>· {{ link.lastSyncedAt ? 'read ' + google.ago(link.lastSyncedAt) : 'not read yet' }}</span>
-        </span>
-        <button type="button" class="icon-btn is-quiet is-sm" title="Edit the Google Sheet link" aria-label="Edit the Google Sheet link" (click)="linkOpen.set(true)">
-          <app-icon name="edit" [size]="14" />
-        </button>
-        @if (google.signedIn()) {
-          <button
-            type="button"
-            class="btn btn-secondary btn-sm"
-            [disabled]="google.isSyncing(sheet.sheetId) || mode() === 'sheet'"
-            [title]="mode() === 'sheet' ? 'Go back to the table to sync' : 'Read the Google Sheet again: the rows here are replaced by the tab\'s'"
-            (click)="google.syncAndTell(sheet.sheetId)"
-          >
-            <app-icon name="refresh" /> {{ google.isSyncing(sheet.sheetId) ? 'Reading…' : 'Sync' }}
-          </button>
-        } @else {
-          <a class="btn btn-secondary btn-sm" routerLink="/settings" title="Sign in with Google to read this table's sheet again"><app-icon name="refresh" /> Sign in to sync</a>
-        }
-      }
       <button type="button" class="btn btn-secondary btn-sm" [disabled]="busy()" (click)="downloadTemplate()" title="A blank workbook with this table's columns: fill it in, then Import">
         <app-icon name="download" /> Template
       </button>
@@ -152,11 +129,11 @@
               @if (filtered()) {
                 · {{ rows().length }} found
               }
+              @if (activeFilter(); as filter) {
+                · <button type="button" class="chip active" title="Show every row again" (click)="setFilter(null)">{{ filter.name }}: {{ filter.labels.join(', ') }} <app-icon name="x" [size]="12" /></button>
+              }
             </p>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm" [disabled]="busy()" (click)="seeConnections()" title="See how a Google Sheet's columns connect to this table's, in one step">
-            <app-icon name="table" /> Column connections
-          </button>
           <button type="button" class="btn btn-secondary btn-sm" (click)="toggleExport($event)" [attr.aria-expanded]="exportMenu() !== null">
             <app-icon name="download" /> Export <app-icon name="chevron-down" [size]="14" />
           </button>
@@ -168,6 +145,7 @@
           [formulas]="store.formulas()"
           [sort]="sort()"
           [searching]="filtered()"
+          [focusColumn]="column() ?? null"
           (sortBy)="sortBy($event)"
         />
       </section>

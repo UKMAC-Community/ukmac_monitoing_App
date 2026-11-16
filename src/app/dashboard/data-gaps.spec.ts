@@ -74,36 +74,79 @@ describe('the Missing data panel', () => {
   function mount() {
     TestBed.configureTestingModule({ providers: [provideRouter([])] });
     const fixture = TestBed.createComponent(DataGaps);
-    fixture.componentRef.setInput('sheets', [done, records, empty]);
+    fixture.componentRef.setInput('sheets', [{ ...done, heading: 'Setup' }, { ...records, heading: 'Planting' }, { ...empty, heading: 'Planting' }]);
     fixture.detectChanges();
     return { fixture, el: fixture.nativeElement as HTMLElement };
   }
 
-  it('has a tab for each table with what it needs, and opens on the first that needs input', () => {
+  /** The board of tables is first; a click on a table's card opens its columns. */
+  function open(fixture: ReturnType<typeof mount>['fixture'], el: HTMLElement, title: string) {
+    const card = ([...el.querySelectorAll('button.line')] as HTMLButtonElement[]).find((line) => line.textContent?.includes(title))!;
+    card.click();
+    fixture.detectChanges();
+  }
+
+  it('starts on the tables grouped as the menu has them (Farm Layout, then Farm Progress), not the columns', () => {
     const { el } = mount();
+    expect([...el.querySelectorAll('.section-label')].map((label) => label.textContent?.trim())).toEqual(['Farm Layout', 'Farm Progress']);
+    expect([...el.querySelectorAll('.sec-name')].map((head) => head.textContent?.trim())).toEqual(['Planting']);
+    expect([...el.querySelectorAll('.group .line .name')].map((name) => name.textContent)).toEqual(['Zones', 'Plant Progress', 'Pruning']);
+    expect(el.querySelector('.lane')).toBeNull();
+    expect(el.querySelector('.tab')).toBeNull();
+    expect(el.querySelector('.lead')).toBeNull();
+    expect(el.textContent).toContain('No records');
+    expect(el.textContent).toContain('3 columns to fill');
+  });
+
+  it('opens a table\'s columns on its card, with a tab for each table and a way back to the board', () => {
+    const { fixture, el } = mount();
+    open(fixture, el, 'Plant Progress');
     const tabs = [...el.querySelectorAll('.tab')].map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim());
     expect(tabs).toEqual(['Zones Complete', 'Plant Progress3 to fill', 'PruningNo records']);
     expect(el.querySelector('.tab[aria-selected="true"]')?.textContent).toContain('Plant Progress');
     expect(el.querySelector('.lead')?.textContent).toContain('1 column with nothing entered');
-    // Only what needs input is listed; the complete ones are asked for.
-    expect([...el.querySelectorAll('.line .name')].map((name) => name.textContent)).toEqual(['Note', 'Checked', 'Plants']);
-    expect(el.querySelector('.line .count')?.textContent?.trim()).toBe('none of 3 filled');
+    // A board: a lane for each state, the columns as cards in the lane they belong to.
+    const lane = (state: string) => [...el.querySelectorAll(`.lane.is-${state} .line .name`)].map((name) => name.textContent);
+    expect(lane('missing')).toEqual(['Note']);
+    expect(lane('partly')).toEqual(['Checked', 'Plants']);
+    expect(lane('complete').length).toBe(1);
+    expect([...el.querySelectorAll('.lane-count')].map((count) => count.textContent?.trim())).toEqual(['1', '2', '1']);
+    // Each column shows how many of the records are filled as a ring and a fraction, and how many are missing.
+    expect(el.querySelector('.line .count .fraction')?.textContent?.trim()).toBe('0/3');
+    expect(el.querySelector('.line .count .gone')?.textContent?.trim()).toBe('3 missing');
+    expect(el.querySelector('.line app-gap-ring .pct')?.textContent?.trim()).toBe('0%');
+    // The table as a whole: every cell (records × columns), how many are filled.
+    expect(el.querySelector('.overview .fraction')?.textContent?.replace(/\s/g, '')).toMatch(/^\d+\/\d+$/);
     expect(el.querySelector('a.open')?.getAttribute('href')).toBe('/mac/1/table/1');
+    (el.querySelector('button.back') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('.tab')).toBeNull();
+    expect(el.querySelectorAll('.group').length).toBe(2);
   });
 
-  it('shows the complete columns on request, and another table on its tab', () => {
+  it('links each column card to the column in the table (the table opens scrolled to it and lit)', () => {
     const { fixture, el } = mount();
-    (el.querySelector('.chip') as HTMLButtonElement).click();
-    fixture.detectChanges();
+    open(fixture, el, 'Plant Progress');
+    const links = [...el.querySelectorAll<HTMLAnchorElement>('a.goto')];
+    expect(links.length).toBe(4);
+    expect(links[0].getAttribute('href')).toMatch(/^\/mac\/1\/table\/1\?column=c\d+$/);
+    expect(links[0].getAttribute('aria-label')).toContain('in Plant Progress');
+  });
+
+  it('shows another table on its tab, with no board when it has no records', () => {
+    const { fixture, el } = mount();
+    open(fixture, el, 'Plant Progress');
     expect(el.querySelectorAll('.line').length).toBe(4);
     ([...el.querySelectorAll('.tab')][2] as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(el.querySelector('.lead')?.textContent).toContain('no records yet');
     expect(el.querySelectorAll('.line').length).toBe(0);
+    expect(el.querySelector('.board')).toBeNull();
   });
 
   it('opens the records under a column: those not input first, then those input with what was entered', () => {
     const { fixture, el } = mount();
+    open(fixture, el, 'Plant Progress');
     const lines = () => [...el.querySelectorAll('button.line')] as HTMLButtonElement[];
     const plants = lines().find((line) => line.textContent?.includes('Plants'))!;
     plants.click();

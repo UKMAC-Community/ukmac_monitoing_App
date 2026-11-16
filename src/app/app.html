@@ -201,13 +201,50 @@
     </div>
     <div class="topbar-right">
       <app-update-button />
-      <span class="sync" [class.is-busy]="store.saving() > 0">
-        @if (store.saving() > 0) {
-          <span class="spinner-sm"></span> Saving…
-        } @else {
-          <app-icon name="cloud-check" [size]="15" /> Saved on this Mac
-        }
-      </span>
+      @if (tableLink(); as link) {
+        <span class="google-chip" [title]="'Connected to the Google Sheet ' + link.spreadsheetTitle + ' › ' + link.tabTitle + ': Sync reads it again'">
+          <app-icon name="table" [size]="13" />
+          <span class="google-chip-name">{{ link.spreadsheetTitle }} › {{ link.tabTitle }}</span>
+          <span>· {{ link.lastSyncedAt ? 'read ' + google.ago(link.lastSyncedAt) : 'not read yet' }}</span>
+        </span>
+        <button type="button" class="icon-btn is-quiet is-sm" title="Edit the Google Sheet link" aria-label="Edit the Google Sheet link" (click)="google.editLinkRequest.update(n => n + 1)">
+          <app-icon name="edit" [size]="14" />
+        </button>
+      }
+      @if (onTable()) {
+        <button type="button" class="btn btn-secondary btn-sm" title="Which column of the Google Sheet fills which column of this table" (click)="google.connectionsRequest.update(n => n + 1)">
+          <app-icon name="columns" /> Columns
+        </button>
+      }
+      @if (onMacPage(); as macId) {
+        <a class="btn btn-secondary btn-sm" [routerLink]="['/mac', macId, 'google']" title="Paste one Google Sheet's link, say which tab each table reads and which column fills which">
+          <app-icon name="table" /> Connect Google Sheet
+        </a>
+      }
+      @if (linked() > 0 && google.signedIn()) {
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm sync-all"
+          [class.is-busy]="syncingAll()"
+          [disabled]="syncingAll()"
+          [attr.aria-busy]="syncingAll()"
+          title="Read every Google Sheet linked to a table again: the rows are replaced by the tabs'"
+          (click)="syncAll()"
+        >
+          @if (syncingAll()) {
+            <span class="spinner-sm"></span>
+            {{ progress() ? 'Reading ' + (progress()!.done + 1 > progress()!.total ? progress()!.total : progress()!.done + 1) + ' of ' + progress()!.total : 'Reading…' }}
+            @if (progress(); as p) {
+              <span class="sync-bar" aria-hidden="true"><span [style.width.%]="(p.done / p.total) * 100"></span></span>
+            }
+          } @else {
+            <app-icon name="refresh" /> Sync
+          }
+        </button>
+      }
+      @if (store.saving() > 0) {
+        <span class="sync is-busy"><span class="spinner-sm"></span> Saving…</span>
+      }
     </div>
   </header>
   }
@@ -220,7 +257,7 @@
 
 <div class="toasts" aria-live="polite">
   @for (toast of toasts.items(); track toast.id) {
-    <div class="toast" [class]="toast.tone === 'ok' ? 'success' : toast.tone">
+    <div class="toast" animate.leave="toast-out" [class]="toast.tone === 'ok' ? 'success' : toast.tone">
       <span class="toast-icon">
         <app-icon [name]="toast.tone === 'error' ? 'alert' : toast.tone === 'info' ? 'info' : 'check'" [size]="18" />
       </span>

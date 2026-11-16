@@ -41,15 +41,15 @@ describe('Plant Progress: the summary by zone number', () => {
     expect(summary.title).toBe('By zone number');
     const result = summaryResult(book, sheet, summary)!;
     expect(result.header).toBe('Zone number');
-    expect(result.columns).toEqual(['Records', 'Plants', 'Replanted', 'Dead']);
+    expect(result.columns).toEqual(['Plants', 'Replanted', 'Dead']);
     expect(result.rows.map((line) => [line.label, ...line.values])).toEqual([
-      ['1', 2, 1500, 15, 21],
-      ['2', 1, 300, 3, 2],
-      ['4', 1, 200, 1, 0],
-      ['(blank)', 1, 40, 0, 0],
+      ['1', 1500, 15, 21],
+      ['2', 300, 3, 2],
+      ['4', 200, 1, 0],
+      ['(blank)', 40, 0, 0],
     ]);
     // Every record is in some group: the totals are the whole table's.
-    expect(result.totals).toEqual([5, 2040, 19, 23]);
+    expect(result.totals).toEqual([2040, 19, 23]);
   });
 
   it('still adds an older table without the Zone number column up by plot', () => {

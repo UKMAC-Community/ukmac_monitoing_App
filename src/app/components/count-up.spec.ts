@@ -67,6 +67,34 @@ describe('CountUp: a KPI number counting up', () => {
       expect(span.textContent).toBe('51,400');
     });
 
+    it('waits for the tile it is in to rise (its --enter) before the first count, and counts a change at once', () => {
+      const fixture = TestBed.createComponent(Host);
+      const el = fixture.nativeElement as HTMLElement;
+      // The card this number is in comes up 300 ms late: its --enter.
+      el.style.setProperty('--enter', '300ms');
+      document.body.appendChild(el);
+      try {
+        fixture.detectChanges();
+        const span = el.querySelector('span')!;
+        expect(span.textContent).toBe('0');
+        run(300);
+        expect(span.textContent).toBe('0'); // the card has only just started to rise
+        run(750); // 450 ms into its count: past half way, as with no wait
+        expect(Number(span.textContent!.replace(/,/g, ''))).toBeGreaterThan(51400);
+        run(1200);
+        expect(span.textContent).toBe('102,800');
+        // A change afterwards does not wait again.
+        fixture.componentInstance.value.set('51,400');
+        fixture.detectChanges();
+        run(1650);
+        expect(Number(span.textContent!.replace(/,/g, ''))).toBeLessThan(102800);
+        run(2100);
+        expect(span.textContent).toBe('51,400');
+      } finally {
+        el.remove();
+      }
+    });
+
     it('shows a value that is not one number as it is, and everything at once for less motion', () => {
       const fixture = TestBed.createComponent(Host);
       fixture.componentInstance.value.set('2026-11-10');

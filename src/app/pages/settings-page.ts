@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 
 import { GoogleSignIn } from '../components/google-sign-in';
 import { Icon } from '../components/icon';
+import { SegmentedThumb } from '../components/segmented-thumb';
 import { Api, errorText } from '../core/api';
 import { AutoSync } from '../core/auto-sync';
 import { Google } from '../core/google';
@@ -17,7 +18,7 @@ import { baseName } from '../core/paths';
 /** Google sign-in and the sheets read from it, Power BI, backups, and where the data is kept. */
 @Component({
   selector: 'app-settings-page',
-  imports: [Icon, RouterLink, GoogleSignIn],
+  imports: [Icon, RouterLink, GoogleSignIn, SegmentedThumb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -105,8 +106,8 @@ import { baseName } from '../core/paths';
               <div class="grow">
                 <h2 class="card-title">Google account</h2>
                 <p class="card-desc">
-                  Sign in with Google, then bring a Google Sheet's tabs into a MAC as tables (the Import from Google Sheets button on the MAC's page).
-                  Press Sync on a table to read its tab again; its charts and the Power BI file follow. The app only reads: nothing in Google is changed.
+                  Sign in with Google, then connect a MAC to its Google Sheet once (Connect Google Sheet at the top of the MAC's page): paste the link, pick the tab
+                  each table reads and match the columns. Sync reads a table's tab again; its charts and the Power BI file follow. The app only reads: nothing in Google is changed.
                 </p>
               </div>
             </div>

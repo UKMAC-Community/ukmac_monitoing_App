@@ -55,23 +55,24 @@ export const KPI_VISUALS: { value: KpiVisual; label: string }[] = [
 /** A card and a gauge show one number: they have no groups on an axis, as the charts and the table do. */
 export const hasAxis = (type: KpiVisual | 'table') => type !== 'card' && type !== 'gauge';
 
-/** Power BI's default theme colours, in its order (the system's KPI_PALETTE). */
+/** The chart colours, in their order: the system's own categorical set (tokens.css --chart-cat-*), calm enough to sit
+ *  side by side on the glass cards, then two more for the long charts. */
 export const KPI_PALETTE = [
-  '#118DFF',
-  '#12239E',
-  '#E66C37',
-  '#6B007B',
-  '#E044A7',
-  '#744EC2',
-  '#D9B300',
-  '#D64550',
-  '#197278',
-  '#1AAB40',
+  '#2A78D6',
+  '#EB6834',
+  '#1BAF7A',
+  '#6250D6',
+  '#EDA100',
+  '#E87BA4',
+  '#18A0B5',
+  '#E34948',
+  '#7A8B99',
+  '#8E5BB5',
 ];
 
 /** A chili's own colours: a ripe one is red, an unripe one green (a series called so is drawn so). */
-export const RIPE_COLOR = '#D32F2F';
-export const UNRIPE_COLOR = '#43A047';
+export const RIPE_COLOR = '#DC4040';
+export const UNRIPE_COLOR = '#38A169';
 
 /** A stacked series' colour: its fruit's colour when it is the ripe or the unripe one, else the palette's by its place. */
 export function seriesColour(label: string, index: number): string {
@@ -308,13 +309,19 @@ function everyDay(points: ChartPoint[]): ChartPoint[] {
   return [...filled, ...points.filter((point) => point.label === '(blank)')];
 }
 
+/** One bar of a cell's mini graph: a day and what was added up on it. */
+export interface SparkPoint {
+  label: string;
+  value: number;
+}
+
 export interface SummaryResult {
   header: string;
   /** A table grouped twice (a day, then each zone number in it): what the second column is called. */
   header2?: string;
   columns: string[];
   /** `key` and `label` are the first column's group; `label2` is the second's (none: a table grouped once). */
-  rows: { key: string; label: string; label2?: string; values: (number | string | null)[] }[];
+  rows: { key: string; label: string; label2?: string; values: (number | string | null)[]; sparks?: (SparkPoint[] | null)[] }[];
   /** A `list` column's total is blank: the whole list would be as long as the table. */
   totals: (number | string | null)[];
 }
@@ -336,6 +343,29 @@ export function summaryResult(formulas: WorkbookFormulas, sheet: SheetWithRows, 
     measures.map(({ measure, values }) =>
       !values ? null : measure.aggregate === 'list' ? listValues(indexes.map((index) => values[index])) : reduceValues(indexes.map((index) => values[index]), measure.aggregate),
     );
+  // A list column drawn as a mini graph: each of its days with the other column added up on it, oldest first.
+  const graphs = summary.measures.map((measure) => {
+    const values = measure.spark && measure.aggregate === 'list' ? columnValues(formulas, sheet, measure.spark) : null;
+    const days = values ? columnValues(formulas, sheet, measure.column) : null;
+    return values && days ? { values, days } : null;
+  });
+  const sparksOf = (indexes: readonly number[]): (SparkPoint[] | null)[] | undefined =>
+    graphs.some(Boolean)
+      ? graphs.map((graph) => {
+          if (!graph) return null;
+          const byDay = new Map<string, number>();
+          for (const index of indexes) {
+            const day = String(graph.days[index] ?? '').trim();
+            if (!day) continue;
+            byDay.set(day, (byDay.get(day) ?? 0) + (numberOf(graph.values[index]) ?? 0));
+          }
+          return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true })).map(([label, value]) => ({ label, value }));
+        })
+      : undefined;
+  const lineOf = (indexes: readonly number[]) => {
+    const sparks = sparksOf(indexes);
+    return sparks ? { sparks } : {};
+  };
   return {
     header: dashboardColumnName(sheet.columns, groupColumn) + partOf(summary.groupPart),
     ...(thenColumn && thenValues ? { header2: dashboardColumnName(sheet.columns, thenColumn) + partOf(thenPart) } : {}),
@@ -343,8 +373,8 @@ export function summaryResult(formulas: WorkbookFormulas, sheet: SheetWithRows, 
     rows: groups.flatMap((group) =>
       thenColumn && thenValues
         ? // Inside each group, a line for each of the second column's (the first group's key stays, so a click still keeps its rows).
-          groupIndexes(thenValues, group.rows, thenPart).map((inner) => ({ key: group.key, label: group.label, label2: inner.label, values: valuesOf(inner.rows) }))
-        : [{ key: group.key, label: group.label, values: valuesOf(group.rows) }],
+          groupIndexes(thenValues, group.rows, thenPart).map((inner) => ({ key: group.key, label: group.label, label2: inner.label, values: valuesOf(inner.rows), ...lineOf(inner.rows) }))
+        : [{ key: group.key, label: group.label, values: valuesOf(group.rows), ...lineOf(group.rows) }],
     ),
     totals: measures.map(({ measure, values }) => (!values ? null : measure.aggregate === 'list' ? '' : reduceValues(values, measure.aggregate))),
   };
@@ -621,7 +651,6 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
       ];
       summaries = [
         summary(zoneNumber ? 'By zone number' : 'By zone plot', zoneNumber ?? plot, 'value', [
-          measure('', 'count', 'Records'),
           measure(plants, 'sum', 'Plants'),
           measure(replant, 'sum', 'Replanted'),
           measure(dead, 'sum', 'Dead'),
@@ -693,7 +722,10 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
       // What the farm asks of them: on a day, how much and from which plots; in a zone number, how much and from which plots.
       const measures = [measure(plot, 'list', 'Zone plots'), measure(total, 'sum', 'Total yield (kg)'), measure(ripe, 'sum', 'Ripe (kg)'), measure(unripe, 'sum', 'Unripe (kg)')];
       // A zone number also lists every day it was harvested (all its dates, once each, oldest first).
-      const zoneMeasures = [measure(plot, 'list', 'Zone plots'), measure(harvestDate, 'list', 'Harvest dates'), ...measures.slice(1)];
+      const harvestDays = measure(harvestDate, 'list', 'Yield by harvest day');
+      // ... drawn as a mini graph of the yield on each of those days (the list is still the cell's text for a file).
+      if (harvestDays && total) harvestDays.spark = total.key;
+      const zoneMeasures = [measure(plot, 'list', 'Zone plots'), harvestDays, ...measures.slice(1)];
       summaries = [summary('By date', harvestDate, 'value', measures), summary('By zone number', zoneNumber, 'value', zoneMeasures)];
       break;
     }

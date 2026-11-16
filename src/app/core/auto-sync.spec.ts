@@ -5,7 +5,6 @@ import { Api } from './api';
 import { AutoSync } from './auto-sync';
 import { Google, type SyncOutcome } from './google';
 import type { GoogleLink } from './models';
-import { Toasts } from './toast';
 import { WorkbookStore } from './workbook-store';
 
 const link = (sheetId: number, spreadsheetId: string, lastSyncedAt: string | null, lastRowCount = 10): GoogleLink => ({
@@ -26,7 +25,6 @@ const link = (sheetId: number, spreadsheetId: string, lastSyncedAt: string | nul
 describe('AutoSync: tables follow their Google Sheet', () => {
   let changed: Record<string, string | null>;
   let read: number[][];
-  let toasts: string[];
   let links: ReturnType<typeof signal<GoogleLink[]>>;
   let signedIn: ReturnType<typeof signal<boolean>>;
   let sync: AutoSync;
@@ -35,7 +33,6 @@ describe('AutoSync: tables follow their Google Sheet', () => {
   beforeEach(() => {
     changed = {};
     read = [];
-    toasts = [];
     links = signal<GoogleLink[]>([]);
     signedIn = signal(true);
     fileInfo.mockReset();
@@ -57,18 +54,16 @@ describe('AutoSync: tables follow their Google Sheet', () => {
           },
         },
         { provide: WorkbookStore, useValue: { saving: () => 0 } },
-        { provide: Toasts, useValue: { show: (text: string) => toasts.push(text) } },
       ],
     });
     sync = TestBed.inject(AutoSync);
   });
 
-  it('reads a table whose sheet changed after it was last read, and says how many rows came', async () => {
+  it('reads a table whose sheet changed after it was last read', async () => {
     links.set([link(1, 'a', '2026-11-10 10:00:00')]);
     changed['a'] = '2026-11-10T10:05:00.000Z';
     expect(await sync.check()).toBe(1);
     expect(read).toEqual([[1]]);
-    expect(toasts).toEqual(['Table 1 updated from Google · 3 new rows']);
   });
 
   it('leaves a table alone when its sheet has not changed since, or was never read', async () => {

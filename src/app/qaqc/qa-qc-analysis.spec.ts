@@ -22,6 +22,8 @@ function record(zone: string, date: string, live: string, leaf: [string, string,
 }
 
 describe('QaQcAnalysis', () => {
+  beforeEach(() => localStorage.clear());
+
   beforeAll(() => {
     (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
       observe() {}
@@ -39,25 +41,14 @@ describe('QaQcAnalysis', () => {
     return { fixture, el: fixture.nativeElement as HTMLElement };
   }
 
-  /** The head's Expand all / Collapse all. */
-  function allButton(el: HTMLElement) {
-    return [...el.querySelectorAll('.head button')].find((b) => /all/i.test(b.textContent ?? '')) as HTMLButtonElement;
-  }
+  const button = (el: HTMLElement, label: RegExp) => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => label.test(b.textContent ?? ''))!;
+  const stageHeads = (el: HTMLElement) => [...el.querySelectorAll('thead tr:first-child .fold-label')].map((label) => label.textContent?.trim());
+  const open = (el: HTMLElement) => [...el.querySelectorAll('thead tr:first-child th.group')].filter((th) => th.querySelector('.fold[aria-expanded="true"]')).map((th) => th.querySelector('.fold-label')?.textContent?.trim());
 
-  it('starts with every stage closed, its title only', () => {
+  it('is one table with a group of columns for each stage, the first stage open and the rest folded to their first column', () => {
     const { el } = mount();
-    expect(el.querySelectorAll('.stage').length).toBe(10);
-    expect(el.querySelectorAll('.stage table').length).toBe(0);
-    expect([...el.querySelectorAll('.stage-toggle')].every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true);
-    expect(allButton(el).textContent).toContain('Expand all');
-  });
-
-  it('shows each stage as a table of its own, one under the other, a row for each plot, GREEN / YELLOW / RED as pills', () => {
-    const { fixture, el } = mount();
-    allButton(el).click();
-    fixture.detectChanges();
-    const stages = [...el.querySelectorAll('.stage')];
-    expect(stages.map((stage) => stage.querySelector('.stage-name')?.textContent?.trim())).toEqual([
+    expect(el.querySelectorAll('table').length).toBe(1);
+    expect(stageHeads(el)).toEqual([
       'Stage 1 (0 DAT)',
       'Stage 2 (7 DAT)',
       'Stage 3 (30 DAT)',
@@ -69,37 +60,80 @@ describe('QaQcAnalysis', () => {
       'Stage 9 (75–150 DAT)',
       'Stage 10 (End of cycle)',
     ]);
-    const first = stages[0];
-    expect(first.querySelectorAll('tbody tr').length).toBe(2);
-    // Each table: the checks over their columns, and the formulas under the names.
-    expect(first.querySelectorAll('thead tr').length).toBe(3);
-    // The plot's own columns start every stage's table (the batch too, when Plant Progress gives one: not in this test).
-    expect([...first.querySelectorAll('thead tr:nth-child(2) th')].slice(0, 2).map((th) => th.textContent?.trim())).toEqual(['Zone', 'Planting Date']);
-    // The first pill is the leaf check's: 18 of the 20 plants have 4–5 true leaves, the biggest bucket, GREEN.
-    const pills = [...first.querySelectorAll('tbody tr:first-child .pill')].map((pill) => [pill.textContent?.trim(), pill.className]);
+    expect(open(el)).toEqual(['Stage 1 (0 DAT)']);
+    // A row for each plot, the plot's own columns first, then GREEN / YELLOW / RED as pills.
+    expect(el.querySelectorAll('tbody tr').length).toBe(2);
+    expect([...el.querySelectorAll('thead tr:nth-child(3) th')].slice(0, 2).map((th) => th.textContent?.trim())).toEqual(['Zone', 'Planting Date']);
+    const pills = [...el.querySelectorAll('tbody tr:first-child .pill')].map((pill) => [pill.textContent?.trim(), pill.className]);
     expect(pills[0]).toEqual(['GREEN', 'pill green']);
-    const formulaRow = [...first.querySelectorAll('thead tr.formulas th')].map((th) => th.textContent?.trim());
-    expect(formulaRow.some((text) => text?.includes('IFS('))).toBe(true);
+    // The formulas under the names.
+    expect([...el.querySelectorAll('thead tr.formulas th')].some((th) => th.textContent?.includes('IFS('))).toBe(true);
   });
 
-  it('shows one stage at a time from its chip, and the formulas can be hidden', () => {
+  it('folds and opens a stage from its heading, and Fold all / Open all do every stage', () => {
     const { fixture, el } = mount();
-    const chip = [...el.querySelectorAll<HTMLButtonElement>('.jump .chip')].find((button) => button.textContent?.trim() === 'Stage 2 (7 DAT)')!;
+    const width = () => el.querySelectorAll('thead tr:nth-child(3) th').length;
+    const folded = width();
+    (el.querySelectorAll('thead tr:first-child .fold')[1] as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(open(el)).toEqual(['Stage 1 (0 DAT)', 'Stage 2 (7 DAT)']);
+    expect(width()).toBeGreaterThan(folded);
+    button(el, /Open all/).click();
+    fixture.detectChanges();
+    expect(open(el).length).toBe(10);
+    expect(button(el, /Open all/).disabled).toBe(true);
+    button(el, /Fold all/).click();
+    fixture.detectChanges();
+    expect(open(el)).toEqual([]);
+    expect(button(el, /Fold all/).disabled).toBe(true);
+    // Folded: the plot's own columns and one column for each stage.
+    expect(width()).toBe(2 + 10);
+  });
+
+  it('shows one stage at a time from its chip (opened), and the formulas can be hidden', () => {
+    const { fixture, el } = mount();
+    const chip = [...el.querySelectorAll<HTMLButtonElement>('.jump .chip')].find((b) => b.textContent?.includes('Stage 2 (7 DAT)'))!;
     chip.click();
     fixture.detectChanges();
-    expect([...el.querySelectorAll('.stage-name')].map((title) => title.textContent?.trim())).toEqual(['Stage 2 (7 DAT)']);
-    // The stage picked is opened; All lists every stage again, the others still closed.
-    expect(el.querySelectorAll('.stage table').length).toBe(1);
-    const toggle = [...el.querySelectorAll<HTMLButtonElement>('.head button')].find((button) => /formulas/i.test(button.textContent ?? ''))!;
-    toggle.click();
+    expect(stageHeads(el)).toEqual(['Stage 2 (7 DAT)']);
+    expect(open(el)).toEqual(['Stage 2 (7 DAT)']);
+    button(el, /formulas/i).click();
     fixture.detectChanges();
-    expect(el.querySelectorAll('thead tr').length).toBe(2);
+    expect(el.querySelectorAll('thead tr').length).toBe(3);
     (el.querySelector('.jump .chip') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(el.querySelectorAll('.stage').length).toBe(10);
-    expect([...el.querySelectorAll('.stage')].filter((stage) => stage.querySelector('table')).map((stage) => stage.querySelector('.stage-name')?.textContent?.trim())).toEqual([
-      'Stage 2 (7 DAT)',
-    ]);
+    expect(stageHeads(el).length).toBe(10);
+  });
+
+  it('counts, on each stage chip, the plots with a reading', () => {
+    const { el } = mount();
+    const chips = [...el.querySelectorAll('.jump .chip')].map((chip) => chip.textContent?.replace(/\s+/g, ' ').trim());
+    expect(chips.slice(0, 4)).toEqual(['All', 'Stage 1 (0 DAT) 2', 'Stage 2 (7 DAT) 2', 'Stage 3 (30 DAT) 0']);
+  });
+
+  it('lists the plots needing action first once a stage is picked (yellow before green), else the plot order', () => {
+    const rows = [record('A1', '2026-05-10', '19', ['18', '1', '1']), record('A2', '2026-05-13', '18', ['18', '1', '1'])];
+    const sheet = makeSheet(11, 'QA/QC Management', columns, rows, 'qa-qc-management');
+    const fixture = TestBed.createComponent(QaQcAnalysis);
+    fixture.componentRef.setInput('sheet', sheet);
+    fixture.componentRef.setInput('sheets', [sheet]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const plots = () => [...el.querySelectorAll('tbody tr')].map((tr) => tr.querySelector('td')?.textContent?.trim());
+    expect(plots()).toEqual(['A1', 'A2']);
+    [...el.querySelectorAll<HTMLButtonElement>('.jump .chip')].find((b) => b.textContent?.includes('Stage 2 (7 DAT)'))!.click();
+    fixture.detectChanges();
+    expect(plots()).toEqual(['A2', 'A1']); // A2 is yellow in Stage 2: first
+  });
+
+  it('remembers which stages were left open for the table', () => {
+    const first = mount();
+    (first.el.querySelectorAll('thead tr:first-child .fold')[1] as HTMLButtonElement).click();
+    first.fixture.detectChanges();
+    expect(JSON.parse(localStorage.getItem('ukmac.qaqc-open.11')!)).toEqual(['Stage 1 (0 DAT)', 'Stage 2 (7 DAT)']);
+    first.fixture.destroy();
+    const again = mount();
+    expect(open(again.el)).toEqual(['Stage 1 (0 DAT)', 'Stage 2 (7 DAT)']);
   });
 
   it('says so when there are no QC records yet', () => {
@@ -111,55 +145,23 @@ describe('QaQcAnalysis', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('No QC records yet');
   });
 
-  describe('a long list of plots', () => {
-    function mountMany(count: number) {
-      const rows = Array.from({ length: count }, (_, i) => record(`A${i + 1}`, '2026-05-10', '18', ['18', '1', '1']));
-      const sheet = makeSheet(11, 'QA/QC Management', columns, rows, 'qa-qc-management');
-      const fixture = TestBed.createComponent(QaQcAnalysis);
-      fixture.componentRef.setInput('sheet', sheet);
-      fixture.componentRef.setInput('sheets', [sheet]);
-      fixture.detectChanges();
-      const el = fixture.nativeElement as HTMLElement;
-      const first = () => el.querySelector('.stage')!;
-      return { fixture, el, first, rows: () => first().querySelectorAll('tbody tr').length };
-    }
-
-    it('shows the first few plots of a stage opened, and "Show all" opens the rest (and "Show fewer" folds them back)', () => {
-      const { fixture, first, rows } = mountMany(12);
-      expect(first().querySelector('.more')).toBeNull(); // closed: no rows, no "Show all"
-      (first().querySelector('.stage-toggle') as HTMLButtonElement).click();
-      fixture.detectChanges();
-      expect(rows()).toBe(5);
-      expect(first().querySelector('.more-note')?.textContent).toContain('Showing 5 of 12 plots');
-      (first().querySelector('.more button') as HTMLButtonElement).click();
-      fixture.detectChanges();
-      expect(rows()).toBe(12);
-      expect(first().querySelector('.more button')?.textContent?.trim()).toBe('Show fewer');
-      (first().querySelector('.more button') as HTMLButtonElement).click();
-      fixture.detectChanges();
-      expect(rows()).toBe(5);
-    });
-
-    it('a stage opens and closes from its title, and Expand all / Collapse all do every stage', () => {
-      const { fixture, el, first, rows } = mountMany(3);
-      const all = () => allButton(el);
-      (first().querySelector('.stage-toggle') as HTMLButtonElement).click();
-      fixture.detectChanges();
-      expect(rows()).toBe(3);
-      expect(first().querySelector('.more')).toBeNull(); // few plots: nothing to extend
-      expect(all().textContent).toContain('Collapse all');
-      (first().querySelector('.stage-toggle') as HTMLButtonElement).click();
-      fixture.detectChanges();
-      expect(first().querySelector('table')).toBeNull();
-      expect(all().textContent).toContain('Expand all');
-      all().click();
-      fixture.detectChanges();
-      expect(el.querySelectorAll('.stage table').length).toBe(10);
-      expect(all().textContent).toContain('Collapse all');
-      all().click();
-      fixture.detectChanges();
-      expect(el.querySelectorAll('.stage table').length).toBe(0);
-      expect(all().textContent).toContain('Expand all');
-    });
+  it('shows the first plots of a long list, and "Show all" lists the rest (and "Show fewer" goes back)', () => {
+    const rows = Array.from({ length: 25 }, (_, i) => record(`A${i + 1}`, '2026-05-10', '18', ['18', '1', '1']));
+    const sheet = makeSheet(11, 'QA/QC Management', columns, rows, 'qa-qc-management');
+    const fixture = TestBed.createComponent(QaQcAnalysis);
+    fixture.componentRef.setInput('sheet', sheet);
+    fixture.componentRef.setInput('sheets', [sheet]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const count = () => el.querySelectorAll('tbody tr').length;
+    expect(count()).toBe(10);
+    expect(el.querySelector('.more-note')?.textContent).toContain('Showing 10 of 25 plots');
+    (el.querySelector('.more button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(count()).toBe(25);
+    expect(el.querySelector('.more button')?.textContent?.trim()).toBe('Show fewer');
+    (el.querySelector('.more button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(count()).toBe(10);
   });
 });

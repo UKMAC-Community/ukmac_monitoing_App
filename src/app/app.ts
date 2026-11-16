@@ -4,28 +4,21 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 
 import { Icon } from './components/icon';
+import { NavPillGlide } from './components/nav-pill-glide';
 import { SignInGate } from './components/sign-in-gate';
 import { UpdateButton } from './components/update-button';
-import { Api } from './core/api';
+import { Api, errorText } from './core/api';
 import { Google } from './core/google';
 import { AutoSync } from './core/auto-sync';
 import { MacList } from './core/mac-list';
 import { PowerBi } from './core/powerbi';
+import { HEADING_ICONS } from './core/headings';
 import { Shell } from './core/shell';
 import { Theme } from './core/theme';
 import { Toasts } from './core/toast';
 import { AppUpdater } from './core/updater';
 import { WorkbookStore } from './core/workbook-store';
 import { tableGaps } from './dashboard/data-gaps';
-
-const HEADING_ICONS: Record<string, string> = {
-  Setup: 'map',
-  Nursery: 'seedling',
-  Planting: 'sprout',
-  'QA/QC': 'check',
-  Inventory: 'package',
-  Operational: 'wallet',
-};
 
 interface Crumb {
   label: string;
@@ -34,7 +27,7 @@ interface Crumb {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, SignInGate, UpdateButton],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, NavPillGlide, SignInGate, UpdateButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -174,6 +167,26 @@ export class App implements OnInit {
     return crumbs;
   });
 
+  /** The Google Sheet the open table reads (not while its dashboard is being edited). */
+  readonly tableLink = computed(() => {
+    const url = this.url();
+    const match = /^\/mac\/\d+\/table\/(\d+)/.exec(url);
+    if (!match || /[?&]view=dashboard\b/.test(url)) return null;
+    return this.google.linkOf(Number(match[1]));
+  });
+
+  /** A table's page is open (its rows or its sheet, not its dashboard): the top bar shows its Columns button. */
+  readonly onTable = computed(() => {
+    const url = this.url();
+    return /^\/mac\/\d+\/table\/\d+/.test(url) && !/[?&]view=dashboard\b/.test(url);
+  });
+
+  /** The MAC's own page is open: the top bar shows Connect Google Sheet for it (its id). */
+  readonly onMacPage = computed(() => {
+    const match = /^\/mac\/(\d+)\/?(?:[?#].*)?$/.exec(this.url());
+    return match ? Number(match[1]) : null;
+  });
+
   constructor() {
     // Another account (or none) sees another set of MACs: nothing of the last one stays on screen.
     effect(() => {
@@ -203,6 +216,43 @@ export class App implements OnInit {
     // A restart for an update waits while an edit is being saved or a Google sheet is being read.
     this.updater.writing = () => this.store.saving() > 0 || this.google.syncing().size > 0;
     void this.updater.checkOnStart();
+  }
+
+  /** Every table linked to a Google Sheet, for the top bar's Sync. */
+  readonly linked = computed(() => this.google.links().length);
+  /** How far Sync (all) is: tables read of tables to read; null when it isn't reading. */
+  readonly progress = signal<{ done: number; total: number } | null>(null);
+  /** Whether Sync (all) is reading now (a table's own read counts too, so the button doesn't offer a second one). */
+  readonly syncingAll = computed(() => this.progress() !== null || this.google.syncing().size > 0);
+
+  /**
+   * Reads every table linked to a Google Sheet (each sheet downloaded once). A table open in Open in sheet is left out:
+   * a read replaces its rows, which would race the spreadsheet's own saves.
+   */
+  async syncAll() {
+    if (this.syncingAll()) return;
+    const held = this.autoSync.held();
+    const links = this.google.links();
+    const ids = links.filter((link) => !held.has(link.sheetId)).map((link) => link.sheetId);
+    const left = links.length - ids.length;
+    if (!ids.length) {
+      this.toasts.show('Close the sheet view to sync that table.', 'info');
+      return;
+    }
+    this.progress.set({ done: 0, total: ids.length });
+    let outcomes: Awaited<ReturnType<Google['syncMany']>>;
+    try {
+      outcomes = await this.google.syncMany(ids, (done, total) => this.progress.set({ done, total }));
+    } finally {
+      this.progress.set(null);
+    }
+    const failed = [...outcomes.values()].filter((outcome): outcome is Error => outcome instanceof Error);
+    const read = outcomes.size - failed.length;
+    if (failed.length) {
+      this.toasts.error(`${read} of ${outcomes.size} tables read. ${errorText(failed[0])}`);
+    } else {
+      this.toasts.show(`${read} table${read === 1 ? '' : 's'} read from Google${left ? ` · ${left} open in sheet view left for now` : ''}`, 'ok');
+    }
   }
 
   headingIcon(heading: string) {

@@ -315,6 +315,11 @@ export interface SummaryMeasure {
   column: string;
   aggregate: KpiAggregate;
   label?: string;
+  /**
+   * A `list` of days drawn as a mini bar graph as well: the column (a number) added up for each of the list's values.
+   * The list's text stays what the cell is (a file or an export reads it).
+   */
+  spark?: string;
 }
 
 /** A table of the rows grouped: one line per Zone (or month…), a column per measure, totals under. */

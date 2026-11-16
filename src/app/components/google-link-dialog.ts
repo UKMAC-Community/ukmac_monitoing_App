@@ -4,7 +4,7 @@ import { errorText } from '../core/api';
 import { Google, sheetUrl, type OpenedSheet } from '../core/google';
 import type { SheetWithRows } from '../core/models';
 import { Toasts } from '../core/toast';
-import { matchHeaders } from '../google/sheet-sync';
+import { headerMapOf, matchHeaders } from '../google/sheet-sync';
 import { isEntryColumn } from '../sheet/columns';
 import { GoogleSignIn } from './google-sign-in';
 import { Icon } from './icon';
@@ -12,7 +12,7 @@ import { Modal } from './modal';
 
 /**
  * Edits where a table is read from: paste another Google Sheet's link (or fix a broken one), then pick
- * its tab. Saving only moves the link: the rows stay as they are until Sync (or "Save & sync") reads
+ * its tab. A table that isn't read from Google yet gets its first link here (Zone Map's Zones). Saving only moves the link: the rows stay as they are until Sync (or "Save & sync") reads
  * the tab. The columns the link has matched keep filling from the same headers.
  */
 @Component({
@@ -39,6 +39,7 @@ import { Modal } from './modal';
             <small class="muted">A row of names showing up as data, or columns read from the wrong row? Say where the column names and the data start, check the matches, and read the tab again.</small>
           </div>
         }
+      }
 
         @if (!google.signedIn()) {
           <div class="center">
@@ -60,7 +61,7 @@ import { Modal } from './modal';
                 />
                 <button type="submit" class="btn btn-secondary" [disabled]="!address().trim() || reading()">{{ reading() ? 'Reading…' : 'Read' }}</button>
               </span>
-              <small class="form-hint">Paste another sheet's link to read that one instead, then press Read to see its tabs.</small>
+              <small class="form-hint">{{ link() ? "Paste another sheet's link to read that one instead, then press Read to see its tabs." : 'Paste the link of the Google Sheet, then press Read to see its tabs.' }}</small>
             </label>
           </form>
 
@@ -100,17 +101,22 @@ import { Modal } from './modal';
             </ul>
             @if (!changed()) {
               <p class="small muted">This is the sheet and tab the table is reading now.</p>
-            } @else {
+            } @else if (link()) {
               <p class="small muted">
                 Saving only moves the link: the rows stay as they are until you press <strong>Sync</strong>. A header the table has no column for is added as a new column when it is read.
+              </p>
+            } @else {
+              <p class="small muted">
+                Saving links the table to this tab. <strong>Save &amp; sync</strong> also reads it now: the table's rows are replaced by the tab's, and a header the table has no column for is added as a new column.
               </p>
             }
           }
         }
-      }
 
       <ng-container footer>
-        <button type="button" class="btn btn-plain danger-text" title="Stop reading this table from Google; its rows stay" [disabled]="saving() || !link()" (click)="disconnect()">Disconnect</button>
+        @if (link()) {
+          <button type="button" class="btn btn-plain danger-text" title="Stop reading this table from Google; its rows stay" [disabled]="saving()" (click)="disconnect()">Disconnect</button>
+        }
         <span class="grow"></span>
         <button type="button" class="btn btn-secondary" (click)="closed.emit()">Cancel</button>
         <button type="button" class="btn btn-secondary" [disabled]="!changed() || saving()" (click)="save(false)">Save link</button>
@@ -179,7 +185,7 @@ export class GoogleLinkDialog {
     const link = this.link();
     const opened = this.opened();
     const tab = this.pickedTab();
-    return !!link && !!opened && !!tab && (opened.file.id !== link.spreadsheetId || tab !== link.tabTitle);
+    return !!opened && !!tab && (!link || opened.file.id !== link.spreadsheetId || tab !== link.tabTitle);
   });
 
   /** Each read has a number, so an answer for an address typed over since is dropped. */
@@ -259,7 +265,18 @@ export class GoogleLinkDialog {
     const sheetId = this.sheet().sheetId;
     this.saving.set(true);
     try {
-      await this.google.relink(sheetId, { spreadsheetId: opened.file.id, spreadsheetTitle: opened.file.name, tabTitle: tab });
+      if (this.link()) {
+        await this.google.relink(sheetId, { spreadsheetId: opened.file.id, spreadsheetTitle: opened.file.name, tabTitle: tab });
+      } else {
+        // The table's first link: the tab's headers matched to its columns, as the Connect page does.
+        const data = opened.tabs.find((item) => item.name === tab)!;
+        const { matched } = matchHeaders(this.sheet().columns, data.headers, {});
+        await this.google.connectTable(
+          sheetId,
+          { spreadsheetId: opened.file.id, spreadsheetTitle: opened.file.name, tabTitle: tab, headerMap: headerMapOf(data.headers, matched), layout: null },
+          data.rows.length,
+        );
+      }
     } catch (error) {
       this.toasts.error(errorText(error));
       return;

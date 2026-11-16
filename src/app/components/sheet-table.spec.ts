@@ -88,6 +88,44 @@ describe('SheetTable: boxes and groups that fold', () => {
     expect(el.querySelectorAll('th.group button.fold').length).toBe(1);
   });
 
+  it('keeps the ID and the Batch group beside whichever group is picked (a table with no stages)', () => {
+    const nursery = makeSheet(44, 'Nursery Progress', [col('id', 'ID'), col('b', 'Batch number', { group: 'Batch' }), col('v', 'Variety name', { group: 'Batch' }), col('t', 'Total number', { group: 'Seedlings' }), col('s', 'Supply date', { group: 'Supply' })], [{ id: '1', b: 'B1', v: 'VN', t: '5', s: '2026-07-01' }]);
+    const fixture = TestBed.createComponent(SheetTable);
+    fixture.componentRef.setInput('sheet', nursery);
+    fixture.componentRef.setInput('rows', nursery.rows);
+    fixture.componentRef.setInput('formulas', new WorkbookFormulas([nursery], '2026-11-16'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const heads = () => [...el.querySelectorAll('thead tr:last-child th')].map((th) => th.textContent?.trim());
+    const chip = (label: string) => [...el.querySelectorAll<HTMLButtonElement>('.jump .chip')].find((item) => item.textContent?.trim().startsWith(label))!;
+    chip('Supply').click();
+    fixture.detectChanges();
+    expect(heads()).toEqual(['ID', 'Batch number', 'Variety name', 'Supply date']);
+    chip('Seedlings').click();
+    fixture.detectChanges();
+    expect(heads()).toEqual(['ID', 'Batch number', 'Variety name', 'Total number']);
+  });
+
+  it('brings a column asked for into view: every column shown, its fold opened, and its header and cells lit for a while', () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, el, button } = show();
+      button('Fold all').click();
+      fixture.detectChanges();
+      const folded = el.querySelectorAll('thead tr:last-child th').length;
+      fixture.componentRef.setInput('focusColumn', 'c3'); // the second column of Stage 1's first group, hidden by the fold
+      fixture.detectChanges();
+      expect(el.querySelectorAll('thead tr:last-child th').length).toBeGreaterThan(folded);
+      expect(el.querySelector('th[data-col="c3"]')?.classList).toContain('is-lit');
+      expect(el.querySelectorAll('tbody td.is-lit').length).toBe(2);
+      vi.advanceTimersByTime(5100);
+      fixture.detectChanges();
+      expect(el.querySelector('th.is-lit')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('folds all, opens all, and keeps what is folded for the table', () => {
     const { fixture, el, heads, button } = show();
     button('Fold all').click();

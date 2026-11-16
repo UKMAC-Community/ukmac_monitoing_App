@@ -3,7 +3,6 @@ import { inject, Injectable, signal } from '@angular/core';
 import { Api } from './api';
 import { Google } from './google';
 import type { GoogleLink } from './models';
-import { Toasts } from './toast';
 import { WorkbookStore } from './workbook-store';
 
 const KEY = 'google.autosync';
@@ -23,7 +22,6 @@ export class AutoSync {
   private readonly api = inject(Api);
   private readonly google = inject(Google);
   private readonly store = inject(WorkbookStore);
-  private readonly toasts = inject(Toasts);
 
   /** On unless the person turned it off. */
   readonly on = signal(true);
@@ -92,15 +90,11 @@ export class AutoSync {
       }
       if (!stale.length) return 0;
       for (const { link, changed } of stale) this.tried.set(link.sheetId, changed);
-      const before = new Map(stale.map(({ link }) => [link.sheetId, link.lastRowCount]));
       const outcomes = await this.google.syncMany(stale.map(({ link }) => link.sheetId));
+      // Quiet on purpose: the tables just show the new data, with no message.
       for (const { link } of stale) {
         const outcome = outcomes.get(link.sheetId);
-        if (!outcome || outcome instanceof Error) continue;
-        read += 1;
-        const gained = outcome.rows - (before.get(link.sheetId) ?? 0);
-        const news = [gained > 0 ? `${gained} new row${gained === 1 ? '' : 's'}` : '', outcome.added.length ? `new column${outcome.added.length === 1 ? '' : 's'}: ${outcome.added.join(', ')}` : ''].filter(Boolean);
-        this.toasts.show(`${link.tableTitle} updated from Google${news.length ? ` · ${news.join(' · ')}` : ''}`, 'info');
+        if (outcome && !(outcome instanceof Error)) read += 1;
       }
     } finally {
       this.checking = false;

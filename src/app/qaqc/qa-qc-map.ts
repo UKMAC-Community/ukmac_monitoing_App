@@ -110,11 +110,7 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
       <header class="head">
         <div class="title">
           <h2>QA/QC map</h2>
-          @if (picks().length) {
-            <p>Each plot is a tower of the layers you ticked: the first one ticked at the bottom, the last on top. A layer's colour says how that one is doing. Press Open on the map to see it large, with the layers and a plot's details.</p>
-          } @else {
-            <p>Each plot is a tower: one layer for each stage of the plant, the first at the bottom, the last on top. A layer's colour says how that stage is doing. Press Open on the map to see it large, with the layers and a plot's details.</p>
-          }
+          <p>Each plot is a tower of layers, first at the bottom. Colour shows how it is doing.</p>
         </div>
         <div class="by">
           <button type="button" class="btn btn-secondary btn-sm picker-btn" [attr.aria-expanded]="open()" (click)="open.set(!open())">
@@ -342,7 +338,7 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
     .chip-x { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 50%; background: none; color: var(--text-muted); cursor: pointer; }
     .chip-x:hover { background: var(--surface-hover); color: var(--text); }
 
-    .map-box { position: relative; height: clamp(300px, 44vh, 440px); overflow: hidden; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+    .map-box { position: relative; height: clamp(380px, 60vh, 560px); overflow: hidden; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
     .map-box app-mac-map-3d { container-type: size; }
     .map-box app-mac-map-3d:not(.m3-expanded) { position: absolute; inset: 0; }
     /* Small: just the map (the layers and the key are over it only when it is opened big, with Open). */
@@ -567,11 +563,16 @@ export class QaQcMap {
   /** The plots with a QC record: the map opens on them (the rest of the farm round them). */
   readonly stackedIds = computed(() => [...this.stacked().keys()]);
 
-  /** The plots for the map: a pale bed each (water and not-in-use as the Zone Map has them), a stack on those with a QC record, and a dot by the name of what the plot comes to. */
+  /**
+   * The plots for the map: only those with a QC record (the rest of the farm, with no record, and water, are left off), each a pale bed
+   * under its stack, with a dot by its name of what the plot comes to. While no plot has a record yet, every plot is drawn as a pale bed
+   * (as the Zone Map has them) so the map is not empty.
+   */
   readonly shapes = computed<MapShape[]>(() => {
     const panes = this.panes();
     const stacked = this.stacked();
-    return plotShapes(this.layout()).map((shape) => {
+    const all = plotShapes(this.layout());
+    return (stacked.size ? all.filter((shape) => stacked.has(shape.id)) : all).map((shape) => {
       const cell = this.cells().get(shape.id)!;
       if (cell.usage !== 'normal') return { id: shape.id, points: shape.points, label: shape.label, fill: cell.palette.bg, stroke: cell.palette.border, hint: cell.usage === 'water' ? 'Water' : 'Not a plot in use' };
       const entry = stacked.get(shape.id);

@@ -75,12 +75,59 @@ a.crumb-item:hover {
   gap: 10px;
 }
 
+/* A table read from a Google Sheet: where from, and how fresh (beside Sync). */
+.google-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.google-chip-name {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-weight: 500;
+}
+
 .sync {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+.sync-all {
+  position: relative;
+  overflow: hidden;
+}
+
+/* A thin bar along the foot of the button: how many tables are read of all. */
+.sync-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.sync-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+
+.sync-all.is-busy {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .sync.is-busy {

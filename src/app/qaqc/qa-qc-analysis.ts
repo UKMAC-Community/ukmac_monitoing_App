@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, signal, untracked } from '@angular/core';
 
 import type { Row, SheetWithRows } from '../core/models';
 import { formatFormulaValue, isFormulaError } from '../formula/evaluate-formula';
@@ -7,6 +7,7 @@ import { WorkbookFormulas } from '../formula/sheet-formulas';
 import { formatDate, isIsoDate, todayIso } from '../sheet/columns';
 import { Icon } from '../components/icon';
 import { type AnalysisColumn, batchSourceOf, buildAnalysis } from './analysis-sheet';
+import { stageSummaries } from './stage-summary';
 
 interface Span {
   label: string;
@@ -38,84 +39,93 @@ interface Cell {
           <h2>QA/QC Analysis</h2>
           <p>
             Each zone plot's latest QC record against the growth standard · {{ built().rows.length }} plot{{ built().rows.length === 1 ? '' : 's' }}
+            @if (summaries().redPlots) {
+              · <b class="need">{{ summaries().redPlots }} with a red check</b>
+            }
           </p>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm" (click)="setAll(!anyOpen())" title="Open every stage's table, or fold them all away">
-          {{ anyOpen() ? 'Collapse all' : 'Expand all' }}
-        </button>
         <button type="button" class="btn btn-secondary btn-sm" [attr.aria-pressed]="showFormulas()" (click)="showFormulas.set(!showFormulas())" title="Show each column's formula under its name">
           <app-icon name="table" /> {{ showFormulas() ? 'Hide formulas' : 'Show formulas' }}
         </button>
       </header>
-      <div class="jump">
-        <span class="jump-label">Show</span>
-        <button type="button" class="chip" [class.active]="stage() === null" (click)="pick(null)">All</button>
-        @for (name of stages(); track name) {
-          <button type="button" class="chip" [class.active]="stage() === name" (click)="pick(name)">{{ name }}</button>
-        }
+      <div class="bar">
+        <div class="jump">
+          <span class="jump-label">Show</span>
+          <button type="button" class="chip" [class.active]="stage() === null" (click)="pick(null)">All</button>
+          @for (chip of chips(); track chip.name) {
+            <button type="button" class="chip" [class.active]="stage() === chip.name" [title]="chip.title" (click)="pick(chip.name)">{{ chip.name }} <small>{{ chip.read }}</small></button>
+          }
+        </div>
+        <div class="folds">
+          <button type="button" class="btn btn-plain btn-sm" [disabled]="!anyOpen()" title="Fold every stage to its first column" (click)="setAll(false)">
+            <app-icon name="circle-minus" [size]="14" /> Fold all
+          </button>
+          <button type="button" class="btn btn-plain btn-sm" [disabled]="allOpen()" title="Open every stage" (click)="setAll(true)">
+            <app-icon name="circle-plus" [size]="14" /> Open all
+          </button>
+        </div>
       </div>
       @if (!built().rows.length) {
         <p class="none">No QC records yet — import them from the Google Sheet, or add them in the table.</p>
       } @else {
-        <!-- Each stage is a table of its own, one under the other: its checks over the plots (the plot's own columns repeat). -->
-        @for (block of blocks(); track block.stage) {
-          <section class="stage">
-            <h3 class="stage-title">
-              <button type="button" class="stage-toggle" [attr.aria-expanded]="block.open" (click)="toggleStage(block.stage)">
-                <app-icon name="chevron-down" [size]="16" class="chev" [class.shut]="!block.open" />
-                <span class="stage-name">{{ block.stage }}</span>
-                <span class="stage-count">{{ block.total }} plot{{ block.total === 1 ? '' : 's' }}</span>
-              </button>
-            </h3>
-            @if (block.open) {
-            <div class="table-card scroller">
-              <table class="data-table">
-                <thead>
-                  <tr class="boxes">
-                    @for (item of block.spans; track $index) {
-                      <th class="group" [attr.colspan]="item.span"><span class="stick">{{ item.label }}</span></th>
+        <!-- One table, as the web's: a row for each plot, each stage a group of columns that folds to its first. -->
+        <div class="table-card scroller">
+          <table class="data-table">
+            <thead>
+              <tr class="boxes">
+                @for (item of view().groups; track $index) {
+                  <th class="group" [class.edge]="item.stage" [class.is-folded]="item.stage && !item.open" [attr.colspan]="item.span">
+                    @if (item.stage) {
+                      <button type="button" class="fold" [attr.aria-expanded]="item.open" [title]="item.open ? 'Fold the stage to its first column' : 'Open the stage'" (click)="toggleStage(item.stage)">
+                        <app-icon [name]="item.open ? 'circle-minus' : 'circle-plus'" [size]="14" />
+                        <span class="fold-label">{{ item.stage }}</span>
+                      </button>
                     }
-                  </tr>
-                  <tr>
-                    @for (item of block.columns; track $index) {
-                      <th [style.min-width.px]="item.width" [class.left]="item.kind === 'result' || item.kind === 'action'">{{ item.header }}</th>
-                    }
-                  </tr>
-                  @if (showFormulas()) {
-                    <tr class="formulas">
-                      @for (item of block.columns; track $index) {
-                        <th [title]="item.formulaText"><code>{{ item.formulaText || (item.kind === 'identity' || item.kind === 'date' ? 'From the record' : '') }}</code></th>
-                      }
-                    </tr>
+                  </th>
+                }
+              </tr>
+              <tr class="boxes">
+                @for (item of view().checks; track $index) {
+                  <th class="group" [class.edge]="item.edge" [attr.colspan]="item.span"><span class="stick">{{ item.label }}</span></th>
+                }
+              </tr>
+              <tr>
+                @for (item of view().columns; track $index) {
+                  <th [class.edge]="item.edge" [style.min-width.px]="item.col.width" [class.left]="item.col.kind === 'result' || item.col.kind === 'action'">{{ item.col.header }}</th>
+                }
+              </tr>
+              @if (showFormulas()) {
+                <tr class="formulas">
+                  @for (item of view().columns; track $index) {
+                    <th [class.edge]="item.edge" [title]="item.col.formulaText"><code>{{ item.col.formulaText || (item.col.kind === 'identity' || item.col.kind === 'date' ? 'From the record' : '') }}</code></th>
                   }
-                </thead>
-                <tbody>
-                  @for (line of block.lines; track line.id) {
-                    <tr>
-                      @for (cell of line.cells; track $index) {
-                        <td [class.left]="block.columns[$index].kind === 'result' || block.columns[$index].kind === 'action'" [title]="cell.error ?? cell.text">
-                          @if (cell.status) {
-                            <span class="pill" [class]="'pill ' + cell.status">{{ cell.text }}</span>
-                          } @else {
-                            {{ cell.text }}
-                          }
-                        </td>
+                </tr>
+              }
+            </thead>
+            <tbody>
+              @for (line of view().lines; track line.id) {
+                <tr>
+                  @for (cell of line.cells; track $index) {
+                    <td [class.edge]="view().columns[$index].edge" [class.left]="view().columns[$index].col.kind === 'result' || view().columns[$index].col.kind === 'action'" [title]="cell.error ?? cell.text">
+                      @if (cell.status) {
+                        <span class="pill" [class]="'pill ' + cell.status">{{ cell.text }}</span>
+                      } @else {
+                        {{ cell.text }}
                       }
-                    </tr>
+                    </td>
                   }
-                </tbody>
-              </table>
-            </div>
-            @if (block.total > preview) {
-              <div class="more">
-                <span class="more-note">Showing {{ block.lines.length }} of {{ block.total }} plots</span>
-                <button type="button" class="btn btn-secondary btn-sm" (click)="toggleRows(block.stage)">
-                  {{ block.all ? 'Show fewer' : 'Show all ' + block.total }}
-                </button>
-              </div>
-            }
-            }
-          </section>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (view().total > preview) {
+          <div class="more">
+            <span class="more-note">Showing {{ view().lines.length }} of {{ view().total }} plots</span>
+            <button type="button" class="btn btn-secondary btn-sm" (click)="allRows.set(!allRows())">
+              {{ allRows() ? 'Show fewer' : 'Show all ' + view().total }}
+            </button>
+          </div>
         }
       }
       @if (built().skipped.length) {
@@ -134,24 +144,25 @@ interface Cell {
     .title { flex: 1; min-width: 0; }
     .title h2 { margin: 0; font-size: 1.0625rem; }
     .title p { margin: 2px 0 0; color: var(--text-muted); font-size: 0.8125rem; }
-    .jump { display: flex; align-items: center; gap: 8px; padding: 8px 20px 12px; overflow-x: auto; scrollbar-width: none; border-bottom: var(--hairline) solid var(--border); }
+    .bar { display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: var(--hairline) solid var(--border); }
+    .jump { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 8px 0 12px; overflow-x: auto; scrollbar-width: none; }
     .jump-label { font-size: 0.8125rem; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
     .jump .chip { white-space: nowrap; cursor: pointer; font-size: 0.8125rem; }
-    .stage { padding: 4px 0 8px; }
-    .stage + .stage { border-top: var(--hairline) solid var(--border); }
-    .stage-title { margin: 0; padding: 6px 12px 4px; font-size: 0.9375rem; font-weight: 600; }
-    .stage-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border: 0; border-radius: var(--radius-sm, 8px); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-    .stage-toggle:hover { background: var(--surface-hover, rgb(0 0 0 / 0.04)); }
-    .stage-name { font-weight: 600; }
-    .stage-count { margin-left: auto; font-size: 0.8125rem; font-weight: 400; color: var(--text-muted); }
-    .chev { display: inline-flex; transition: transform 0.15s ease; }
-    .chev.shut { transform: rotate(-90deg); }
+    .jump .chip small { color: var(--text-muted); font-size: 0.6875rem; margin-left: 4px; font-variant-numeric: tabular-nums; }
+    .folds { flex: none; display: flex; gap: 2px; }
+    .fold { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 8px; border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+    .fold:hover { background: var(--surface-hover); }
+    .fold app-icon { flex: none; color: var(--text-muted); }
+    .fold-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .need { color: var(--danger); font-weight: 600; }
+    .data-table th.is-folded { min-width: 130px; }
+    .data-table .edge { border-left: var(--hairline) solid var(--border); }
     .more { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px 4px; }
     .more-note { font-size: 0.8125rem; color: var(--text-muted); }
     .scroller { background: transparent; overflow-x: auto; }
     .data-table { width: max-content; min-width: 100%; }
     .data-table thead th { background: var(--surface-solid); text-align: center; }
-    .data-table thead th.box, .data-table thead th.group { color: var(--text); font-weight: 600; text-align: left !important; }
+    .data-table thead th.box, .data-table thead th.group { color: var(--text); font-weight: 600; text-align: center; }
     .data-table th.left, .data-table td.left { text-align: left; }
     .data-table td { text-align: center; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
     .data-table tr.formulas th { font-weight: 400; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -171,67 +182,105 @@ export class QaQcAnalysis {
 
   readonly stage = signal<string | null>(null);
 
-  /** How many plots a stage shows before "Show all". */
-  readonly preview = 5;
+  /** How many plots show before "Show all". */
+  readonly preview = 10;
+  readonly allRows = signal(false);
   /**
-   * The stages opened (every stage starts closed, its title only, so the page is a short list to pick from), and the
-   * ones showing every plot (the rest show the first few).
+   * The stages opened (the rest fold to their first column; the first stage starts open until the person chooses),
+   * remembered for the table between pages and launches.
    */
-  private readonly opened = signal<ReadonlySet<string>>(new Set());
-  private readonly everyRow = signal<ReadonlySet<string>>(new Set());
+  private readonly opened = signal<ReadonlySet<string> | null>(null);
+  /** Each stage's standing over the plots (red / yellow / green / no reading), and the plots needing action. */
+  readonly summaries = computed(() => stageSummaries(this.built(), this.formulas()));
   readonly showFormulas = signal(true);
+
+  constructor() {
+    effect(() => {
+      const id = this.sheet().sheetId;
+      untracked(() => this.opened.set(readOpened(id)));
+    });
+  }
 
   readonly built = computed(() => buildAnalysis(this.sheet(), batchSourceOf(this.sheets())));
   private readonly formulas = computed(() => new WorkbookFormulas([...this.sheets(), this.built().sheet], todayIso()));
 
   readonly stages = computed(() => [...new Set(this.built().columns.map((item) => item.stage).filter(Boolean))]);
 
-  /** The plot's own columns (batch, zone, planting date), which every stage's table starts with. */
+  /** The plot's own columns (batch, zone, planting date), which the table starts with. */
   private readonly plotColumns = computed(() => this.built().columns.filter((item) => !item.stage));
 
-  /** A table for each stage in view (all of them, or the one picked), one under the other. */
-  readonly blocks = computed(() => {
+  private readonly openSet = computed(() => this.opened() ?? new Set(this.stages().slice(0, 1)));
+
+  /** A chip for each stage: how many plots have a reading in it. */
+  readonly chips = computed(() => {
+    const stages = this.summaries().stages;
+    return this.stages().map((name) => {
+      const sum = stages.get(name);
+      return {
+        name,
+        read: sum ? sum.red + sum.yellow + sum.green : 0,
+        title: sum ? `${sum.red} red · ${sum.yellow} yellow · ${sum.green} green · ${sum.none} with no reading` : '',
+      };
+    });
+  });
+
+  /** The one table: the plot's columns, then each stage in view (all its columns when open, its first when folded). */
+  readonly view = computed(() => {
     const { rows, sheet, columns } = this.built();
     const formulas = this.formulas();
     const picked = this.stage();
-    const own = this.plotColumns();
-    return this.stages()
-      .filter((name) => picked === null || picked === name)
-      .map((name) => {
-        const shown = [...own, ...columns.filter((item) => item.stage === name)];
-        const all = this.everyRow().has(name);
-        return {
-          stage: name,
-          open: this.opened().has(name),
-          all,
-          total: rows.length,
-          columns: shown,
-          // The checks named over their columns (the plot's own and the stage's date have none).
-          spans: runs(shown.map((item) => item.check)),
-          lines: (all ? rows : rows.slice(0, this.preview)).map((row) => ({ id: row.rowId, cells: shown.map((item) => this.cellOf(formulas, sheet, row, item)) })),
-        };
-      });
+    const open = this.openSet();
+    const segments = [
+      { stage: '', open: true, cols: this.plotColumns() },
+      ...this.stages()
+        .filter((name) => picked === null || picked === name)
+        .map((name) => {
+          const all = columns.filter((item) => item.stage === name);
+          const isOpen = picked === name || open.has(name);
+          return { stage: name, open: isOpen, cols: isOpen ? all : all.slice(0, 1) };
+        }),
+    ];
+    const shown = segments.flatMap((seg) => seg.cols.map((col, index) => ({ col, edge: seg.stage !== '' && index === 0 })));
+    const groups = segments.map((seg) => ({ stage: seg.stage, open: seg.open, span: seg.cols.length }));
+    // The checks named over their columns (the plot's own and the stage's date have none), within each stage.
+    const checks = segments.flatMap((seg) => runs(seg.cols.map((item) => item.check)).map((run, index) => ({ ...run, edge: seg.stage !== '' && index === 0 })));
+    // With one stage picked, its plots needing action come first; else the table's order.
+    const order = picked ? this.summaries().stages.get(picked)?.order : undefined;
+    const byId = new Map(rows.map((row) => [row.rowId, row]));
+    const ordered = order ? order.flatMap((id) => byId.get(id) ?? []) : rows;
+    const lines = (this.allRows() ? ordered : ordered.slice(0, this.preview)).map((row) => ({ id: row.rowId, cells: shown.map((item) => this.cellOf(formulas, sheet, row, item.col)) }));
+    return { groups, checks, columns: shown, lines, total: rows.length };
   });
 
-  readonly anyOpen = computed(() => this.stages().some((name) => this.opened().has(name)));
+  readonly anyOpen = computed(() => this.stages().some((name) => this.openSet().has(name)));
+  readonly allOpen = computed(() => this.stages().every((name) => this.openSet().has(name)));
 
   /** One stage on its own from its chip, opened (it is what was asked for); All lists them again as they were. */
   pick(name: string | null) {
     this.stage.set(name);
-    if (name !== null) this.opened.update((set) => new Set(set).add(name));
+    if (name !== null) {
+      this.opened.set(new Set(this.openSet()).add(name));
+      this.remember();
+    }
   }
 
   toggleStage(name: string) {
-    this.opened.update((set) => toggled(set, name));
+    this.opened.set(toggled(this.openSet(), name));
+    this.remember();
   }
 
-  toggleRows(name: string) {
-    this.everyRow.update((set) => toggled(set, name));
-  }
-
-  /** Every stage's table opened (showing the first few plots) or folded away. */
+  /** Every stage opened or folded to its first column. */
   setAll(open: boolean) {
     this.opened.set(open ? new Set(this.stages()) : new Set());
+    this.remember();
+  }
+
+  private remember() {
+    try {
+      localStorage.setItem(openedKey(this.sheet().sheetId), JSON.stringify([...(this.opened() ?? [])]));
+    } catch {
+      /* kept for this run only */
+    }
   }
 
   private cellOf(formulas: WorkbookFormulas, sheet: SheetWithRows, row: Row, item: AnalysisColumn): Cell {
@@ -243,6 +292,20 @@ export class QaQcAnalysis {
     const word = text.toUpperCase();
     const status = item.kind === 'status' ? (word === 'GREEN' ? 'green' : word === 'YELLOW' ? 'yellow' : word === 'RED' ? 'red' : null) : null;
     return { text, status, error: null };
+  }
+}
+
+const openedKey = (sheetId: number) => `ukmac.qaqc-open.${sheetId}`;
+
+/** The stages left open for a table, as last saved. */
+function readOpened(sheetId: number): ReadonlySet<string> | null {
+  try {
+    const raw = localStorage.getItem(openedKey(sheetId));
+    if (raw === null) return null;
+    const saved = JSON.parse(raw);
+    return new Set(Array.isArray(saved) ? saved.filter((name): name is string => typeof name === 'string') : []);
+  } catch {
+    return null;
   }
 }
 

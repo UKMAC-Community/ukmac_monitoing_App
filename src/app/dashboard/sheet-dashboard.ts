@@ -2,7 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 
 import { CountUp } from '../components/count-up';
 import { Icon } from '../components/icon';
+import { Spark } from '../components/spark';
 import { Pager, pageSlice, savedPageSize } from '../components/pager';
+import { SegmentedThumb } from '../components/segmented-thumb';
 import type { Dashboard, GroupPart, Kpi, SheetWithRows, SummaryTable } from '../core/models';
 import type { WorkbookFormulas } from '../formula/sheet-formulas';
 import {
@@ -23,6 +25,7 @@ import {
   kpiValue,
   summaryResult,
 } from './dashboard-model';
+import { enterDelay } from './enter';
 import { KpiChart } from './kpi-chart';
 import { autoTitle, studioFields, visualsOf } from './studio-model';
 
@@ -46,7 +49,7 @@ interface CardView {
  */
 @Component({
   selector: 'app-sheet-dashboard',
-  imports: [CountUp, Icon, KpiChart, Pager],
+  imports: [CountUp, Icon, KpiChart, Pager, SegmentedThumb, Spark],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="canvas" [class.flat]="!selectable()" [class.studio]="selectable()">
@@ -55,6 +58,7 @@ interface CardView {
           @for (card of cards(); track card.kpi.id; let i = $index) {
             <article
               class="tile kpi-card"
+              [style.--enter]="enter(i)"
               [style.grid-column]="spans()[i] ? 'span ' + spans()[i] : null"
               [class.is-pickable]="selectable()"
               [class.is-selected]="selected() === card.kpi.id"
@@ -63,8 +67,8 @@ interface CardView {
               (click)="pick(card.kpi.id, $event)"
               (keydown.enter)="pick(card.kpi.id, $event)"
             >
-              <header>
-                <h3>{{ kpiTitle(card.kpi) }}</h3>
+              <header class="kpi-head">
+                <h3 [title]="kpiTitle(card.kpi)">{{ kpiTitle(card.kpi) }}</h3>
               </header>
               @if (card.empty) {
                 <p class="placeholder">{{ selectable() ? 'Tick a field in Data to show it here.' : notSetUp }}</p>
@@ -78,9 +82,9 @@ interface CardView {
                   <span [appCountUp]="card.value"></span>
                 </p>
                 <p class="foot" [class.gone]="card.gone" [attr.title]="card.foot + (card.delta ? ' ' + card.delta : '')">
-                  {{ card.foot }}
+                  <span class="foot-text">{{ card.foot }}</span>
                   @if (card.delta) {
-                    <b [style.color]="card.color">{{ card.delta }}</b>
+                    <b class="delta" [style.--tint]="card.color">{{ card.delta }}</b>
                   }
                 </p>
               }
@@ -175,7 +179,7 @@ interface CardView {
                       <th>{{ result.header2 }}</th>
                     }
                     @for (column of result.columns; track $index) {
-                      <th class="cell-num">{{ column }}</th>
+                      <th class="cell-num" [class.cell-text]="isText(result.rows[0]?.values?.[$index])">{{ column }}</th>
                     }
                   </tr>
                 </thead>
@@ -193,7 +197,10 @@ interface CardView {
                       }
                       @for (value of row.values; track $index) {
                         <td class="cell-num">
-                          @if (isText(value)) {
+                          @if (row.sparks?.[$index]; as spark) {
+                            <!-- A list of days drawn as a mini graph of what was added up on each. -->
+                            <app-spark [points]="spark" />
+                          } @else if (isText(value)) {
                             <!-- A list of values (the zone plots of a day, say): one line cut with … when it is long, whole when it is pointed at. -->
                             <span class="list-text" [class.dates]="isDates(value)" [title]="value">{{ value }}</span>
                           } @else {
@@ -241,7 +248,16 @@ interface CardView {
     </div>
   `,
   styles: `
-    @media (prefers-reduced-motion: no-preference) { .tile { animation: itemIn 420ms var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms); } }
+    /* The number cards rise one after another (--enter, at most eight steps; their numbers count up after it). A chart's marks
+       start drawing as its tile comes up, so charts and tables rise with the board and are not held back. */
+    @media (prefers-reduced-motion: no-preference) {
+      .tile { animation: itemIn 420ms var(--ease) both; animation-delay: var(--enter, 0ms); }
+      /* A tile answers the pointer: its shadow deepens, and a number card also lifts a little (a chart or a table stays put, its marks are what the pointer is for). */
+      .tile:not(.is-pickable):not(.empty-state) { transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease); }
+      .tile:not(.is-pickable):not(.empty-state):hover { box-shadow: var(--edge), 0 1px 2px rgb(0 0 0 / 0.05), 0 14px 32px -14px rgb(17 24 39 / 0.2); }
+      .kpi-card:not(.is-pickable):hover { transform: translateY(-2px); }
+      .data-table td { transition: background-color var(--dur-fast) var(--ease), opacity var(--dur) var(--ease); }
+    }
     :host { display: flex; flex-direction: column; flex: 1; min-height: 0; }
     .canvas { flex: 1; min-height: 0; overflow: auto; background: #f3f2f1; padding: 18px 20px 28px; display: flex; flex-direction: column; gap: 14px; }
     .canvas.flat { flex: none; overflow: visible; padding: 0; background: transparent; }
@@ -259,20 +275,39 @@ interface CardView {
     .tile header { min-height: 22px; padding-right: 4px; }
     .tile header.has-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .tile h3 {
-      font-size: 13px; font-weight: 600; line-height: 1.3; color: #252423; letter-spacing: 0;
+      font-size: 13.5px; font-weight: 600; line-height: 1.3; color: var(--text); letter-spacing: -0.012em;
       overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
-    .kpi-card { min-height: 140px; }
-    /* Seven or eight cards sit in two even rows (4 + 3), each row filling the width, not five and a straggler. */
-    .cards.tiled { grid-template-columns: repeat(60, 1fr); }
-    .kpi-card .foot:not(.gone) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    /* A number card: the name small and quiet, the number large, the caption under it with its change as a pill. A soft wash of the accent (or the card's own colour) from the top corner. */
+    .kpi-card {
+      min-height: 148px; gap: 10px; overflow: hidden; container-type: inline-size;
+      background:
+        radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--tint, var(--accent)) 9%, transparent) 0%, transparent 60%),
+        var(--surface);
+    }
+    /* The name on one line (the whole of it on hover), so every card's number sits at the same height; the caption keeps to the foot. */
+    .kpi-head { padding-right: 0; }
+    .kpi-card h3 { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-muted); letter-spacing: 0; white-space: nowrap; text-overflow: ellipsis; }
+    /* The number shrinks with a narrow card (a small window, four in a row) before it is cut short. */
+    .kpi-card .big { flex: none; margin-top: 4px; font-size: clamp(22px, 24cqi, 34px); font-weight: 700; letter-spacing: -0.035em; }
+    .kpi-card .foot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: auto; font-size: 12px; }
+    .kpi-card .foot-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kpi-card .foot.gone .foot-text { white-space: normal; }
+    .kpi-card .delta {
+      flex: 0 1 auto; display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap;
+      color: var(--tint, var(--text-muted)); background: color-mix(in srgb, var(--tint, var(--text-muted)) 12%, transparent);
+    }
+    /* Seven or eight cards sit in two even rows (4 + 3), each row filling the width, not five and a straggler. The space between
+       cards is their own margin, not the grid's gap: 59 gaps between sixty columns would be wider than a small window. */
+    .cards.tiled { grid-template-columns: repeat(60, minmax(0, 1fr)); column-gap: 0; margin-inline: -7px; }
+    .cards.tiled > .tile { margin-inline: 7px; }
     .big {
-      flex: 1; display: flex; align-items: center; gap: 6px; font-size: 34px; line-height: 1; font-weight: 600;
-      letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #252423;
+      flex: 1; display: flex; align-items: center; gap: 6px; font-size: 36px; line-height: 1; font-weight: 650;
+      letter-spacing: -0.032em; font-variant-numeric: tabular-nums; color: var(--text);
     }
     .big span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .foot { font-size: 12px; color: #605e5c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .foot { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .foot.gone { color: var(--danger); white-space: normal; }
     .placeholder { flex: 1; display: grid; place-items: center; min-height: 80px; padding: 12px; border: 1px dashed #c7cfcb; border-radius: 10px; color: #6b7470; font-size: 12.5px; text-align: center; line-height: 1.45; }
     .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; }
@@ -288,20 +323,22 @@ interface CardView {
     /* The pager keeps a page short, so the table shows all of its page's rows (no scrolling inside it). */
     .summary .table-wrap { overflow-x: auto; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .data-table th { text-align: center; font-weight: 600; color: #605e5c; padding: 8px 10px; border-bottom: 1px solid #e1dfdd; position: sticky; top: 0; background: #fff; }
-    .data-table td { text-align: center; padding: 7px 10px; border-bottom: 1px solid #f3f2f1; }
-    .data-table .cell-num { text-align: center; font-variant-numeric: tabular-nums; }
+    /* A quiet, ruled table: small muted capitals over the columns, words on the left and numbers on the right, a hairline between rows. */
+    .data-table th { height: 38px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.045em; color: var(--text-muted); padding: 9px 14px; border-bottom: 1px solid var(--border-strong); position: sticky; top: 0; background: var(--surface-flat); }
+    .data-table td { height: 40px; text-align: left; line-height: 1.35; padding: 6px 14px; border-bottom: var(--hairline) solid var(--border); color: var(--text); }
+    .data-table th.cell-num, .data-table td.cell-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .data-table th.cell-text, .data-table td.cell-num:has(.list-text) { text-align: left; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
     /* A list of dates (a zone's harvest days) is shown whole, wrapping onto as many lines as it needs. */
     .data-table .list-text.dates { max-width: 340px; overflow: visible; text-overflow: clip; white-space: normal; text-align: left; line-height: 1.5; }
-    /* Rows alternate white, gray, white, gray... (a highlighted or hovered row keeps its own colour). */
-    .data-table tbody tr:nth-child(odd):not(.lit):not(:hover) td { background: #fff; }
-    .data-table tbody tr:nth-child(even):not(.lit):not(:hover) td { background: #f3f2f1; }
     .data-table tr.hit { cursor: pointer; }
     .data-table .list-text { display: inline-block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
-    .data-table tr.hit:hover td { background: var(--accent-soft); }
+    .data-table tr.hit:hover td { background: var(--row-hover); }
     .data-table tr.lit td { background: var(--accent-soft); font-weight: 600; }
     .data-table tr.dim td { opacity: 0.4; }
-    .data-table tfoot td { font-weight: 700; border-top: 1px solid #c8c6c4; border-bottom: none; }
+    .data-table tfoot td { font-weight: 650; border-top: 1px solid var(--border-strong); border-bottom: none; background: var(--fill); font-variant-numeric: tabular-nums; }
+    .data-table tfoot td:first-child { border-radius: 0 0 0 10px; }
+    .data-table tfoot td:last-child { border-radius: 0 0 10px 0; }
     .empty-state { align-items: center; text-align: center; gap: 8px; padding: 40px 20px; }
     .empty-state p { color: var(--text-muted); font-size: 0.875rem; max-width: 420px; }
   `,
@@ -385,6 +422,9 @@ export class SheetDashboard {
       .kpis.filter((kpi) => kpi.visual === 'card')
       .map((kpi) => this.cardView(kpi)),
   );
+
+  /** When the n-th number card rises (the cards come up one after another; a chart or a table comes up with the board). */
+  readonly enter = enterDelay;
 
   /** Which of a chart's ways to group it is showing (its switch), by chart: the first until another is picked. */
   private readonly viewPicked = signal<Readonly<Record<string, number>>>({});

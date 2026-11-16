@@ -3,7 +3,6 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { WorkbookFormulas } from '../formula/sheet-formulas';
 import type { FileLayout } from '../excel/file-layout';
 import { readExcelSheets, tableFromSheet, type ExcelSheetData } from '../excel/sheet-from-excel';
-import { planLinks } from '../google/link-plan';
 import { cellsFor, headerMapOf, matchHeaders, newColumns } from '../google/sheet-sync';
 import { parseLinkSource, plotColumnKey, todayIso } from '../sheet/columns';
 import { Api, errorText } from './api';
@@ -24,16 +23,6 @@ export interface SyncOutcome {
   skipped?: number;
   /** The tab has more rows than the app takes. */
   truncated: boolean;
-}
-
-/** What linking a MAC's tables to a Google Sheet's tabs did. */
-export interface LinkReport {
-  /** Linked, with the rows the tab holds. */
-  linked: { sheetId: number; title: string; rows: number }[];
-  /** The tables the sheet has no tab for. */
-  noTab: string[];
-  /** The tables whose tab has headers the table doesn't (not linked): the extra ones. */
-  different: { title: string; extra: string[] }[];
 }
 
 /** A Google Sheet opened: its file and the tabs that have data. */
@@ -61,6 +50,10 @@ export class Google {
   readonly signingIn = signal(false);
   /** Every table kept in step with a tab, of every MAC. */
   readonly links = signal<GoogleLink[]>([]);
+  /** Bumped by the top bar's pencil: the open table page then shows its Google Sheet link. */
+  readonly editLinkRequest = signal(0);
+  /** Bumped by the top bar's Columns button: the open table page then shows how the Google Sheet's columns fill its own. */
+  readonly connectionsRequest = signal(0);
   /** Tables being read now (by sheet id). */
   readonly syncing = signal<ReadonlySet<number>>(new Set());
 
@@ -314,7 +307,7 @@ export class Google {
    * Reads several tables, each Google Sheet downloaded once however many of its tabs are wanted (a MAC whose tables all sit
    * in one sheet is one download, not one per table). A table that can't be read doesn't stop the others.
    */
-  async syncMany(sheetIds: number[]): Promise<Map<number, SyncOutcome | Error>> {
+  async syncMany(sheetIds: number[], onProgress?: (done: number, total: number) => void): Promise<Map<number, SyncOutcome | Error>> {
     const results = new Map<number, SyncOutcome | Error>();
     const downloads = new Map<string, Promise<ArrayBuffer>>();
     for (const sheetId of sheetIds) {
@@ -343,38 +336,15 @@ export class Google {
           next.delete(sheetId);
           return next;
         });
+        onProgress?.(results.size, sheetIds.length);
       }
     }
     return results;
   }
 
-  /** The MAC's tables that a Google Sheet for input is made for: not Zones (the map travels in the file) and not already linked. */
+  /** The MAC's tables that a Google Sheet for input is made for: the ones not already linked (Zones too, the file carries no data). */
   inputTables(book: Workbook): SheetWithRows[] {
-    return book.sheets.filter((sheet) => sheet.templateKey !== 'zones' && !this.linkOf(sheet.sheetId));
-  }
-
-  /**
-   * Links the MAC's tables to the tabs of a Google Sheet made from the input workbook: each table to the tab named as the
-   * workbook names it. A table is linked only if the tab's headers are all the table's own (else the next Sync would add
-   * columns), and one already linked, or Zones, is never touched. Nothing is read.
-   */
-  async linkTables(book: Workbook, opened: OpenedSheet): Promise<LinkReport> {
-    const plan = planLinks(this.inputTables(book), opened.tabs);
-    for (const { table, tab, headerMap } of plan.ready) {
-      await this.api.saveGoogleLink({
-        sheetId: table.sheetId,
-        spreadsheetId: opened.file.id,
-        spreadsheetTitle: opened.file.name,
-        tabTitle: tab.name,
-        headerMap,
-      });
-    }
-    await this.refreshLinks();
-    return {
-      linked: plan.ready.map(({ table, tab }) => ({ sheetId: table.sheetId, title: table.title, rows: tab.rows.length })),
-      noTab: plan.noTab.map((table) => table.title),
-      different: plan.different.map(({ table, extra }) => ({ title: table.title, extra })),
-    };
+    return book.sheets.filter((sheet) => !this.linkOf(sheet.sheetId));
   }
 
   /** `sync`, with its result told to the user. */

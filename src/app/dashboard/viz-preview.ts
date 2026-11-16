@@ -55,22 +55,22 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
           @case ('column') {
             <g class="grid"><line x1="12" x2="190" y1="30" y2="30" /><line x1="12" x2="190" y1="55" y2="55" /><line x1="12" x2="190" y1="80" y2="80" /></g>
             <line class="axis" x1="12" x2="190" y1="96" y2="96" />
-            <rect class="grow-y" style="--i: 0" x="26" y="52" width="26" height="44" rx="2" fill="#118DFF" />
-            <rect class="grow-y" style="--i: 1" x="66" y="34" width="26" height="62" rx="2" fill="#118DFF" />
-            <rect class="grow-y" style="--i: 2" x="106" y="64" width="26" height="32" rx="2" fill="#118DFF" />
-            <rect class="grow-y" style="--i: 3" x="146" y="22" width="26" height="74" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 0" x="26" y="52" width="26" height="44" rx="2" fill="#2A78D6" />
+            <rect class="grow-y" style="--i: 1" x="66" y="34" width="26" height="62" rx="2" fill="#2A78D6" />
+            <rect class="grow-y" style="--i: 2" x="106" y="64" width="26" height="32" rx="2" fill="#2A78D6" />
+            <rect class="grow-y" style="--i: 3" x="146" y="22" width="26" height="74" rx="2" fill="#2A78D6" />
             <text class="cap fade" style="--d: 900ms" x="159" y="16" text-anchor="middle">highest</text>
           }
           @case ('stacked') {
             <g class="grid"><line x1="12" x2="190" y1="30" y2="30" /><line x1="12" x2="190" y1="55" y2="55" /><line x1="12" x2="190" y1="80" y2="80" /></g>
             <line class="axis" x1="12" x2="190" y1="96" y2="96" />
-            <rect class="grow-y" style="--i: 0" x="26" y="58" width="26" height="38" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 0" x="26" y="58" width="26" height="38" rx="2" fill="#2A78D6" />
             <rect class="grow-y" style="--i: 0" x="26" y="46" width="26" height="12" rx="2" fill="#12239E" />
-            <rect class="grow-y" style="--i: 1" x="66" y="40" width="26" height="56" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 1" x="66" y="40" width="26" height="56" rx="2" fill="#2A78D6" />
             <rect class="grow-y" style="--i: 1" x="66" y="26" width="26" height="14" rx="2" fill="#12239E" />
-            <rect class="grow-y" style="--i: 2" x="106" y="68" width="26" height="28" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 2" x="106" y="68" width="26" height="28" rx="2" fill="#2A78D6" />
             <rect class="grow-y" style="--i: 2" x="106" y="60" width="26" height="8" rx="2" fill="#12239E" />
-            <rect class="grow-y" style="--i: 3" x="146" y="32" width="26" height="64" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 3" x="146" y="32" width="26" height="64" rx="2" fill="#2A78D6" />
             <rect class="grow-y" style="--i: 3" x="146" y="18" width="26" height="14" rx="2" fill="#12239E" />
           }
           @case ('bar') {
@@ -79,21 +79,21 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
             <text class="cap" x="38" y="51" text-anchor="end">Cow</text>
             <text class="cap" x="38" y="73" text-anchor="end">Goat</text>
             <text class="cap" x="38" y="95" text-anchor="end">Bean</text>
-            <rect class="grow-x" style="--i: 0" x="44" y="18" width="130" height="14" rx="2" fill="#118DFF" />
-            <rect class="grow-x" style="--i: 1" x="44" y="40" width="98" height="14" rx="2" fill="#118DFF" />
-            <rect class="grow-x" style="--i: 2" x="44" y="62" width="70" height="14" rx="2" fill="#118DFF" />
-            <rect class="grow-x" style="--i: 3" x="44" y="84" width="44" height="14" rx="2" fill="#118DFF" />
+            <rect class="grow-x" style="--i: 0" x="44" y="18" width="130" height="14" rx="2" fill="#2A78D6" />
+            <rect class="grow-x" style="--i: 1" x="44" y="40" width="98" height="14" rx="2" fill="#2A78D6" />
+            <rect class="grow-x" style="--i: 2" x="44" y="62" width="70" height="14" rx="2" fill="#2A78D6" />
+            <rect class="grow-x" style="--i: 3" x="44" y="84" width="44" height="14" rx="2" fill="#2A78D6" />
           }
           @case ('line') {
             <g class="grid"><line x1="12" x2="190" y1="30" y2="30" /><line x1="12" x2="190" y1="55" y2="55" /><line x1="12" x2="190" y1="80" y2="80" /></g>
-            <path class="draw" pathLength="100" d="M14 78 L44 60 L74 68 L104 40 L134 48 L164 26 L190 32" fill="none" stroke="#118DFF" stroke-width="2.5" stroke-linejoin="round" />
-            <circle class="pop" style="--i: 6" cx="164" cy="26" r="4" fill="#118DFF" />
+            <path class="draw" pathLength="100" d="M14 78 L44 60 L74 68 L104 40 L134 48 L164 26 L190 32" fill="none" stroke="#2A78D6" stroke-width="2.5" stroke-linejoin="round" />
+            <circle class="pop" style="--i: 6" cx="164" cy="26" r="4" fill="#2A78D6" />
             <g class="fade" style="--d: 1000ms"><rect x="132" y="6" width="64" height="14" rx="4" fill="#252a27" /><text class="tip" x="164" y="16" text-anchor="middle">Jul · 1,240</text></g>
           }
           @case ('area') {
             <g class="grid"><line x1="12" x2="190" y1="30" y2="30" /><line x1="12" x2="190" y1="55" y2="55" /><line x1="12" x2="190" y1="80" y2="80" /></g>
-            <path class="fade" style="--d: 700ms" d="M14 96 L14 78 L44 60 L74 68 L104 40 L134 48 L164 26 L190 32 L190 96 Z" fill="#118DFF" fill-opacity="0.22" />
-            <path class="draw" pathLength="100" d="M14 78 L44 60 L74 68 L104 40 L134 48 L164 26 L190 32" fill="none" stroke="#118DFF" stroke-width="2.5" stroke-linejoin="round" />
+            <path class="fade" style="--d: 700ms" d="M14 96 L14 78 L44 60 L74 68 L104 40 L134 48 L164 26 L190 32 L190 96 Z" fill="#2A78D6" fill-opacity="0.22" />
+            <path class="draw" pathLength="100" d="M14 78 L44 60 L74 68 L104 40 L134 48 L164 26 L190 32" fill="none" stroke="#2A78D6" stroke-width="2.5" stroke-linejoin="round" />
           }
           @case ('waterfall') {
             <line class="axis" x1="12" x2="190" y1="96" y2="96" />
@@ -101,19 +101,19 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
             <rect class="grow-y" style="--i: 1" x="52" y="40" width="22" height="20" rx="2" fill="#1a7f37" />
             <rect class="grow-y" style="--i: 2" x="84" y="40" width="22" height="14" rx="2" fill="#d1242f" />
             <rect class="grow-y" style="--i: 3" x="116" y="26" width="22" height="28" rx="2" fill="#1a7f37" />
-            <rect class="grow-y" style="--i: 4" x="156" y="26" width="26" height="70" rx="2" fill="#118DFF" />
+            <rect class="grow-y" style="--i: 4" x="156" y="26" width="26" height="70" rx="2" fill="#2A78D6" />
             <g class="grid fade" style="--d: 800ms"><line x1="42" x2="52" y1="60" y2="60" /><line x1="74" x2="84" y1="40" y2="40" /><line x1="106" x2="116" y1="54" y2="54" /><line x1="138" x2="156" y1="26" y2="26" /></g>
             <text class="cap" x="169" y="106" text-anchor="middle">Total</text>
           }
           @case ('pie') {
             <g transform="rotate(-90 64 55)">
-              <circle class="sweep" style="--len: 42; --start: 0; stroke-dasharray: 42 58; stroke-dashoffset: 0" cx="64" cy="55" r="26" fill="none" stroke="#118DFF" stroke-width="52" pathLength="100" />
+              <circle class="sweep" style="--len: 42; --start: 0; stroke-dasharray: 42 58; stroke-dashoffset: 0" cx="64" cy="55" r="26" fill="none" stroke="#2A78D6" stroke-width="52" pathLength="100" />
               <circle class="sweep" style="--len: 26; --start: 42; stroke-dasharray: 26 74; stroke-dashoffset: -42" cx="64" cy="55" r="26" fill="none" stroke="#12239E" stroke-width="52" pathLength="100" />
               <circle class="sweep" style="--len: 18; --start: 68; stroke-dasharray: 18 82; stroke-dashoffset: -68" cx="64" cy="55" r="26" fill="none" stroke="#E66C37" stroke-width="52" pathLength="100" />
               <circle class="sweep" style="--len: 14; --start: 86; stroke-dasharray: 14 86; stroke-dashoffset: -86" cx="64" cy="55" r="26" fill="none" stroke="#6B007B" stroke-width="52" pathLength="100" />
             </g>
             <g class="legend fade" style="--d: 900ms">
-              <rect x="124" y="28" width="7" height="7" rx="1.5" fill="#118DFF" /><text class="cap2" x="135" y="34.5">Chili 42%</text>
+              <rect x="124" y="28" width="7" height="7" rx="1.5" fill="#2A78D6" /><text class="cap2" x="135" y="34.5">Chili 42%</text>
               <rect x="124" y="44" width="7" height="7" rx="1.5" fill="#12239E" /><text class="cap2" x="135" y="50.5">Cow 26%</text>
               <rect x="124" y="60" width="7" height="7" rx="1.5" fill="#E66C37" /><text class="cap2" x="135" y="66.5">Goat 18%</text>
               <rect x="124" y="76" width="7" height="7" rx="1.5" fill="#6B007B" /><text class="cap2" x="135" y="82.5">Bean 14%</text>
@@ -121,21 +121,21 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
           }
           @case ('donut') {
             <g transform="rotate(-90 64 55)">
-              <circle class="sweep" style="--len: 42; --start: 0; stroke-dasharray: 42 58; stroke-dashoffset: 0" cx="64" cy="55" r="32" fill="none" stroke="#118DFF" stroke-width="18" pathLength="100" />
+              <circle class="sweep" style="--len: 42; --start: 0; stroke-dasharray: 42 58; stroke-dashoffset: 0" cx="64" cy="55" r="32" fill="none" stroke="#2A78D6" stroke-width="18" pathLength="100" />
               <circle class="sweep" style="--len: 26; --start: 42; stroke-dasharray: 26 74; stroke-dashoffset: -42" cx="64" cy="55" r="32" fill="none" stroke="#12239E" stroke-width="18" pathLength="100" />
               <circle class="sweep" style="--len: 18; --start: 68; stroke-dasharray: 18 82; stroke-dashoffset: -68" cx="64" cy="55" r="32" fill="none" stroke="#E66C37" stroke-width="18" pathLength="100" />
               <circle class="sweep" style="--len: 14; --start: 86; stroke-dasharray: 14 86; stroke-dashoffset: -86" cx="64" cy="55" r="32" fill="none" stroke="#6B007B" stroke-width="18" pathLength="100" />
             </g>
             <text class="big2 fade" style="--d: 700ms" x="64" y="60" text-anchor="middle">{{ count() }}</text>
             <g class="legend fade" style="--d: 900ms">
-              <rect x="124" y="28" width="7" height="7" rx="1.5" fill="#118DFF" /><text class="cap2" x="135" y="34.5">Chili 42%</text>
+              <rect x="124" y="28" width="7" height="7" rx="1.5" fill="#2A78D6" /><text class="cap2" x="135" y="34.5">Chili 42%</text>
               <rect x="124" y="44" width="7" height="7" rx="1.5" fill="#12239E" /><text class="cap2" x="135" y="50.5">Cow 26%</text>
               <rect x="124" y="60" width="7" height="7" rx="1.5" fill="#E66C37" /><text class="cap2" x="135" y="66.5">Goat 18%</text>
               <rect x="124" y="76" width="7" height="7" rx="1.5" fill="#6B007B" /><text class="cap2" x="135" y="82.5">Bean 14%</text>
             </g>
           }
           @case ('treemap') {
-            <rect class="pop" style="--i: 0" x="12" y="10" width="92" height="90" rx="3" fill="#118DFF" />
+            <rect class="pop" style="--i: 0" x="12" y="10" width="92" height="90" rx="3" fill="#2A78D6" />
             <rect class="pop" style="--i: 1" x="108" y="10" width="80" height="50" rx="3" fill="#12239E" />
             <rect class="pop" style="--i: 2" x="108" y="64" width="46" height="36" rx="3" fill="#E66C37" />
             <rect class="pop" style="--i: 3" x="158" y="64" width="30" height="20" rx="3" fill="#6B007B" />
@@ -143,7 +143,7 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
             <g class="fade" style="--d: 700ms"><text class="tile" x="20" y="28">Chili</text><text class="tile" x="116" y="28">Cow</text><text class="tile" x="116" y="82">Goat</text></g>
           }
           @case ('funnel') {
-            <rect class="grow-c" style="--i: 0" x="20" y="12" width="160" height="19" rx="2" fill="#118DFF" />
+            <rect class="grow-c" style="--i: 0" x="20" y="12" width="160" height="19" rx="2" fill="#2A78D6" />
             <rect class="grow-c" style="--i: 1" x="36" y="36" width="128" height="19" rx="2" fill="#12239E" />
             <rect class="grow-c" style="--i: 2" x="56" y="60" width="88" height="19" rx="2" fill="#E66C37" />
             <rect class="grow-c" style="--i: 3" x="76" y="84" width="48" height="19" rx="2" fill="#6B007B" />
@@ -154,12 +154,12 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
               <polygon points="100,18 138,46 124,90 76,90 62,46" fill="none" /><polygon points="100,34 126,53 116,82 84,82 74,53" fill="none" /><polygon points="100,50 114,60 108,74 92,74 86,60" fill="none" />
               <line x1="100" y1="62" x2="100" y2="18" /><line x1="100" y1="62" x2="138" y2="46" /><line x1="100" y1="62" x2="124" y2="90" /><line x1="100" y1="62" x2="76" y2="90" /><line x1="100" y1="62" x2="62" y2="46" />
             </g>
-            <polygon class="turn" points="100,26 128,50 112,82 82,76 70,50" fill="#118DFF" fill-opacity="0.28" stroke="#118DFF" stroke-width="2" stroke-linejoin="round" />
+            <polygon class="turn" points="100,26 128,50 112,82 82,76 70,50" fill="#2A78D6" fill-opacity="0.28" stroke="#2A78D6" stroke-width="2" stroke-linejoin="round" />
             <g class="fade" style="--d: 700ms"><text class="cap" x="100" y="12" text-anchor="middle">Yield</text><text class="cap" x="146" y="48">Care</text><text class="cap" x="126" y="100">Speed</text><text class="cap" x="74" y="100" text-anchor="end">Cost</text><text class="cap" x="54" y="48" text-anchor="end">Size</text></g>
           }
           @case ('gauge') {
             <path d="M34 90 A66 66 0 0 1 166 90" fill="none" stroke="#e2e5e3" stroke-width="16" stroke-linecap="round" pathLength="100" />
-            <path class="sweep" style="--len: 68; --start: 0; stroke-dasharray: 68 100" d="M34 90 A66 66 0 0 1 166 90" fill="none" stroke="#118DFF" stroke-width="16" stroke-linecap="round" pathLength="100" />
+            <path class="sweep" style="--len: 68; --start: 0; stroke-dasharray: 68 100" d="M34 90 A66 66 0 0 1 166 90" fill="none" stroke="#2A78D6" stroke-width="16" stroke-linecap="round" pathLength="100" />
             <line class="fade" style="--d: 800ms" x1="152" y1="52" x2="162" y2="44" stroke="#252a27" stroke-width="2.5" />
             <text class="big pop" style="--i: 3" x="100" y="82" text-anchor="middle">{{ count() }}</text>
             <text class="cap" x="34" y="104" text-anchor="middle">0</text><text class="cap" x="166" y="104" text-anchor="middle">1,500</text>
@@ -169,8 +169,8 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
             @for (item of comparisonRows; track item.name; let i = $index) {
               <g class="row-in" [style.--i]="i">
                 <text class="cap" x="40" [attr.y]="24 + i * 23" text-anchor="end">{{ item.name }}</text>
-                <line class="draw" pathLength="100" x1="48" [attr.x2]="item.x" [attr.y1]="20 + i * 23" [attr.y2]="20 + i * 23" stroke="#118DFF" stroke-width="2" />
-                <circle class="pop" [style.--i]="i" [attr.cx]="item.x" [attr.cy]="20 + i * 23" r="5" fill="#118DFF" />
+                <line class="draw" pathLength="100" x1="48" [attr.x2]="item.x" [attr.y1]="20 + i * 23" [attr.y2]="20 + i * 23" stroke="#2A78D6" stroke-width="2" />
+                <circle class="pop" [style.--i]="i" [attr.cx]="item.x" [attr.cy]="20 + i * 23" r="5" fill="#2A78D6" />
               </g>
             }
           }
@@ -180,21 +180,21 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
               <g class="row-in" [style.--i]="i">
                 <text class="cap" x="40" [attr.y]="24 + i * 23" text-anchor="end">{{ item.name }}</text>
                 <line class="axis" x1="48" x2="184" [attr.y1]="20 + i * 23" [attr.y2]="20 + i * 23" />
-                <circle class="pop" [style.--i]="i" [attr.cx]="item.x" [attr.cy]="20 + i * 23" r="5" fill="#118DFF" />
+                <circle class="pop" [style.--i]="i" [attr.cx]="item.x" [attr.cy]="20 + i * 23" r="5" fill="#2A78D6" />
               </g>
             }
           }
           @case ('pareto') {
             <line class="axis" x1="14" x2="190" y1="96" y2="96" />
-            <rect class="grow-y" style="--i: 0" x="24" y="26" width="28" height="70" fill="#118DFF" rx="2" />
-            <rect class="grow-y" style="--i: 1" x="66" y="48" width="28" height="48" fill="#118DFF" rx="2" />
-            <rect class="grow-y" style="--i: 2" x="108" y="66" width="28" height="30" fill="#118DFF" rx="2" />
-            <rect class="grow-y" style="--i: 3" x="150" y="80" width="28" height="16" fill="#118DFF" rx="2" />
+            <rect class="grow-y" style="--i: 0" x="24" y="26" width="28" height="70" fill="#2A78D6" rx="2" />
+            <rect class="grow-y" style="--i: 1" x="66" y="48" width="28" height="48" fill="#2A78D6" rx="2" />
+            <rect class="grow-y" style="--i: 2" x="108" y="66" width="28" height="30" fill="#2A78D6" rx="2" />
+            <rect class="grow-y" style="--i: 3" x="150" y="80" width="28" height="16" fill="#2A78D6" rx="2" />
             <path class="draw" pathLength="100" d="M38 62 L80 38 L122 22 L164 14" fill="none" stroke="#E66C37" stroke-width="2.5" />
             <text class="cap fade" style="--d: 1000ms" x="184" y="12" text-anchor="end">100%</text>
           }
           @case ('polar') {
-            <path class="turn" d="M100 55 V9 A46 46 0 0 1 146 55 Z" fill="#118DFF" stroke="#fff" stroke-width="2" />
+            <path class="turn" d="M100 55 V9 A46 46 0 0 1 146 55 Z" fill="#2A78D6" stroke="#fff" stroke-width="2" />
             <path class="turn" d="M100 55 H138 A38 38 0 0 1 100 93 Z" fill="#12239E" stroke="#fff" stroke-width="2" />
             <path class="turn" d="M100 55 V86 A31 31 0 0 1 69 55 Z" fill="#E66C37" stroke="#fff" stroke-width="2" />
             <path class="turn" d="M100 55 H79 A21 21 0 0 1 100 34 Z" fill="#6B007B" stroke="#fff" stroke-width="2" />
@@ -206,7 +206,7 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
               <g class="row-in" [style.--i]="i">
                 <text class="cap2" x="22" [attr.y]="40 + i * 20">{{ row.name }}</text>
                 <text class="cap2" x="116" [attr.y]="40 + i * 20" text-anchor="end">{{ row.plants }}</text>
-                <rect class="grow-x" [style.--i]="i + 2" x="126" [attr.y]="32 + i * 20" [attr.width]="row.bar" height="10" rx="2" fill="#118DFF" fill-opacity="0.45" />
+                <rect class="grow-x" [style.--i]="i + 2" x="126" [attr.y]="32 + i * 20" [attr.width]="row.bar" height="10" rx="2" fill="#2A78D6" fill-opacity="0.45" />
               </g>
             }
           }

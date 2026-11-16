@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { DashboardStudio } from '../dashboard/dashboard-studio';
 import { SheetDashboard } from '../dashboard/sheet-dashboard';
-import { type CrossFilter, dashboardOf } from '../dashboard/dashboard-model';
+import { type CrossFilter, dashboardOf, filteredSheet } from '../dashboard/dashboard-model';
 import { Router, RouterLink } from '@angular/router';
 
 import { ColumnDialog } from '../components/column-dialog';
@@ -52,6 +52,8 @@ export class SheetPage {
   readonly sheetId = input.required<string>();
   /** `?view=dashboard`: the dashboard's editor; `?view=sheet`: the rows as a spreadsheet; else the table's page. */
   readonly view = input<string | undefined>();
+  /** `?column=`: a column of the table to bring into view and light up (the Data Check links to it). */
+  readonly column = input<string | undefined>();
   readonly mode = computed<'table' | 'dashboard' | 'sheet'>(() => (this.view() === 'dashboard' ? 'dashboard' : this.view() === 'sheet' ? 'sheet' : 'table'));
   readonly sheet = computed(() => this.store.sheet(Number(this.sheetId())));
   readonly linkOptions = (column: Column) => this.store.linkOptions(column);
@@ -170,6 +172,22 @@ export class SheetPage {
   }
 
   constructor() {
+    // The top bar's pencil: this table's Google Sheet link (only a request made after this page opened counts).
+    let seenLinkRequest = this.google.editLinkRequest();
+    effect(() => {
+      const asked = this.google.editLinkRequest();
+      if (asked === seenLinkRequest) return;
+      seenLinkRequest = asked;
+      if (untracked(() => this.sheet() && this.mode() !== 'dashboard')) this.linkOpen.set(true);
+    });
+    // The top bar's Columns: how the Google Sheet's columns fill this table's (only a request made after this page opened counts).
+    let seenConnectionsRequest = this.google.connectionsRequest();
+    effect(() => {
+      const asked = this.google.connectionsRequest();
+      if (asked === seenConnectionsRequest) return;
+      seenConnectionsRequest = asked;
+      if (untracked(() => this.sheet() && this.mode() !== 'dashboard')) void this.seeConnections();
+    });
     // The sidebar stays open on the table's page; it folds only for the spreadsheet, as the system's sheet view does.
     const shell = inject(Shell);
     effect(() => (this.mode() === 'sheet' ? shell.enterSheet() : shell.leaveSheet()));
@@ -262,11 +280,17 @@ export class SheetPage {
     return sort ? (this.sheet()?.columns.find((column) => column.key === sort.key) ?? null) : null;
   });
 
-  /** The rows shown: those the search finds, in the chosen order. */
+  /** The table's rows without those the dashboard's picked group leaves out (all of them when nothing is picked). */
+  private readonly kept = computed(() => {
+    const sheet = this.sheet();
+    return sheet ? filteredSheet(this.store.formulas(), sheet, this.activeFilter()).rows : [];
+  });
+
+  /** The rows shown: those the dashboard's picked group keeps and the search finds, in the chosen order. */
   readonly rows = computed<Row[]>(() => {
     const sheet = this.sheet();
     if (!sheet) return [];
-    let rows = sheet.rows;
+    let rows = this.kept();
     const words = this.search().trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (words.length) {
       rows = rows.filter((row) => {
@@ -295,7 +319,7 @@ export class SheetPage {
     return rows;
   });
 
-  readonly filtered = computed(() => !!this.search().trim());
+  readonly filtered = computed(() => !!this.search().trim() || !!this.activeFilter());
   readonly formulaCount = computed(() => this.sheet()?.columns.filter((column) => column.type === 'formula').length ?? 0);
   readonly problemCount = computed(() => {
     const sheet = this.sheet();

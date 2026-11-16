@@ -26,6 +26,9 @@ pub fn require(google: &GoogleState) -> CmdResult<String> {
     google.account().ok_or_else(|| SIGN_IN_FIRST.to_string())
 }
 
+// *********************************************************************************
+// This already checked to prevent the sql injection!!! coulumn = ?1 and email = ?2
+// *********************************************************************************
 pub fn owns(conn: &Connection, email: &str, mac_id: i64) -> CmdResult<bool> {
     conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM mac_access WHERE mac_id = ?1 AND email = ?2)",

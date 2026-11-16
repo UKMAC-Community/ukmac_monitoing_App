@@ -64,6 +64,8 @@ describe('QaQcMap: the analysis as layers stacked on each plot, in 3D', () => {
     return fixture.componentInstance;
   }
   const shapeOf = (map: QaQcMap, plot: string) => map.shapes().find((shape) => shape.label === plot)!;
+  /** A plot's id from the zone layout: also for a plot with no record, which the map no longer draws. */
+  const idOf = (map: QaQcMap, plot: string) => (map as unknown as { layout(): { cells: { id: string; plot: string }[] } }).layout().cells.find((cell) => cell.plot === plot)!.id;
   const fills = (map: QaQcMap, plot: string) => shapeOf(map, plot).stack!.map((pane) => pane.fill);
   const GREEN = STATUS_COLOURS.GREEN.fill;
   const YELLOW = STATUS_COLOURS.YELLOW.fill;
@@ -98,16 +100,13 @@ describe('QaQcMap: the analysis as layers stacked on each plot, in 3D', () => {
     expect(shapeOf(map, 'A1').stack!.slice(0, 3).map((pane) => pane.note)).toEqual(['Green', 'Yellow', 'No reading yet']);
     expect(shapeOf(map, 'A1').badge).toBe(YELLOW);
     expect(shapeOf(map, 'A2').badge).toBe(RED);
-    expect(shapeOf(map, 'B1').badge).toBeUndefined();
-    // What a plot says where it is pointed at (its name may not show): a plot without a record, a plot with one, water.
-    expect(shapeOf(map, 'B1').hint).toBe('No QC record yet');
+    // Only the plots with a QC record are on the map: one without a record (B1) and water (Pond) are left off.
+    expect(map.shapes().map((shape) => shape.label)).toEqual(['A1', 'A2']);
+    expect(map.shapes().find((shape) => shape.label === 'B1')).toBeUndefined();
+    expect(map.shapes().find((shape) => shape.label === 'Pond')).toBeUndefined();
+    // What a plot says where it is pointed at (its name may not show).
     expect(shapeOf(map, 'A1').hint).toBe('Yellow overall: point at a layer');
-    expect(shapeOf(map, 'Pond').hint).toBe('Water');
-    // A plot with no QC record has no stack (a pale bed), and water is as the Zone Map draws it.
-    expect(shapeOf(map, 'B1').stack).toBeUndefined();
-    expect(shapeOf(map, 'B1').fill).toBe('#e2e8f0');
-    expect(shapeOf(map, 'Pond')).toMatchObject({ fill: '#dbeafe' });
-    expect(shapeOf(map, 'Pond').stack).toBeUndefined();
+    expect(shapeOf(map, 'A1').fill).toBe('#e2e8f0');
     expect(fillOf(null)).toBe(STATUS_COLOURS.NONE.fill);
     expect(map.stackedCount()).toBe(2);
     // The map opens on the two plots with a record.
@@ -179,7 +178,7 @@ describe('QaQcMap: the analysis as layers stacked on each plot, in 3D', () => {
     expect(yellow).toMatchObject({ label: 'Establishment', status: 'YELLOW' });
     expect(yellow.items.map((item) => item.check)).toEqual(['Plant Survival']);
     // A plot with no record says so; closing it lets go.
-    map.pickedPlot.set(shapeOf(map, 'B1').id);
+    map.pickedPlot.set(idOf(map, 'B1'));
     expect(map.detail()).toMatchObject({ title: 'B1', overall: null, note: 'No QC record for this plot yet.', layers: [] });
     map.pickedPlot.set(null);
     expect(map.detail()).toBeNull();
@@ -204,7 +203,7 @@ describe('QaQcMap: the analysis as layers stacked on each plot, in 3D', () => {
     expect(map.card()!.lines).toEqual(['Red overall', '1 red · 1 green checks']);
     map.pickedPlot.set(shapeOf(map, 'A1').id);
     expect(map.card()!.lines).toEqual(['Yellow overall', '1 yellow · 1 green checks']);
-    map.pickedPlot.set(shapeOf(map, 'B1').id);
+    map.pickedPlot.set(idOf(map, 'B1'));
     expect(map.card()!.lines).toEqual(['No QC record yet']);
     expect(map.card()!.color).toBe(STATUS_COLOURS.NONE.fill);
   });

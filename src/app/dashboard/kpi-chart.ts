@@ -21,7 +21,7 @@ const MAX_GROUPS = 12;
 /** Dark writing on a light colour, white on a dark one. */
 function inkOn(hex: string): string {
   const match = /^#([0-9a-f]{6})$/i.exec(hex);
-  if (!match) return '#252423';
+  if (!match) return '#1d1d1f';
   const value = parseInt(match[1], 16);
   const [r, g, b] = [(value >> 16) & 255, (value >> 8) & 255, value & 255];
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.52 ? '#1f1f1f' : '#ffffff';
@@ -169,12 +169,12 @@ export function pieLabelSpots(
     @if (visual() === 'gauge') {
       @if (gaugeData(); as g) {
         <svg [attr.width]="width()" height="170" role="img" [attr.aria-label]="label()">
-          <path [attr.d]="g.track" fill="none" stroke="#e1dfdd" stroke-width="20" stroke-linecap="round" />
+          <path [attr.d]="g.track" fill="none" stroke="rgba(60,60,67,0.12)" stroke-width="20" stroke-linecap="round" />
           @if (g.frac > 0) {
             <path class="draw" pathLength="1" [attr.d]="g.arc" fill="none" [attr.stroke]="g.colour" stroke-width="20" stroke-linecap="round" />
           }
           @if (g.goal) {
-            <line [attr.x1]="g.goal.x1" [attr.y1]="g.goal.y1" [attr.x2]="g.goal.x2" [attr.y2]="g.goal.y2" stroke="#252423" stroke-width="2.5" />
+            <line [attr.x1]="g.goal.x1" [attr.y1]="g.goal.y1" [attr.x2]="g.goal.x2" [attr.y2]="g.goal.y2" stroke="#1d1d1f" stroke-width="2.5" />
           }
           <text class="big-value" [attr.x]="g.cx" [attr.y]="g.cy - 14" text-anchor="middle">{{ g.valueText }}</text>
           @if (g.goal) {
@@ -192,21 +192,21 @@ export function pieLabelSpots(
         <g [attr.transform]="'translate(' + pie().cx + ' ' + pie().cy + ') scale(' + pie().r + ')'">
           <g class="spin-in">
             @for (item of pie().items; track item.label; let i = $index) {
-              <path [attr.d]="item.path" [attr.fill]="sliceColour(item.label, i)" stroke="#fff" stroke-width="0.03" stroke-linejoin="round" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)" (mousemove)="showTip($event, item.label, [{ value: format(item.value) + ' · ' + item.share + '%' }])" (mouseleave)="hideTip()" />
+              <path class="mark pick slice" [class.lit]="lit(item.key)" [style.--dx]="cos(item.mid) * 0.045" [style.--dy]="sin(item.mid) * 0.045" [attr.d]="item.path" [attr.fill]="sliceColour(item.label, i)" stroke="#fff" stroke-width="0.03" stroke-linejoin="round" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)" (mousemove)="showTip($event, item.label, [{ value: format(item.value) + ' · ' + item.share + '%' }])" (mouseleave)="hideTip()" />
             }
           </g>
         </g>
         @for (item of pie().items; track item.label; let i = $index) {
           @if (item.inside; as at) {
             <!-- The name and amount inside the slice, in the ink that reads on its colour. -->
-            <g class="late pie-inside" [class.small]="at.small" [attr.fill]="inkOf(item.label, i)" [attr.stroke]="sliceColour(item.label, i)" [class.dim]="dim(item.key)">
+            <g class="late pie-inside" [class.small]="at.small" [attr.fill]="inkOf(item.label, i)" [attr.stroke]="sliceColour(item.label, i)" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)">
               <text class="pie-in-name" [attr.x]="at.x" [attr.y]="at.y - (at.small ? 2 : 3)" text-anchor="middle">{{ item.name }}</text>
               <text class="pie-in-value" [attr.x]="at.x" [attr.y]="at.y + (at.small ? 11 : 13)" text-anchor="middle">{{ item.amount }}</text>
             </g>
           } @else {
-            <polyline class="late" [attr.points]="item.leader" fill="none" stroke="#c4c8cc" stroke-width="1" [class.dim]="dim(item.key)" />
-            <circle class="late" [attr.cx]="item.dot.x" [attr.cy]="item.dot.y" r="2" fill="#fff" stroke="#9aa0a6" stroke-width="1.25" [class.dim]="dim(item.key)" />
-            <g class="late" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)">
+            <polyline class="late" [attr.points]="item.leader" fill="none" stroke="#c4c8cc" stroke-width="1" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)" />
+            <circle class="late" [attr.cx]="item.dot.x" [attr.cy]="item.dot.y" r="2" fill="#fff" stroke="#9aa0a6" stroke-width="1.25" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)" />
+            <g class="late" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)" (click)="choose(item, $event)">
               <text class="pie-name" [attr.x]="item.text.x" [attr.y]="item.text.y - 5" [attr.text-anchor]="item.text.anchor">{{ item.name }}</text>
               <text class="pie-share" [attr.x]="item.text.x" [attr.y]="item.text.y + 13" [attr.text-anchor]="item.text.anchor">{{ item.amount }}</text>
             </g>
@@ -219,7 +219,7 @@ export function pieLabelSpots(
           <g [attr.transform]="'translate(' + pieSize / 2 + ' ' + pieSize / 2 + ') scale(' + pieSize / 2 + ')'">
             <g class="spin-in">
               @for (slice of slices(); track slice.label; let i = $index) {
-                <path [attr.d]="slice.path" [attr.fill]="sliceColour(slice.label, i)" stroke="#fff" stroke-width="0.012" [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" (click)="choose(slice, $event)" (mousemove)="showTip($event, slice.label, [{ value: format(slice.value) + ' · ' + slice.share + '%' }])" (mouseleave)="hideTip()" />
+                <path class="mark pick slice" [class.lit]="lit(slice.key)" [style.--dx]="cos(slice.mid) * 0.045" [style.--dy]="sin(slice.mid) * 0.045" [attr.d]="slice.path" [attr.fill]="sliceColour(slice.label, i)" stroke="#fff" stroke-width="0.012" [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" (click)="choose(slice, $event)" (mousemove)="showTip($event, slice.label, [{ value: format(slice.value) + ' · ' + slice.share + '%' }])" (mouseleave)="hideTip()" />
               }
               @if (visual() === 'donut') {
                 <circle r="0.58" fill="#fff" />
@@ -230,14 +230,14 @@ export function pieLabelSpots(
           @if (visual() === 'pie') {
             @for (slice of slices(); track slice.label; let i = $index) {
               @if (slice.fraction >= 0.07) {
-                <text class="pie-percent late" [attr.x]="pieSize / 2 + cos(slice.mid) * 0.68 * pieSize / 2" [attr.y]="pieSize / 2 + sin(slice.mid) * 0.68 * pieSize / 2" text-anchor="middle" dominant-baseline="middle" [attr.fill]="inkOf(slice.label, i)" [class.dim]="dim(slice.key)">{{ slice.share }}%</text>
+                <text class="pie-percent late" [attr.x]="pieSize / 2 + cos(slice.mid) * 0.68 * pieSize / 2" [attr.y]="pieSize / 2 + sin(slice.mid) * 0.68 * pieSize / 2" text-anchor="middle" dominant-baseline="middle" [attr.fill]="inkOf(slice.label, i)" [class.dim]="dim(slice.key)" [class.recede]="receded(slice.label)">{{ slice.share }}%</text>
               }
             }
           }
         </svg>
         <ul class="legend">
           @for (slice of slices(); track slice.label; let i = $index) {
-            <li [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" (click)="choose(slice, $event)">
+            <li [class.hit]="hit(slice.key)" [class.dim]="dim(slice.key)" [class.recede]="receded(slice.label)" (click)="choose(slice, $event)">
               <span class="dot" [style.background]="sliceColour(slice.label, i)"></span>
               <span class="name">{{ sliceName(slice.label) }}</span>
               <span class="num">{{ format(slice.value) }}</span>
@@ -256,9 +256,9 @@ export function pieLabelSpots(
                 <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
               }
               @for (column of s.columns; track column.label; let ci = $index) {
-                <g [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)" (mousemove)="showStackTip($event, column)" (mouseleave)="hideTip()">
+                <g class="pick" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)" (mousemove)="showStackTip($event, column)" (mouseleave)="hideTip()">
                 <path class="slot" [attr.d]="slot(column.x, column.w)" />
-                <g class="grow-y" [style.--i]="ci">
+                <g class="grow-y mark" [style.--i]="ci">
                   @for (part of column.parts; track part.series) {
                     @if (part.h > 0) {
                       <rect [attr.x]="column.x" [attr.y]="part.y" [attr.width]="column.w" [attr.height]="part.h" [attr.fill]="seriesColour(part.name, part.series)" />
@@ -341,12 +341,12 @@ export function pieLabelSpots(
                 <text class="axis" [attr.x]="width() - 38" [attr.y]="tick.y + 4">{{ tick.percent }}%</text>
               }
               @for (point of p.rows; track $index; let i = $index) {
-                <rect class="pareto-bar grow-y" [style.--i]="i" [class.hit]="hit(point.key)" [class.dim]="dim(point.key)" (click)="choose(point, $event)" (mousemove)="showTip($event, point.label, [{ value: format(point.value) }, { name: 'Cumulative', value: point.percent + '%' }])" (mouseleave)="hideTip()" [attr.x]="point.x" [attr.y]="point.y" [attr.width]="point.w" [attr.height]="point.h" rx="2" [attr.fill]="colour(0)" />
+                <path class="pareto-bar grow-y mark pick" [style.--i]="i" [class.hit]="hit(point.key)" [class.dim]="dim(point.key)" (click)="choose(point, $event)" (mousemove)="showTip($event, point.label, [{ value: format(point.value) }, { name: 'Cumulative', value: point.percent + '%' }])" (mouseleave)="hideTip()" [attr.d]="topRound(point.x, point.y, point.w, point.h)" [attr.fill]="colour(0)" />
                 <text class="axis" [attr.x]="point.cx" [attr.y]="height - 8" text-anchor="middle">{{ point.short }}</text>
               }
               <polyline class="cumulative-line draw-line" [style.--len]="lengthOf(p.path)" [attr.points]="p.path" fill="none" [attr.stroke]="colour(2)" stroke-width="2.5" stroke-linejoin="round" />
               @for (point of p.rows; track $index; let i = $index) {
-                <circle class="cumulative-point pop-in late-pop" [style.--i]="i" [attr.cx]="point.cx" [attr.cy]="point.cy" r="3.5" [attr.fill]="colour(2)" (mousemove)="showTip($event, point.label, [{ name: 'Cumulative', value: point.percent + '%' }])" (mouseleave)="hideTip()" />
+                <circle class="cumulative-point pop-in late-pop dotmark" [style.--i]="i" [attr.cx]="point.cx" [attr.cy]="point.cy" r="3.5" [attr.fill]="colour(2)" (mousemove)="showTip($event, point.label, [{ name: 'Cumulative', value: point.percent + '%' }])" (mouseleave)="hideTip()" />
               }
             </svg>
             <p class="chart-note">Bars: value · Line: cumulative share@if (p.combined) { · Remaining groups combined as Other }</p>
@@ -358,7 +358,7 @@ export function pieLabelSpots(
               <svg [attr.width]="pieSize" [attr.height]="pieSize" viewBox="-1.05 -1.05 2.1 2.1" role="img" [attr.aria-label]="label() || 'Polar area chart'">
                 <g class="spin-in">
                   @for (sector of p.sectors; track $index; let i = $index) {
-                    <path class="polar-sector" [class.hit]="hit(sector.key)" [class.dim]="dim(sector.key)" (click)="choose(sector, $event)" (mousemove)="showTip($event, sector.label, [{ value: format(sector.value) + ' · ' + sector.percent + '%' }])" (mouseleave)="hideTip()" [attr.d]="sector.path" [attr.fill]="colour(i)" stroke="#fff" stroke-width="0.015" />
+                    <path class="polar-sector mark pick" [class.hit]="hit(sector.key)" [class.dim]="dim(sector.key)" (click)="choose(sector, $event)" (mousemove)="showTip($event, sector.label, [{ value: format(sector.value) + ' · ' + sector.percent + '%' }])" (mouseleave)="hideTip()" [attr.d]="sector.path" [attr.fill]="colour(i)" stroke="#fff" stroke-width="0.015" />
                   }
                 </g>
               </svg>
@@ -380,9 +380,11 @@ export function pieLabelSpots(
                 <text class="axis" [attr.x]="tick.x" [attr.y]="b.plot + 16" text-anchor="middle">{{ tick.label }}</text>
               }
               @for (bar of b.rows; track bar.label; let i = $index) {
-                <g [attr.transform]="'translate(0,' + (i * b.row) + ')'" [class.hit]="hit(bar.key)" [class.dim]="dim(bar.key)" (click)="choose(bar, $event)" (mousemove)="showTip($event, bar.label, [{ value: format(bar.value) }, { name: 'Share', value: bar.share + '%' }])" (mouseleave)="hideTip()">
+                <g class="pick" [attr.transform]="'translate(0,' + (i * b.row) + ')'" [class.hit]="hit(bar.key)" [class.dim]="dim(bar.key)" (click)="choose(bar, $event)" (mousemove)="showTip($event, bar.label, [{ value: format(bar.value) }, { name: 'Share', value: bar.share + '%' }])" (mouseleave)="hideTip()">
+                  <!-- The whole row answers the pointer, so a short bar is as easy to hover as a long one. -->
+                  <rect class="slot" x="0" y="0" [attr.width]="width()" [attr.height]="b.row" />
                   <text class="axis name" [attr.x]="b.left - 10" [attr.y]="b.row / 2 + 4" text-anchor="end">{{ bar.name }}</text>
-                  <rect class="grow-x" [style.--i]="i" [attr.x]="b.left" [attr.y]="(b.row - b.thick) / 2" [attr.width]="bar.size" [attr.height]="b.thick" rx="4" [attr.fill]="zoneColour(bar.label)" />
+                  <rect class="grow-x mark" [style.--i]="i" [attr.x]="b.left" [attr.y]="(b.row - b.thick) / 2" [attr.width]="bar.size" [attr.height]="b.thick" rx="4" [attr.fill]="zoneColour(bar.label)" />
                   <text class="value after" [style.--i]="i" [attr.x]="b.left + bar.size + 8" [attr.y]="b.row / 2 + 4">{{ format(bar.value) }}<tspan class="share" dx="6">{{ bar.share }}%</tspan></text>
                 </g>
               }
@@ -393,9 +395,9 @@ export function pieLabelSpots(
         @case ('funnel') {
           <svg [attr.width]="width()" [attr.height]="stages().length * 30 + 8" role="img" [attr.aria-label]="label()">
             @for (stage of stages(); track stage.label; let i = $index) {
-              <g [attr.transform]="'translate(0,' + (i * 30 + 4) + ')'" [class.hit]="hit(stage.key)" [class.dim]="dim(stage.key)" (click)="choose(stage, $event)" (mousemove)="showTip($event, stage.label, [{ value: format(stage.value) }, { name: 'Of the first', value: stage.pct + '%' }])" (mouseleave)="hideTip()">
+              <g class="pick" [attr.transform]="'translate(0,' + (i * 30 + 4) + ')'" [class.hit]="hit(stage.key)" [class.dim]="dim(stage.key)" (click)="choose(stage, $event)" (mousemove)="showTip($event, stage.label, [{ value: format(stage.value) }, { name: 'Of the first', value: stage.pct + '%' }])" (mouseleave)="hideTip()">
                 <text class="axis" x="0" y="17">{{ stage.short }}</text>
-                <rect class="grow-x middle" [style.--i]="i" [attr.x]="stage.x" y="2" [attr.width]="stage.size" height="24" rx="2" [attr.fill]="colour(i)" />
+                <rect class="grow-x middle mark" [style.--i]="i" [attr.x]="stage.x" y="2" [attr.width]="stage.size" height="24" rx="2" [attr.fill]="colour(i)" />
                 <text class="value after" [style.--i]="i" [attr.x]="labelWidth + (width() - labelWidth - 60) + 8" y="18">{{ format(stage.value) }}</text>
               </g>
             }
@@ -404,7 +406,7 @@ export function pieLabelSpots(
         @case ('treemap') {
           <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
             @for (tile of tiles(); track tile.label; let i = $index) {
-              <rect class="pop-in" [style.--i]="i" [class.hit]="hit(tile.key)" [class.dim]="dim(tile.key)" (click)="choose(tile, $event)" (mousemove)="showTip($event, tile.label, [{ value: format(tile.value) }])" (mouseleave)="hideTip()" [attr.x]="tile.x + 1" [attr.y]="tile.y + 1" [attr.width]="tile.w - 2" [attr.height]="tile.h - 2" rx="3" [attr.fill]="colour(i)" />
+              <rect class="pop-in mark pick" [style.--i]="i" [class.hit]="hit(tile.key)" [class.dim]="dim(tile.key)" (click)="choose(tile, $event)" (mousemove)="showTip($event, tile.label, [{ value: format(tile.value) }])" (mouseleave)="hideTip()" [attr.x]="tile.x + 1" [attr.y]="tile.y + 1" [attr.width]="tile.w - 2" [attr.height]="tile.h - 2" rx="3" [attr.fill]="colour(i)" />
               @if (tile.w > 56 && tile.h > 34) {
                 <text class="tile-label after" [style.--i]="i" [attr.x]="tile.x + 8" [attr.y]="tile.y + 18">{{ short(tile.label, tile.w / 7) }}</text>
                 <text class="tile-value after" [style.--i]="i" [attr.x]="tile.x + 8" [attr.y]="tile.y + 33">{{ format(tile.value) }}</text>
@@ -416,15 +418,15 @@ export function pieLabelSpots(
           @if (radar(); as r) {
             <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
               @for (ring of r.rings; track $index) {
-                <polygon [attr.points]="ring" fill="none" stroke="#e1dfdd" />
+                <polygon [attr.points]="ring" fill="none" stroke="rgba(60,60,67,0.12)" />
               }
               @for (spoke of r.spokes; track spoke.label) {
-                <line [attr.x1]="r.cx" [attr.y1]="r.cy" [attr.x2]="spoke.x2" [attr.y2]="spoke.y2" stroke="#e1dfdd" />
+                <line [attr.x1]="r.cx" [attr.y1]="r.cy" [attr.x2]="spoke.x2" [attr.y2]="spoke.y2" stroke="rgba(60,60,67,0.12)" />
                 <text class="axis" [attr.x]="spoke.lx" [attr.y]="spoke.ly" [attr.text-anchor]="spoke.anchor">{{ spoke.short }}</text>
               }
               <polygon class="grow-out" [style.transform-origin]="r.cx + 'px ' + r.cy + 'px'" [attr.points]="r.shape" [attr.fill]="colour(0)" fill-opacity="0.25" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
               @for (spoke of r.spokes; track spoke.label) {
-                <circle class="pop-in late-pop" [attr.cx]="spoke.vx" [attr.cy]="spoke.vy" r="3.5" [attr.fill]="colour(0)" [class.dim]="dim(spoke.key)" (mousemove)="showTip($event, spoke.label, [{ value: format(spoke.value) }])" (mouseleave)="hideTip()" />
+                <circle class="pop-in late-pop dotmark" [attr.cx]="spoke.vx" [attr.cy]="spoke.vy" r="3.5" [attr.fill]="colour(0)" [class.dim]="dim(spoke.key)" (mousemove)="showTip($event, spoke.label, [{ value: format(spoke.value) }])" (mouseleave)="hideTip()" />
                 @if (pickable()) {
                 <circle class="target" [class.hit]="hit(spoke.key)" [class.dim]="dim(spoke.key)" (click)="choose(spoke, $event)" (mousemove)="showTip($event, spoke.label, [{ value: format(spoke.value) }])" (mouseleave)="hideTip()" [attr.cx]="spoke.vx" [attr.cy]="spoke.vy" r="12" />
               }
@@ -441,7 +443,7 @@ export function pieLabelSpots(
               <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
             }
             @for (step of steps(); track step.label; let i = $index) {
-              <rect class="grow-y" [class.from-top]="!step.total && step.value < 0" [style.--i]="i" [class.hit]="hit(step.key)" [class.dim]="dim(step.key)" (click)="choose(step, $event)" (mousemove)="showTip($event, step.label, [{ value: (step.total ? '' : step.value >= 0 ? '+' : '') + format(step.value) }])" (mouseleave)="hideTip()" [attr.x]="step.x" [attr.y]="step.y" [attr.width]="step.w" [attr.height]="step.h" rx="2" [attr.fill]="step.colour" />
+              <rect class="grow-y mark pick" [class.from-top]="!step.total && step.value < 0" [style.--i]="i" [class.hit]="hit(step.key)" [class.dim]="dim(step.key)" (click)="choose(step, $event)" (mousemove)="showTip($event, step.label, [{ value: (step.total ? '' : step.value >= 0 ? '+' : '') + format(step.value) }])" (mouseleave)="hideTip()" [attr.x]="step.x" [attr.y]="step.y" [attr.width]="step.w" [attr.height]="step.h" rx="2" [attr.fill]="step.colour" />
               @if (step.w > 22) {
                 <text class="value after" [style.--i]="i" [attr.x]="step.x + step.w / 2" [attr.y]="step.y - 5" text-anchor="middle">{{ format(step.value) }}</text>
               }
@@ -455,10 +457,16 @@ export function pieLabelSpots(
               <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
               <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
             }
-            <polygon class="area-in" [attr.points]="areaPath()" [attr.fill]="colour(0)" fill-opacity="0.22" />
-            <polyline class="draw-line" [style.--len]="lengthOf(linePath())" [attr.points]="linePath()" fill="none" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
+            <defs>
+              <linearGradient id="area-wash" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" [attr.stop-color]="colour(0)" stop-opacity="0.32" />
+                <stop offset="100%" [attr.stop-color]="colour(0)" stop-opacity="0.02" />
+              </linearGradient>
+            </defs>
+            <polygon class="area-in" [attr.points]="areaPath()" fill="url(#area-wash)" />
+            <polyline class="draw-line" [style.--len]="lengthOf(linePath())" [attr.points]="linePath()" fill="none" [attr.stroke]="colour(0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             @for (dot of dots(); track $index; let i = $index) {
-              <circle class="pop-in late-pop" [style.--i]="i" [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.fill]="colour(0)" [class.dim]="dim(dot.key)" (mousemove)="showTip($event, dot.label, [{ value: format(dot.value) }])" (mouseleave)="hideTip()" />
+              <circle class="pop-in late-pop dotmark ring" [class.quiet]="dots().length > 24" [style.--i]="i" [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.stroke]="colour(0)" [class.dim]="dim(dot.key)" (mousemove)="showTip($event, dot.label, [{ value: format(dot.value) }])" (mouseleave)="hideTip()" />
               @if (pickable()) {
                 <circle class="target" [class.hit]="hit(dot.key)" [class.dim]="dim(dot.key)" (click)="choose(dot, $event)" (mousemove)="showTip($event, dot.label, [{ value: format(dot.value) }])" (mouseleave)="hideTip()" [attr.cx]="dot.x" [attr.cy]="dot.y" r="12" />
               }
@@ -474,9 +482,16 @@ export function pieLabelSpots(
               <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
               <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
             }
-            <polyline class="draw-line" [style.--len]="lengthOf(linePath())" [attr.points]="linePath()" fill="none" [attr.stroke]="colour(0)" stroke-width="2.5" stroke-linejoin="round" />
+            <defs>
+              <linearGradient id="line-wash" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" [attr.stop-color]="colour(0)" stop-opacity="0.2" />
+                <stop offset="100%" [attr.stop-color]="colour(0)" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+            <polygon class="area-in" [attr.points]="areaPath()" fill="url(#line-wash)" />
+            <polyline class="draw-line" [style.--len]="lengthOf(linePath())" [attr.points]="linePath()" fill="none" [attr.stroke]="colour(0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             @for (dot of dots(); track $index; let i = $index) {
-              <circle class="pop-in late-pop" [style.--i]="i" [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.fill]="colour(0)" [class.dim]="dim(dot.key)" (mousemove)="showTip($event, dot.label, [{ value: format(dot.value) }])" (mouseleave)="hideTip()" />
+              <circle class="pop-in late-pop dotmark ring" [class.quiet]="dots().length > 24" [style.--i]="i" [attr.cx]="dot.x" [attr.cy]="dot.y" r="3.5" [attr.stroke]="colour(0)" [class.dim]="dim(dot.key)" (mousemove)="showTip($event, dot.label, [{ value: format(dot.value) }])" (mouseleave)="hideTip()" />
               @if (pickable()) {
                 <circle class="target" [class.hit]="hit(dot.key)" [class.dim]="dim(dot.key)" (click)="choose(dot, $event)" (mousemove)="showTip($event, dot.label, [{ value: format(dot.value) }])" (mouseleave)="hideTip()" [attr.cx]="dot.x" [attr.cy]="dot.y" r="12" />
               }
@@ -501,7 +516,7 @@ export function pieLabelSpots(
                   }
                   @for (column of days().columns; track column.label; let i = $index) {
                     @if (!column.empty) {
-                      <rect class="grow-y" [style.--i]="i" [attr.x]="column.x" [attr.y]="column.y" [attr.width]="column.w" [attr.height]="column.h" rx="2" [attr.fill]="colour(0)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)" (mousemove)="showTip($event, column.label, [{ value: format(column.value) }])" (mouseleave)="hideTip()" />
+                      <path class="grow-y mark pick" [style.--i]="i" [attr.d]="topRound(column.x, column.y, column.w, column.h)" [attr.fill]="colour(0)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)" (mousemove)="showTip($event, column.label, [{ value: format(column.value) }])" (mouseleave)="hideTip()" />
                       <text class="value after" [style.--i]="i" [attr.x]="column.mid" [attr.y]="column.y - 5" text-anchor="middle">{{ format(column.value) }}</text>
                     }
                     <text class="axis" [attr.x]="column.mid" [attr.y]="height - 8" text-anchor="middle">{{ column.name }}</text>
@@ -516,10 +531,10 @@ export function pieLabelSpots(
                 <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
               }
               @for (column of columns(); track column.label; let i = $index) {
-                <g (mousemove)="showTip($event, column.label, [{ value: format(column.value) }])" (mouseleave)="hideTip()">
+                <g class="pick" (mousemove)="showTip($event, column.label, [{ value: format(column.value) }])" (mouseleave)="hideTip()">
                   <!-- The whole slot answers the pointer, so a short bar (or its name) is as easy to hover as a tall one. -->
                   <path class="slot" [attr.d]="slot(column.x, column.w)" />
-                  <rect class="grow-y" [style.--i]="i" [attr.x]="column.x" [attr.y]="column.y" [attr.width]="column.w" [attr.height]="column.h" rx="2" [attr.fill]="zoneColour(column.label)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)" />
+                  <path class="grow-y mark" [style.--i]="i" [attr.d]="topRound(column.x, column.y, column.w, column.h)" [attr.fill]="zoneColour(column.label)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)" />
                   @if (column.w > 22) {
                     <text class="value after" [style.--i]="i" [attr.x]="column.x + column.w / 2" [attr.y]="column.y - 5" text-anchor="middle">{{ format(column.value) }}</text>
                   }
@@ -547,9 +562,12 @@ export function pieLabelSpots(
   styles: `
     :host { display: block; min-width: 0; position: relative; }
     .slot { fill: transparent; pointer-events: all; }
+    /* The slot under the pointer is faintly shaded, as the best dashboards guide the eye to the column read. */
+    .pick:hover > .slot { fill: rgba(60, 60, 67, 0.05); }
+    @media (prefers-reduced-motion: no-preference) { .slot { transition: fill var(--dur-fast) var(--ease); } }
     /* The full name of the column the pointer is on (the axis cuts a long one short). */
-    .tip { position: absolute; z-index: 5; transform: translate(-50%, calc(-100% - 12px)); pointer-events: none; display: flex; flex-direction: column; gap: 3px; padding: 7px 11px; border-radius: 8px; background: #252423; color: #fff; font-size: 12px; line-height: 1.35; white-space: nowrap; box-shadow: 0 4px 14px rgb(0 0 0 / 0.22); }
-    .tip strong { font-weight: 600; }
+    .tip { position: absolute; z-index: 5; transform: translate(-50%, calc(-100% - 12px)); pointer-events: none; display: flex; flex-direction: column; gap: 4px; min-width: 120px; padding: 9px 12px; border-radius: 12px; background: rgb(29 29 31 / 0.9); -webkit-backdrop-filter: saturate(180%) blur(14px); backdrop-filter: saturate(180%) blur(14px); color: #fff; font-size: 12px; line-height: 1.35; white-space: nowrap; letter-spacing: -0.005em; box-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.1) inset, 0 10px 28px -6px rgb(0 0 0 / 0.38), 0 2px 6px rgb(0 0 0 / 0.16); }
+    .tip strong { font-weight: 600; font-size: 12.5px; padding-bottom: 2px; margin-bottom: 1px; border-bottom: 0.5px solid rgb(255 255 255 / 0.16); }
     .tip-line { display: flex; align-items: center; gap: 6px; }
     .tip-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
     .tip-name { opacity: 0.8; }
@@ -588,28 +606,55 @@ export function pieLabelSpots(
     .total-line { pointer-events: none; }
     .hit { cursor: pointer; }
     .dim { opacity: 0.3; }
+    /* A chart answers the pointer, as Power BI's do: the mark under it lifts (a touch brighter, a soft shadow; a slice also
+       moves out from the middle) and the others step back; a click's dimming fades in and out instead of snapping. */
+    svg:has(.pick:hover) .pick:not(:hover):not(.dim) .mark:not(.dim),
+    svg:has(.pick:hover) .mark.pick:not(:hover):not(.dim) { opacity: 0.5; }
+    .pick:hover .mark,
+    .mark.pick:hover { filter: brightness(1.06) drop-shadow(0 2px 5px rgb(0 0 0 / 0.22)); }
+    /* A slice is drawn in the unit circle, which is scaled up to the pie, so its shadow is measured in that circle. */
+    .mark.pick.slice:hover,
+    .mark.pick.polar-sector:hover { filter: brightness(1.06) drop-shadow(0 0.015px 0.04px rgb(0 0 0 / 0.3)); }
+    .pick.dim:hover,
+    .pick:hover .mark.dim,
+    .legend li.dim:hover { opacity: 0.6; }
+    .recede:not(.dim) { opacity: 0.5; }
+    @media (prefers-reduced-motion: no-preference) {
+      svg :is(rect, path, circle, g, text, polyline) { transition: opacity var(--dur) var(--ease); }
+      .legend li { transition: opacity var(--dur) var(--ease); }
+      .mark { transition: opacity var(--dur) var(--ease), filter var(--dur) var(--ease); }
+      .slice { transition: opacity var(--dur) var(--ease), filter var(--dur) var(--ease), transform var(--dur-spring) var(--ease-spring); }
+      .slice:hover, .slice.lit { transform: translate(calc(var(--dx, 0) * 1px), calc(var(--dy, 0) * 1px)); }
+      .dotmark { transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease-spring); }
+      .dotmark:hover, .dotmark:has(+ .target:hover) { transform: scale(1.7); }
+    }
     .target { fill: transparent; pointer-events: none; }
     .target.hit { pointer-events: all; }
-    .grid { stroke: #e1dfdd; stroke-width: 1; }
+    .grid { stroke: rgba(60, 60, 67, 0.09); stroke-width: 1; shape-rendering: crispEdges; }
     .timeline { display: flex; }
     .day-axis { flex: none; }
     .day-scroll { flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; }
-    .zero { stroke: #8b9390; stroke-width: 1; }
-    .chart-note { font-size: 11px; color: #605e5c; line-height: 1.45; margin: 6px 0 0; }
-    .axis { font-size: 11px; fill: #605e5c; }
-    .value { font-size: 11px; fill: #252423; font-weight: 600; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-    .share { font-weight: 400; fill: #8a8886; }
-    .axis.name { font-size: 12px; fill: #252423; }
-    .big-value { font-size: 30px; fill: #252423; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .zero { stroke: rgba(60, 60, 67, 0.32); stroke-width: 1; shape-rendering: crispEdges; }
+    .chart-note { font-size: 11px; color: #6e6e73; line-height: 1.45; margin: 6px 0 0; }
+    .axis { font-size: 11px; fill: #8e8e93; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+    .value { font-size: 11px; fill: #1d1d1f; font-weight: 600; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+    .share { font-weight: 400; fill: #8e8e93; }
+    .axis.name { font-size: 12px; fill: #3a3a3c; }
+    /* A line's points: a white-centred ring, only drawn on a long line when the pointer is on it. */
+    .ring { fill: #fff; stroke-width: 2; }
+    .ring.quiet { opacity: 0; }
+    .ring.quiet:hover,
+    .ring.quiet:has(+ .target:hover) { opacity: 1; }
+    .big-value { font-size: 30px; fill: #1d1d1f; font-weight: 650; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
     .tile-label { font-size: 11px; fill: #fff; font-weight: 600; }
     .tile-value { font-size: 11px; fill: #fff; opacity: 0.85; }
-    .series-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0 44px; font-size: 12px; color: #252423; }
+    .series-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0 44px; font-size: 12px; color: #1d1d1f; }
     .series-legend li { display: inline-flex; align-items: center; gap: 6px; }
     .segment { font-size: 11px; font-weight: 600; fill: #fff; pointer-events: none; }
-    .none { font-size: 0.8125rem; color: #605e5c; padding: 40px 0; text-align: center; }
+    .none { font-size: 0.8125rem; color: #6e6e73; padding: 40px 0; text-align: center; }
     .pie { display: block; margin: 0 auto; }
-    .pie-name { font-size: 13px; font-weight: 500; fill: #252423; letter-spacing: 0.01em; }
-    .pie-share { font-size: 12px; fill: #8a8886; font-variant-numeric: tabular-nums; }
+    .pie-name { font-size: 13px; font-weight: 500; fill: #1d1d1f; letter-spacing: 0.01em; }
+    .pie-share { font-size: 12px; fill: #8e8e93; font-variant-numeric: tabular-nums; }
     /* A halo of the slice's own colour round the letters, so a name running over the slice's edge still reads. */
     .pie-inside { pointer-events: none; stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
     .pie-in-name { font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
@@ -621,13 +666,13 @@ export function pieLabelSpots(
     .pie-percent { font-size: 13px; font-weight: 600; pointer-events: none; }
     .round { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px; min-height: 220px; }
     .legend { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow: auto; }
-    .legend li { display: flex; align-items: center; gap: 10px; padding: 3px 4px; border-radius: 6px; font-size: 14px; color: #252423; }
-    .legend .share { width: 46px; text-align: right; color: #8a8886; font-variant-numeric: tabular-nums; }
+    .legend li { display: flex; align-items: center; gap: 10px; padding: 3px 4px; border-radius: 6px; font-size: 14px; color: #1d1d1f; }
+    .legend .share { width: 46px; text-align: right; color: #8e8e93; font-variant-numeric: tabular-nums; }
     /* The total line's key: a short dashed line, as it is drawn. */
     .dash { width: 18px; height: 0; border-top: 2px dashed; flex: none; }
     .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
     .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .num { color: #605e5c; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .num { color: #6e6e73; font-variant-numeric: tabular-nums; white-space: nowrap; }
   `,
 })
 export class KpiChart {
@@ -657,9 +702,12 @@ export class KpiChart {
 
   /** What the pointer is on, written out in full over it: the column's name (the axis may have cut it short) and its values. */
   readonly tip = signal<{ x: number; y: number; title: string; lines: { name?: string; colour?: string; value: string }[] } | null>(null);
+  /** The group the pointer is on (its own label, not the tip's title), so the writing over the other groups steps back with them. */
+  readonly pointed = signal<string | null>(null);
   private readonly hostEl = inject(ElementRef<HTMLElement>).nativeElement as HTMLElement;
 
   showTip(event: MouseEvent, title: string, lines: { name?: string; colour?: string; value: string }[]) {
+    this.pointed.set(title);
     const box = this.hostEl.getBoundingClientRect();
     const x = Math.min(Math.max(event.clientX - box.left, 70), Math.max(70, box.width - 70));
     this.tip.set({ x, y: event.clientY - box.top, title: this.sliceName(title), lines });
@@ -680,6 +728,13 @@ export class KpiChart {
     return Number.isFinite(length) ? Math.ceil(length) + 1 : 0;
   }
 
+  /** A column's outline: the top corners rounded, the foot square on the baseline (as the best dashboards draw them). */
+  topRound(x: number, y: number, w: number, h: number) {
+    if (h <= 0) return `M${x} ${y}h${w}z`;
+    const r = Math.min(5, w / 2, h);
+    return `M${x} ${y + h}V${y + r}a${r} ${r} 0 0 1 ${r} ${-r}h${w - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}V${y + h}z`;
+  }
+
   /** The hover area of a column: its whole slot, top to bottom (not a bar, so it is a path). */
   slot(x: number, w: number) {
     return `M${x - 2} 0h${w + 4}v${HEIGHT}h${-(w + 4)}z`;
@@ -687,6 +742,18 @@ export class KpiChart {
 
   hideTip() {
     this.tip.set(null);
+    this.pointed.set(null);
+  }
+
+  /** The pointer is on another group than this one. */
+  receded(label: string) {
+    const pointed = this.pointed();
+    return pointed !== null && pointed !== label;
+  }
+
+  /** A click has kept this group (the others are dimmed). */
+  lit(key: string | undefined) {
+    return this.selected().length > 0 && !this.dim(key);
   }
 
   readonly height = HEIGHT;

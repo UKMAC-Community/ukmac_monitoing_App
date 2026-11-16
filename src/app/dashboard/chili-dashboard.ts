@@ -49,13 +49,13 @@ interface YearTile {
                 @if (tile.trend.length >= 2) {
                   <defs>
                     <linearGradient [attr.id]="'fade-' + $index" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stop-color="#118DFF" stop-opacity="0.22" />
-                      <stop offset="100%" stop-color="#118DFF" stop-opacity="0" />
+                      <stop offset="0%" stop-color="#2A78D6" stop-opacity="0.22" />
+                      <stop offset="100%" stop-color="#2A78D6" stop-opacity="0" />
                     </linearGradient>
                   </defs>
                   <path [attr.d]="area(tile.trend)" [attr.fill]="'url(#fade-' + $index + ')'" />
                 }
-                <path [attr.d]="line(tile.trend)" fill="none" stroke="#118DFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+                <path [attr.d]="line(tile.trend)" fill="none" stroke="#2A78D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
               </svg>
             </div>
           </article>
@@ -74,7 +74,12 @@ interface YearTile {
     </div>
   `,
   styles: `
-    @media (prefers-reduced-motion: no-preference) { .tile { animation: itemIn 420ms var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms); } }
+    @media (prefers-reduced-motion: no-preference) {
+      .tile { animation: itemIn 420ms var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms); transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease); }
+      /* A tile answers the pointer: its shadow deepens, and a number tile also lifts a little (a chart stays put, its marks are what the pointer is for). */
+      .tile:hover { box-shadow: var(--edge), 0 1px 2px rgb(0 0 0 / 0.05), 0 14px 32px -14px rgb(17 24 39 / 0.2); }
+      .tile:not(.chart):hover { transform: translateY(-2px); }
+    }
     /* As the system's KPI page: soft white cards straight on the page, no grey canvas. */
     .canvas { display: flex; flex-direction: column; gap: 12px; }
     .tiles { display: grid; grid-template-columns: repeat(var(--kpi-cols, 3), minmax(0, 1fr)); gap: 12px; }

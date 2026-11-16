@@ -109,8 +109,14 @@ describe('Harvest: its tables by date, and by zone number', () => {
     expect(root.querySelector('article.summary tbody tr td:nth-child(2)')?.textContent?.trim()).toBe('A-01, Z-99');
     buttons[1].click();
     fixture.detectChanges();
-    expect(heads()).toEqual(['Zone number', 'Zone plots', 'Harvest dates', 'Total yield (kg)', 'Ripe (kg)', 'Unripe (kg)']);
+    expect(heads()).toEqual(['Zone number', 'Zone plots', 'Yield by harvest day', 'Total yield (kg)', 'Ripe (kg)', 'Unripe (kg)']);
     expect(root.querySelectorAll('article.summary tbody tr').length).toBe(3);
+    // The days are a mini graph (a bar for each day harvested), no longer a long line of dates.
+    const graph = root.querySelector('article.summary tbody tr app-spark');
+    expect(graph).not.toBeNull();
+    expect(graph!.querySelectorAll('rect.mark').length).toBeGreaterThan(0);
+    expect(graph!.querySelector('title')?.textContent).toMatch(/^\d{4}-\d{2}-\d{2}: /);
+    expect(root.querySelector('article.summary tbody tr .list-text')?.textContent ?? '').not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
   it('draws the harvest yield by day as a timeline: every day on the way, the days with none empty', () => {

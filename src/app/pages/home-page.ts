@@ -2,13 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { Router, RouterLink } from '@angular/router';
 
 import { Icon } from '../components/icon';
-import { LinkTablesDialog } from '../components/link-tables-dialog';
 import { MacDialog } from '../components/mac-dialog';
 import { UpdateButton } from '../components/update-button';
 import { Api, errorText } from '../core/api';
 import { Google } from '../core/google';
 import { MacList } from '../core/mac-list';
-import type { ImportedMac, Mac, Workbook } from '../core/models';
+import type { ImportedMac, Mac } from '../core/models';
 import { Toasts } from '../core/toast';
 import { WorkbookStore } from '../core/workbook-store';
 import { buildSyncWorkbook } from '../excel/sync-workbook';
@@ -18,7 +17,7 @@ import { baseName } from '../core/paths';
 /** Every MAC on this Mac, under its province (its location), and a new one. */
 @Component({
   selector: 'app-home-page',
-  imports: [RouterLink, Icon, MacDialog, LinkTablesDialog, UpdateButton],
+  imports: [RouterLink, Icon, MacDialog, UpdateButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="home">
@@ -112,15 +111,14 @@ import { baseName } from '../core/paths';
       <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
         <button type="button" class="menu-item" (click)="open(menu.mac)"><app-icon name="table" /> Open</button>
         <button type="button" class="menu-item" (click)="edit(menu.mac)"><app-icon name="edit" /> Edit</button>
-        <button type="button" class="menu-item" (click)="saveToFile(menu.mac)" title="Save this MAC's tables and their Google links to a file, with the Zone Map's plots. No other data is in it: that is read from Google when the file is opened"><app-icon name="download" /> Save a link file…</button>
+        <button type="button" class="menu-item" (click)="saveToFile(menu.mac)" title="Save this MAC's tables and their Google links to a file. No data is in it: everything is read from Google when the file is opened"><app-icon name="download" /> Save a link file…</button>
         <button type="button" class="menu-item" (click)="saveInputSheet(menu.mac)" title="An Excel workbook with a tab for each table that is not in Google yet (Zones aside), with the rows it holds now: upload it to Google Drive and open it as a Google Sheet"><app-icon name="table" /> Google Sheet for input…</button>
-        <button type="button" class="menu-item" (click)="openLinkTables(menu.mac)" title="Link those tables to the tabs of that Google Sheet, so importing this MAC's file reads all of them"><app-icon name="refresh" /> Link tables to a Google Sheet…</button>
+        <button type="button" class="menu-item" (click)="openLinkTables(menu.mac)" title="Connect this MAC's tables to the tabs of one Google Sheet, column by column, so importing this MAC's file reads all of them"><app-icon name="refresh" /> Connect Google Sheet…</button>
         <div class="menu-divider"></div>
         <button type="button" class="menu-item danger" (click)="remove(menu.mac)"><app-icon name="trash" /> Delete</button>
       </div>
     }
 
-    <app-link-tables-dialog [open]="linkBook() !== null" [book]="linkBook()" (closed)="linkBook.set(null)" (linked)="afterLinked()" />
     <app-mac-dialog [open]="dialogOpen()" [mac]="editing()" (closed)="dialogOpen.set(false)" (saved)="saved($event)" />
   `,
   styles: `
@@ -159,6 +157,7 @@ import { baseName } from '../core/paths';
     .sk-c { width: 140px; height: 24px; border-radius: 999px; } .sk-d { width: 60px; height: 12px; }
     @media (prefers-reduced-motion: no-preference) {
       .mac-card:not(.skel) { animation: itemIn 380ms var(--ease) both; }
+      .mac-card:not(.skel):hover { transform: translateY(-2px); }
       .hero, .toolbar { animation: itemIn 380ms var(--ease) both; }
       .toolbar { animation-delay: 60ms; }
     }
@@ -180,8 +179,6 @@ export class HomePage {
   readonly menu = this.menu$.asReadonly();
   /** A file is being written or read. */
   readonly busy = signal(false);
-  /** The MAC whose tables are being linked to a Google Sheet, with its tables. */
-  readonly linkBook = signal<Workbook | null>(null);
 
 
   /** MACs by province: the first part of their location ("Battambang, Thma Koul" → Battambang). */
@@ -258,7 +255,7 @@ export class HomePage {
       const saved = await this.api.exportMacFile(mac.macId, path);
       this.toasts.show(
         `${mac.macName} saved to ${baseName(path)}: ${saved.sheets} tables and ${saved.linked} Google link${saved.linked === 1 ? '' : 's'}; ` +
-          (saved.rows > 0 ? `the Zone Map (${saved.rows} rows of Zones) is in the file, no other data` : 'no data in the file') +
+          'no data in the file' +
           ` (${size(saved.bytes)})`,
       );
       if (saved.emptyOnOpen.length) {
@@ -301,7 +298,7 @@ export class HomePage {
         const answer = await this.api.choose(
           `${here.macName} (${here.macCode}) is already on this computer: ${here.sheetCount} tables, ${here.rowCount} rows, last changed ${here.updatedAt.slice(0, 10)}.\n\n` +
             (peek.linksOnly
-              ? `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.linkedTables} linked to Google${peek.rows ? `, and the Zone Map (${peek.rows} rows)` : ''}, no other data.\n\n` +
+              ? `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.linkedTables} linked to Google${peek.rows ? `, and ${peek.rows} rows` : ', no data'}.\n\n` +
                 `Keep both: the file's copy is added next to it, with a new code, and read from Google.\n` +
                 `Replace: the one here is taken out, with every row in it (also tables that aren't linked to Google, which can't be read back), and the file's copy takes its place.`
               : `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.rows} rows.\n\n` +
@@ -366,7 +363,7 @@ export class HomePage {
     if (!links.length) {
       this.toasts.show(
         done.rows > 0
-          ? `${name} added with its Zone Map. No other table is linked to Google, so the rest is empty.`
+          ? `${name} added. No table is linked to Google, so every table is empty.`
           : `${name} has no data in its file and no table is linked to Google, so every table is empty.`,
         'info',
         undefined,
@@ -418,8 +415,7 @@ export class HomePage {
   }
 
   /**
-   * An Excel workbook to make a Google Sheet from: a tab for each table of the MAC that is not in Google yet (Zones aside, the
-   * map travels in the file), headed as the app reads them and holding the rows each has now, so nothing typed so far is lost.
+   * An Excel workbook to make a Google Sheet from: a tab for each table of the MAC that is not in Google yet, headed as the app reads them and holding the rows each has now, so nothing typed so far is lost.
    */
   async saveInputSheet(mac: Mac) {
     this.menu$.set(null);
@@ -428,7 +424,7 @@ export class HomePage {
       await this.google.refreshLinks();
       const tables = this.google.inputTables(book);
       if (!tables.length) {
-        this.toasts.show('Every table of this MAC is in a Google Sheet already, or is the map.', 'info');
+        this.toasts.show('Every table of this MAC is in a Google Sheet already.', 'info');
         return;
       }
       const name = mac.macName.replace(/[\\/:*?"<>|]+/g, ' ').trim() || mac.macCode;
@@ -437,7 +433,7 @@ export class HomePage {
       const { bytes } = await buildSyncWorkbook(tables);
       await this.api.writeFile(path, bytes);
       this.toasts.show(
-        `${baseName(path)} has ${tables.length} tab${tables.length === 1 ? '' : 's'}. Upload it to Google Drive, open it as a Google Sheet and share it, then “Link tables to a Google Sheet”.`,
+        `${baseName(path)} has ${tables.length} tab${tables.length === 1 ? '' : 's'}. Upload it to Google Drive, open it as a Google Sheet and share it, then “Connect Google Sheet”.`,
         'ok',
         { label: 'Open Google Drive', run: () => void this.api.openLink('https://drive.google.com/drive/my-drive') },
         20000,
@@ -447,21 +443,10 @@ export class HomePage {
     }
   }
 
-  /** Opens the window that links the MAC's tables to the tabs of a Google Sheet. */
-  async openLinkTables(mac: Mac) {
+  /** Opens the page that connects the MAC's tables to the tabs of one Google Sheet. */
+  openLinkTables(mac: Mac) {
     this.menu$.set(null);
-    try {
-      await this.google.refreshLinks();
-      this.linkBook.set(await this.api.getWorkbook(mac.macId));
-    } catch (error) {
-      this.toasts.error(errorText(error));
-    }
-  }
-
-  /** Tables were linked: the lists and the open MAC show it. */
-  afterLinked() {
-    void this.google.refreshLinks();
-    void this.macs.refresh();
+    void this.router.navigate(['/mac', mac.macId, 'google']);
   }
 
   async remove(mac: Mac) {

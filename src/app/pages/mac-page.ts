@@ -210,8 +210,8 @@ export class MacPage {
       this.store.sheets().find((sheet) => sheet.templateKey === 'zone-records') ?? null,
     ),
   );
-  /** Which plots the map shows: all, the zones (in use), or the rest (water, not in use…), as on the Zone Map. */
-  readonly show = signal<PlotShow>('all');
+  /** Which plots the map shows: the zones (in use) to begin with, or all, or the rest (water, not in use…), as on the Zone Map. */
+  readonly show = signal<PlotShow>('zones');
   readonly shows = computed(() => plotShowOptions(this.layout()));
   /** The plots drawn on the satellite, as the Zone Map shows them. */
   readonly shapes = computed(() => plotShapes(filterLayout(this.layout(), this.show())));

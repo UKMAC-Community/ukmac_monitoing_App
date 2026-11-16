@@ -11,6 +11,7 @@ export const routes: Routes = [
       { path: 'data-check', loadComponent: () => import('./pages/data-check-page').then((m) => m.DataCheckPage), title: 'Data Check' },
       { path: 'zone-map', loadComponent: () => import('./pages/zone-map-page').then((m) => m.ZoneMapPage), title: 'Zone Map', canDeactivate: [(page: { canLeave(): Promise<boolean> | boolean }) => page.canLeave()] },
       { path: 'table/:sheetId', loadComponent: () => import('./pages/sheet-page').then((m) => m.SheetPage) },
+      { path: 'google', loadComponent: () => import('./pages/google-connect-page').then((m) => m.GoogleConnectPage), title: 'Connect a Google Sheet' },
     ],
   },
   { path: '**', redirectTo: '' },

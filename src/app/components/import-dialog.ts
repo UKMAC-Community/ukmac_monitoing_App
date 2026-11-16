@@ -5,8 +5,9 @@ import type { Column, SheetWithRows } from '../core/models';
 import { Toasts } from '../core/toast';
 import { WorkbookStore } from '../core/workbook-store';
 import { readImport, type ImportPreview } from '../excel/excel-template';
-import { plainLayout, sameLayout, type FileLayout } from '../excel/file-layout';
-import { columnLabel, displayCell, isEntryColumn, normalizeHeader, parseLinkSource } from '../sheet/columns';
+import type { FileLayout } from '../excel/file-layout';
+import { linkHeaderMap, linkLayout } from '../google/connect-plan';
+import { columnLabel, displayCell, isEntryColumn, parseLinkSource } from '../sheet/columns';
 import { ColumnMatcher } from './column-matcher';
 import { ImportLayout } from './import-layout';
 import { Icon } from './icon';
@@ -501,17 +502,12 @@ export class ImportDialog {
 
   /** What each header of a Google tab fills, as the link remembers it (a header that fills nothing: left out on purpose). */
   private connectionMap(preview: ImportPreview) {
-    const keyAt = new Map(preview.matched.map((item) => [item.position, item.key]));
-    const map: Record<string, string> = {};
-    preview.sync.headers.forEach((header, index) => {
-      map[normalizeHeader(header)] = keyAt.get(preview.sync.positions[index]) ?? '';
-    });
-    return map;
+    return linkHeaderMap(preview.sync, Object.fromEntries(preview.matched.map((item) => [item.key, item.position])));
   }
 
   /** What the link keeps of where the names and data are: nothing, when Sync would look in the same place anyway. */
   private layoutForLink(preview: ImportPreview, file: ImportFile) {
-    return file.headerRow && sameLayout(preview.layout, plainLayout(file.headerRow)) ? null : preview.layout;
+    return linkLayout(preview.layout, file.headerRow);
   }
 
   header(column: Column) {

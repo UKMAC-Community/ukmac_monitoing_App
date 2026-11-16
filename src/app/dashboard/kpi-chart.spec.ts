@@ -184,7 +184,7 @@ describe('KpiChart: the newer charts', () => {
     fixture.componentRef.setInput('timeline', true);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelectorAll('rect').length).toBe(3);
+    expect(el.querySelectorAll('rect, path.grow-y').length).toBe(3);
     // Every one of the 30 days is named (the year on the first only), the axis is kept apart from what scrolls.
     const named = [...el.querySelectorAll('.day-scroll text.axis')].map((text) => text.textContent?.trim());
     expect(named.length).toBe(30);
@@ -199,7 +199,7 @@ describe('KpiChart: the newer charts', () => {
     plain.componentRef.setInput('points', days.map(({ empty, ...point }) => point));
     plain.componentRef.setInput('visual', 'column');
     plain.detectChanges();
-    expect((plain.nativeElement as HTMLElement).querySelectorAll('rect').length).toBe(12);
+    expect((plain.nativeElement as HTMLElement).querySelectorAll('rect, path.grow-y').length).toBe(12);
   });
 });
 
@@ -346,7 +346,7 @@ describe('KpiChart: zone colours', () => {
     fixture.componentRef.setInput('visual', visual);
     fixture.componentRef.setInput('zoneColours', zoneColours);
     fixture.detectChanges();
-    return [...(fixture.nativeElement as HTMLElement).querySelectorAll('rect')]
+    return [...(fixture.nativeElement as HTMLElement).querySelectorAll('rect, path.mark')]
       .map((rect) => rect.getAttribute('fill'))
       .filter((fill) => !!fill && fill !== 'transparent');
   }
@@ -363,5 +363,71 @@ describe('KpiChart: zone colours', () => {
 
   it('without the flag every column keeps the one colour', () => {
     expect(new Set(fills('column', false)).size).toBe(1);
+  });
+});
+
+describe('KpiChart: the mark under the pointer', () => {
+  beforeAll(() => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    };
+  });
+
+  const keyed: ChartPoint[] = points.map((point) => ({ ...point, key: point.label }));
+
+  function chartOf(visual: KpiVisual, extra: Record<string, unknown> = {}) {
+    const fixture = TestBed.createComponent(KpiChart);
+    fixture.componentRef.setInput('points', keyed);
+    fixture.componentRef.setInput('visual', visual);
+    for (const [name, value] of Object.entries(extra)) fixture.componentRef.setInput(name, value);
+    fixture.detectChanges();
+    return { fixture, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('every chart of marks has its marks answering the pointer (the mark, or the group it is in, is what is hovered)', () => {
+    for (const visual of ['column', 'bar', 'waterfall', 'pareto', 'funnel', 'treemap', 'polar', 'pie', 'donut'] as const) {
+      const { el } = chartOf(visual);
+      const marks = [...el.querySelectorAll('.mark')];
+      expect(marks.length, visual).toBeGreaterThanOrEqual(4);
+      for (const mark of marks) expect(mark.closest('.pick'), visual).toBeTruthy();
+    }
+    // The dots of a line grow under the pointer; a stack's columns are marks as groups.
+    expect(chartOf('line').el.querySelectorAll('circle.dotmark').length).toBe(4);
+    const series = [{ label: 'Ripe', points: keyed }, { label: 'Unripe', points: keyed.map((point) => ({ ...point, value: 10 })) }];
+    expect(chartOf('stacked', { series }).el.querySelectorAll('.pick > g.mark').length).toBe(4);
+  });
+
+  it('a slice moves out along its middle line when pointed at (the unit circle, so a fraction of the radius)', () => {
+    const { el } = chartOf('donut');
+    const slices = [...el.querySelectorAll<SVGPathElement>('path.slice')];
+    expect(slices.length).toBe(4);
+    // Chili is 400 of 980: from the top, round to 40.8% of the circle.
+    const mid = -Math.PI / 2 + (400 / 980) * Math.PI;
+    expect(Number(slices[0].style.getPropertyValue('--dx'))).toBeCloseTo(Math.cos(mid) * 0.045, 6);
+    expect(Number(slices[0].style.getPropertyValue('--dy'))).toBeCloseTo(Math.sin(mid) * 0.045, 6);
+  });
+
+  it('the names over the other slices step back while one is pointed at, and come back after', () => {
+    const { fixture, el } = chartOf('pie');
+    expect(el.querySelectorAll('.pie-inside').length).toBe(4);
+    expect(el.querySelectorAll('.recede').length).toBe(0);
+    el.querySelectorAll('path.slice')[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    fixture.detectChanges();
+    const receded = [...el.querySelectorAll('.pie-inside')].map((label) => label.classList.contains('recede'));
+    expect(receded).toEqual([true, false, true, true]);
+    el.querySelectorAll('path.slice')[1].dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelectorAll('.recede').length).toBe(0);
+  });
+
+  it('the slice a click kept stays moved out, the others dimmed', () => {
+    const { el } = chartOf('pie', { pickable: true, selected: ['Cow'] });
+    const slices = [...el.querySelectorAll('path.slice')];
+    expect(slices.map((slice) => slice.classList.contains('lit'))).toEqual([false, true, false, false]);
+    expect(slices.map((slice) => slice.classList.contains('dim'))).toEqual([true, false, true, true]);
+    // Nothing kept: nothing is moved out.
+    expect(chartOf('pie', { pickable: true }).el.querySelectorAll('path.slice.lit').length).toBe(0);
   });
 });

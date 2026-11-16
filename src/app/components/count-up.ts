@@ -12,6 +12,13 @@ export interface ShownNumber {
   after: string;
 }
 
+/** How long the tile this number is in waits before it rises in (its `--enter`, in ms; none when it has none). */
+function enterOf(el: HTMLElement): number {
+  if (typeof getComputedStyle === 'undefined') return 0;
+  const wait = parseFloat(getComputedStyle(el).getPropertyValue('--enter'));
+  return Number.isFinite(wait) ? wait : 0;
+}
+
 /** The number in a shown value ("102,800", "95.3", "4.15%"); none for anything else (a date, "12 / 30", "—"). */
 export function readShownNumber(text: string): ShownNumber | null {
   const match = /^([^\d-]*)(-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?)([^\d]*)$/.exec(text.trim());
@@ -63,9 +70,10 @@ export class CountUp {
       this.el.textContent = text;
       return;
     }
-    const start = performance.now();
+    // The first count waits for the tile to come up (its --enter), so it is seen from its start; a later one (a filter) goes at once.
+    const start = performance.now() + (this.shown === null ? enterOf(this.el) : 0);
     const step = (now: number) => {
-      const progress = Math.min(1, (now - start) / DURATION);
+      const progress = Math.min(1, Math.max(0, (now - start) / DURATION));
       const eased = 1 - (1 - progress) ** 3;
       this.shown = from + (to - from) * eased;
       // The last frame is the value exactly as it came (no rounding of its own).

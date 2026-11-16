@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 
 import { fixLayout, MAX_HEADER_ROWS, sameLayout, type FileLayout, type FilePeek } from '../excel/file-layout';
 import { Icon } from './icon';
+import { SegmentedThumb } from './segmented-thumb';
 
 type Mark = 'names' | 'data';
 
@@ -19,7 +20,7 @@ function letters(column: number) {
  */
 @Component({
   selector: 'app-import-layout',
-  imports: [Icon],
+  imports: [Icon, SegmentedThumb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="layout">

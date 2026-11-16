@@ -111,6 +111,9 @@ const MIGRATIONS: &[&str] = &[
     "#,
 ];
 
+
+
+
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let mut conn = Connection::open(path)?;
     conn.execute_batch(
