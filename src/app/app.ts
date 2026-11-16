@@ -3,22 +3,22 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
-import { Icon } from './components/icon';
-import { NavPillGlide } from './components/nav-pill-glide';
-import { SignInGate } from './components/sign-in-gate';
-import { UpdateButton } from './components/update-button';
-import { Api, errorText } from './core/api';
-import { Google } from './core/google';
-import { AutoSync } from './core/auto-sync';
-import { MacList } from './core/mac-list';
-import { PowerBi } from './core/powerbi';
-import { HEADING_ICONS } from './core/headings';
-import { Shell } from './core/shell';
-import { Theme } from './core/theme';
-import { Toasts } from './core/toast';
-import { AppUpdater } from './core/updater';
-import { WorkbookStore } from './core/workbook-store';
-import { tableGaps } from './dashboard/data-gaps';
+import { Icon } from '@shared/ui/icon';
+import { NavPillGlide } from '@core/layout/nav-pill-glide';
+import { SignInGate } from '@core/layout/sign-in-gate';
+import { UpdateButton } from '@core/layout/update-button';
+import { Api, errorText } from '@core/api';
+import { Google } from '@core/google/google';
+import { AutoSync } from '@core/auto-sync';
+import { MacList } from '@core/mac-list';
+import { PowerBi } from '@core/powerbi';
+import { HEADING_ICONS } from '@core/headings';
+import { Shell } from '@core/shell';
+import { Theme } from '@core/theme';
+import { Toasts } from '@core/toast';
+import { AppUpdater } from '@core/updater';
+import { WorkbookStore } from '@core/workbook-store';
+import { tableGaps } from '@features/dashboard/data-gaps';
 
 interface Crumb {
   label: string;

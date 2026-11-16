@@ -1,7 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 
 import { Api } from './api';
-import { Google } from './google';
+import { Google } from './google/google';
 import type { GoogleLink } from './models';
 import { WorkbookStore } from './workbook-store';
 

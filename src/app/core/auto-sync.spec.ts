@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { Api } from './api';
 import { AutoSync } from './auto-sync';
-import { Google, type SyncOutcome } from './google';
+import { Google, type SyncOutcome } from './google/google';
 import type { GoogleLink } from './models';
 import { WorkbookStore } from './workbook-store';
 

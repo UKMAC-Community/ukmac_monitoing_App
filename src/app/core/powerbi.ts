@@ -1,6 +1,6 @@
 import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 
-import { buildPowerBiWorkbook } from '../excel/powerbi-export';
+import { buildPowerBiWorkbook } from '@shared/excel/powerbi-export';
 import { Api, errorText } from './api';
 import { Toasts } from './toast';
 import { WorkbookStore } from './workbook-store';

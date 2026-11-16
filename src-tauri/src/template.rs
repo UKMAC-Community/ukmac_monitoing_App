@@ -1091,13 +1091,13 @@ mod tests {
         }
     }
 
-    /// The app's tests (src/app/sheet/fixtures/qa-qc-columns.json) run the template's QA/QC formulas in the app's own
+    /// The app's tests (src/app/shared/sheet/fixtures/qa-qc-columns.json) run the template's QA/QC formulas in the app's own
     /// engine from this copy: when the template changes, make it again with
     /// `TEMPLATE_OUT=/tmp/t.json cargo test dump_template -- --ignored` (its "qa-qc-management" columns).
     #[test]
     fn the_qa_qc_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/sheet/fixtures/qa-qc-columns.json"
+            "../../src/app/shared/sheet/fixtures/qa-qc-columns.json"
         ))
         .unwrap();
         let mut columns = qa_qc_columns();
@@ -1111,13 +1111,13 @@ mod tests {
         );
     }
 
-    /// The app's tests (src/app/sheet/fixtures/nursery-columns.json) run these columns' formulas in the app's own engine from
+    /// The app's tests (src/app/shared/sheet/fixtures/nursery-columns.json) run these columns' formulas in the app's own engine from
     /// this copy: when they change, make it again with `TEMPLATE_OUT=/tmp/t.json cargo test dump_template -- --ignored`
     /// (its "nursery-batches" columns).
     #[test]
     fn the_nursery_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/sheet/fixtures/nursery-columns.json"
+            "../../src/app/shared/sheet/fixtures/nursery-columns.json"
         ))
         .unwrap();
         let mut columns = nursery_batch_columns();
@@ -1131,12 +1131,12 @@ mod tests {
         );
     }
 
-    /// The app's tests (src/app/sheet/fixtures/batches-columns.json) run the Batches table's check in the app's own engine
+    /// The app's tests (src/app/shared/sheet/fixtures/batches-columns.json) run the Batches table's check in the app's own engine
     /// from this copy; make it again with `TEMPLATE_OUT=/tmp/t.json cargo test dump_template -- --ignored` ("batches").
     #[test]
     fn the_batch_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/sheet/fixtures/batches-columns.json"
+            "../../src/app/shared/sheet/fixtures/batches-columns.json"
         ))
         .unwrap();
         let mut columns = batch_columns();
@@ -1301,13 +1301,13 @@ mod tests {
         }
     }
 
-    /// The app's tests (src/app/sheet/fixtures/zone-measurement-columns.json) run these columns' formulas in the app's own
+    /// The app's tests (src/app/shared/sheet/fixtures/zone-measurement-columns.json) run these columns' formulas in the app's own
     /// engine from this copy; make it again with `TEMPLATE_OUT=/tmp/t.json cargo test dump_template -- --ignored`
     /// (the "zone-measurement" table's "columns").
     #[test]
     fn the_zone_measurement_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/sheet/fixtures/zone-measurement-columns.json"
+            "../../src/app/shared/sheet/fixtures/zone-measurement-columns.json"
         ))
         .unwrap();
         let mut columns = zone_measurement_columns();
@@ -1321,12 +1321,12 @@ mod tests {
         );
     }
 
-    /// The app's tests (src/app/sheet/fixtures/zone-records-columns.json) add the Zone Records up by zone number from this
+    /// The app's tests (src/app/shared/sheet/fixtures/zone-records-columns.json) add the Zone Records up by zone number from this
     /// copy; make it again with `TEMPLATE_OUT=/tmp/t.json cargo test dump_template -- --ignored` (the "zone-records" table's "columns").
     #[test]
     fn the_zone_record_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/sheet/fixtures/zone-records-columns.json"
+            "../../src/app/shared/sheet/fixtures/zone-records-columns.json"
         ))
         .unwrap();
         let mut columns = zone_record_columns();
@@ -1340,11 +1340,11 @@ mod tests {
         );
     }
 
-    /// The app's tests (src/app/sheet/fixtures/harvest-columns.json) add the harvests up by day and by zone number from this
+    /// The app's tests (src/app/shared/sheet/fixtures/harvest-columns.json) add the harvests up by day and by zone number from this
     /// copy (the "harvest" table's "columns" without its ID); a copy that drifts fails here.
     #[test]
     fn the_harvest_columns_the_app_tests_use_are_the_template_s() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../src/app/sheet/fixtures/harvest-columns.json")).unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../src/app/shared/sheet/fixtures/harvest-columns.json")).unwrap();
         let mut columns = harvest_columns();
         for (index, column) in columns.iter_mut().enumerate() {
             column.key = format!("c{}", index + 1);

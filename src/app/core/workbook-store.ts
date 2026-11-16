@@ -1,7 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 
-import { WorkbookFormulas } from '../formula/sheet-formulas';
-import { parseLinkSource, todayIso } from '../sheet/columns';
+import { WorkbookFormulas } from '@shared/formula/sheet-formulas';
+import { parseLinkSource, todayIso } from '@shared/sheet/columns';
 import { Api, errorText } from './api';
 import type { CellChange, Cells, Column, Dashboard, Row, Sheet, SheetWithRows, Workbook } from './models';
 import { Toasts } from './toast';

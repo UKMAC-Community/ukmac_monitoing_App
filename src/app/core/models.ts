@@ -1,4 +1,4 @@
-import type { FileLayout } from '../excel/file-layout';
+import type { FileLayout } from '@shared/excel/file-layout';
 
 /** The local backend's shapes (src-tauri/src/model.rs), as the app uses them. */
 
