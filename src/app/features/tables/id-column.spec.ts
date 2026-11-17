@@ -2,8 +2,8 @@ import { suggestedDashboard } from '@features/dashboard/dashboard-model';
 import type { Column, Row } from '@core/models';
 import { matchHeaders } from '@core/google/sheet-sync';
 import { makeSheet } from '@shared/testing/test-helpers';
-import { CELL_TEXT, columnStyleId, diffRecords, gridStyles, type GridRecord } from '@features/tables/univer/univer-layout';
-import { alignsRight, isEntryColumn } from './columns';
+import { CELL_TEXT, columnStyleId, diffRecords, gridStyles, type GridRecord } from './univer/univer-layout';
+import { alignsRight, isEntryColumn } from '@shared/sheet/columns';
 
 /** A table with an ID the app numbers, then the person's own columns. */
 const id: Column = { key: 'c1', name: 'ID', type: 'number', auto: true, aliases: ['Id', 'No', 'No.'] };
