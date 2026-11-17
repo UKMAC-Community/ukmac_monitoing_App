@@ -676,7 +676,6 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
       summaries = by
         ? [
             summary(zoneNumber ? 'By zone number' : 'By zone plot', by, 'value', [
-              measure('', 'count', 'Rows'),
               ...[area, width, length].filter((column): column is Column => !!column).map((column) => measure(column, 'sum')),
             ]),
           ]

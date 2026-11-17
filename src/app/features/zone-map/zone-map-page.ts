@@ -1,7 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
+import { plantStage } from './farm/farm-scene';
 import { Farm3d } from './farm-3d';
+import { JourneyView } from '@features/mac/plot-journey';
 import { GoogleLinkDialog } from '@features/google/google-link-dialog';
 import { Icon } from '@shared/ui/icon';
 import { MacMap3d, type PlotCard, type Reshaped } from '@shared/map/mac-map-3d';
@@ -11,10 +13,20 @@ import { Api } from '@core/api';
 import { Google } from '@core/google/google';
 import { WorkbookStore } from '@core/workbook-store';
 import { formatDate } from '@shared/sheet/columns';
-import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf, type PlotForm } from './zone-edit';
-import { buildZoneLayout, filterLayout, mapCentre, plotCard, plotShapes, showsPlot, usageWord, type PlotShow, type Usage, type ZoneCell } from '@shared/map/zone-layout';
+import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, newShapeForm, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, startOutline, statusNameOf, type NewKind, type PlotForm } from './zone-edit';
+import { buildZoneLayout, filterLayout, isGreenhouseZone, mapCentre, notInUseKinds, plotCard, plotShapes, plotShowOptions, showsPlot, usageWord, type PlotShow, type Usage, type ZoneCell } from '@shared/map/zone-layout';
 
 export type ZoneMapView = 'farm' | 'satellite';
+
+/** A thing to drag out of the Edit sidebar onto the map. */
+interface PaletteItem {
+  kind: NewKind;
+  label: string;
+  about: string;
+  icon: string;
+  fill: string;
+  edge: string;
+}
 
 /**
  * Zone Map, as the system's: the farm drawn in 3D (the zones as fields of beds, the plants swaying; the system's Farm look),
@@ -23,7 +35,7 @@ export type ZoneMapView = 'farm' | 'satellite';
  */
 @Component({
   selector: 'app-zone-map-page',
-  imports: [RouterLink, Icon, MacMap3d, Farm3d, Modal, GoogleLinkDialog],
+  imports: [RouterLink, Icon, MacMap3d, Farm3d, Modal, GoogleLinkDialog, JourneyView],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.mac(); as mac) {
@@ -50,8 +62,14 @@ export type ZoneMapView = 'farm' | 'satellite';
         <section class="stats" aria-label="Plots">
           <div class="stat"><strong>{{ counts().plots }}</strong><span>Plots</span></div>
           <div class="stat"><strong>{{ counts().planted }}</strong><span>Planted</span></div>
-          <div class="stat"><strong>{{ counts().free }}</strong><span>Not planted yet</span></div>
-          <div class="stat"><strong>{{ counts().unused }}</strong><span>Not in use</span></div>
+          <div class="stat has-more" tabindex="0"><strong>{{ counts().free }}</strong><span>Not planted yet</span><small class="more">Plots in a zone with no plant record yet: ready to plant</small></div>
+          <div class="stat stat-wide has-more" tabindex="0" [attr.aria-label]="'Not in use: ' + kindsText()"><strong>{{ counts().unused }}</strong><span>Not in use</span>
+            <small class="more kinds">
+              @for (kind of kinds(); track kind.kind) {
+                <b>{{ kind.kind }} <i>{{ kind.count }}</i></b>
+              }
+            </small>
+          </div>
           <div class="stat"><strong>{{ counts().water }}</strong><span>Water</span></div>
         </section>
 
@@ -85,29 +103,33 @@ export type ZoneMapView = 'farm' | 'satellite';
                 <div class="legend">
                   <span><i class="sw planted"></i> Planted (dark edge)</span>
                   <span><i class="sw pale"></i> Not planted yet</span>
-                  <span><i class="sw unused"></i> Not in use</span>
+                  <span><i class="sw unused"></i> Not in use ({{ kindsShort() }})</span>
+                  <span><i class="sw greenhouse"></i> Greenhouse</span>
+                  <span><i class="sw water"></i> Water</span>
+                </div>
+              } @else if (view() === 'farm') {
+                <div class="legend">
+                  <span><i class="sw tilled"></i> Not planted yet</span>
+                  <span><i class="sw sprout"></i> Planting</span>
+                  <span><i class="sw ripe"></i> Harvest</span>
+                  <span><i class="sw unused"></i> Not in use ({{ kindsShort() }})</span>
                   <span><i class="sw water"></i> Water</span>
                 </div>
               }
               @if (!editing()) {
-                <div class="segmented is-sm show-switch" role="group" aria-label="Which plots to show">
-                  <button type="button" class="segment" title="Every plot" [attr.aria-pressed]="show() === 'all'" (click)="setShow('all')">All <small>{{ showCounts().all }}</small></button>
-                  <button type="button" class="segment" title="The zones: plots in use that have a zone number" [attr.aria-pressed]="show() === 'zones'" (click)="setShow('zones')">Zones <small>{{ showCounts().zones }}</small></button>
-                  <button type="button" class="segment" title="Not in use, water, an old chili plot: the rest that is not a zone" [attr.aria-pressed]="show() === 'other'" (click)="setShow('other')">Other <small>{{ showCounts().other }}</small></button>
-                </div>
                 <div class="segmented is-sm view-switch" role="group" aria-label="How to see the plots">
                   <button type="button" class="segment" [attr.aria-pressed]="view() === 'satellite'" (click)="setView('satellite')"><app-icon name="map" [size]="13" /> Satellite</button>
                   <button type="button" class="segment" [attr.aria-pressed]="view() === 'farm'" (click)="setView('farm')"><app-icon name="sprout" [size]="13" /> Farm</button>
                 </div>
                 @if (canEdit(mac)) {
-                  <button type="button" class="btn btn-secondary btn-sm edit-shapes" title="Drag a plot's corners, move it whole, or draw a new plot, on the satellite" (click)="startEdit()"><app-icon name="edit" [size]="13" /> Edit shapes</button>
+                  <button type="button" class="btn btn-secondary btn-sm edit-shapes" title="Drag a plot's corners, move it whole, add a plot, greenhouse or other area: edited on the satellite, the Farm follows" (click)="startEdit()"><app-icon name="edit" [size]="13" /> Edit shapes</button>
                 }
               }
             </div>
-            <div class="layout-body">
+            <div class="layout-body" [class.is-editing]="editing()">
               @if (view() === 'farm') {
                 <div class="sat-box">
-                  <app-farm-3d [layout]="shown()" [selected]="selectedId()" (picked)="pick($event)" (cleared)="selectedId.set(null)" />
+                  <app-farm-3d [layout]="shown()" [selected]="selectedId()" [filters]="shows()" [filter]="show()" (filterChange)="setShow($any($event))" (picked)="pick($event)" (cleared)="selectedId.set(null)" />
                 </div>
               } @else if (hasMap(mac)) {
                 <div class="sat-box">
@@ -115,7 +137,11 @@ export type ZoneMapView = 'farm' | 'satellite';
                     [latitude]="place(mac)!.lat"
                     [longitude]="place(mac)!.lng"
                     [shapes]="shapes()"
+                    [farm]="false"
                     [selected]="selectedId()"
+                    [filters]="editing() ? [] : shows()"
+                    [filter]="show()"
+                    (filterChange)="setShow($any($event))"
                     [card]="editing() ? null : card()"
                     [editable]="editing()"
                     [drawing]="drawing()"
@@ -137,7 +163,22 @@ export type ZoneMapView = 'farm' | 'satellite';
                   </div>
                 </div>
               }
-              <!-- Only once a plot is picked; until then the map takes the whole width. -->
+              <!-- Editing: the things to add; a plot picked: its details. Until then the map takes the whole width. -->
+              @if (editing() || selected()) {
+              <div class="side">
+              @if (editing()) {
+                <aside class="palette" aria-label="Add to the map">
+                  <h3>Add to the map</h3>
+                  <p class="muted">Drag one onto the satellite (or click it to put it in the middle), then drag its corners to fit the real one.</p>
+                  @for (item of palette; track item.kind) {
+                    <button type="button" class="tool" [disabled]="drawing()" [title]="item.about" (pointerdown)="startDrag(item.kind, $event)">
+                      <span class="tool-icon" [style.background]="item.fill" [style.border-color]="item.edge"><app-icon [name]="item.icon" [size]="editing() ? 24 : 16" /></span>
+                      <span class="tool-text"><strong>{{ item.label }}</strong><small>{{ item.about }}</small></span>
+                      <app-icon class="tool-grip" name="grip" [size]="14" />
+                    </button>
+                  }
+                </aside>
+              }
               @if (selected(); as cell) {
                 <aside class="details" aria-live="polite">
                   <div class="details-head">
@@ -156,23 +197,23 @@ export type ZoneMapView = 'farm' | 'satellite';
                     @if (cell.capacity) { <dt>Plant capacity</dt><dd>{{ cell.capacity }}</dd> }
                     @if (cell.note) { <dt>Note</dt><dd>{{ cell.note }}</dd> }
                   </dl>
-                  @if (cell.records.length) {
-                    <h4>Records · {{ cell.records.length }}</h4>
-                    <ul class="records">
-                      @for (record of cell.records.slice(0, 5); track $index) {
-                        <li>
-                          <strong>{{ date(record.date) }}</strong>
-                          <span>{{ record.count ? record.count + ' plants' : '' }}{{ record.type ? ' · ' + record.type : '' }}{{ record.status ? ' · ' + record.status : '' }}</span>
-                        </li>
-                      }
-                    </ul>
-                  } @else if (cell.usage === 'normal') {
-                    <p class="muted">No records yet.</p>
+                  @if (cell.usage === 'normal') {
+                    <!-- Everything recorded for the plot, planting to harvest, each with its date. -->
+                    <h4>From planting to harvest</h4>
+                    <app-journey-view [cell]="cell" [sheets]="store.sheets()" [compact]="true" />
                   }
                 </aside>
               }
+              </div>
+              }
             </div>
           </section>
+          @if (dragging(); as drag) {
+            <div class="drag-ghost" [style.left.px]="drag.x" [style.top.px]="drag.y" aria-hidden="true">
+              <span class="tool-icon" [style.background]="drag.item.fill" [style.border-color]="drag.item.edge"><app-icon [name]="drag.item.icon" [size]="16" /></span>
+              {{ drag.item.label }}
+            </div>
+          }
 
         }
       </div>
@@ -180,7 +221,7 @@ export type ZoneMapView = 'farm' | 'satellite';
       @if (formCell() || creating()) {
         <app-modal [open]="true" [title]="formTitle()" [subtitle]="formSubtitle()" (closed)="closeForm()">
           <form id="plot-form" class="form-stack" (submit)="$event.preventDefault(); saveForm()">
-            @if (creating()) {
+            @if (creating() && (form().usage === 'normal' || isGreenhouse(form().zone))) {
               <label class="form-group">
                 <span class="form-label">Plot code *</span>
                 <input class="input-field" [value]="form().plot" (input)="set('plot', $event)" placeholder="e.g. A66" />
@@ -227,7 +268,7 @@ export type ZoneMapView = 'farm' | 'satellite';
               } @else {
                 <label class="form-group">
                   <span class="form-label">Name on the map</span>
-                  <input class="input-field" [value]="form().statusName" (input)="set('statusName', $event)" [placeholder]="form().usage === 'water' ? 'Pond, River…' : 'Forest, Town…'" />
+                  <input class="input-field" [value]="form().statusName" (input)="set('statusName', $event)" [placeholder]="form().usage === 'water' ? 'Pond, River…' : 'Forest, Road…'" />
                 </label>
               }
             </div>
@@ -244,7 +285,7 @@ export type ZoneMapView = 'farm' | 'satellite';
           </form>
           <ng-container footer>
             <button type="button" class="btn btn-secondary" (click)="closeForm()">Cancel</button>
-            <button type="submit" form="plot-form" class="btn btn-primary" [disabled]="!!problem()">{{ creating() ? 'Add plot' : 'Save' }}</button>
+            <button type="submit" form="plot-form" class="btn btn-primary" [disabled]="!!problem()">{{ creating() ? 'Add' : 'Save' }}</button>
           </ng-container>
         </app-modal>
       }
@@ -258,22 +299,41 @@ export type ZoneMapView = 'farm' | 'satellite';
     .zm-desc { min-width: 0; margin: 0; font-size: 0.8125rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* The page fits the window: compact tiles, then the map card takes what is left and a free band stays under it. */
     .page { padding: 16px 20px 40px; gap: 14px; }
-    .stats { flex: none; display: flex; flex-wrap: wrap; gap: 10px; }
+    .stats { flex: none; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
     .stat { flex: 1 1 130px; display: flex; align-items: baseline; gap: 8px; padding: 9px 16px; background: var(--surface); border: var(--hairline) solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
     .stat strong { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
     .stat span { font-size: 0.8125rem; color: var(--text-muted); }
+    .stat { flex-wrap: wrap; }
+    .stat small { flex-basis: 100%; font-size: 0.75rem; color: var(--text-muted); }
+    .stat-wide { flex: 1 1 130px; }
+    .stat { position: relative; }
+    .stat.has-more { cursor: default; outline: none; }
+    /* What is behind a tile (the kinds of plot not in use, what "not planted yet" means) shows only while it is pointed at or focused, over the page, so the tiles never change size. */
+    .stat .more { position: absolute; left: 0; top: 100%; z-index: 30; margin-top: 6px; width: max-content; min-width: 100%; max-width: min(460px, 90vw); padding: 10px 14px; background: var(--surface-solid); border: var(--hairline) solid var(--border); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgb(15 23 42 / 0.16); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity 0.15s ease, transform 0.15s ease, visibility 0s linear 0.15s; pointer-events: none; }
+    /* So the pointer can travel from the tile to what it shows without leaving both. */
+    .stat .more::before { content: ''; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }
+    .stat.has-more:hover .more, .stat.has-more:focus-visible .more, .stat.has-more:focus-within .more { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; pointer-events: auto; }
+    .stat.has-more:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+    @media (prefers-reduced-motion: reduce) { .stat .more { transition: none; } }
+    .kinds { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+    .kinds b { font-weight: 500; padding: 1px 8px; border-radius: 999px; background: var(--surface-2, rgb(15 23 42 / 0.05)); color: var(--text); white-space: nowrap; }
+    .kinds i { font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; margin-left: 2px; }
     .layout-card { flex: 1 1 auto; min-height: 520px; display: flex; flex-direction: column; margin: 0; padding: 14px 16px; }
     .layout-body { flex: 1; min-height: 0; }
     .empty { flex: none; margin: 0; padding: 18px 20px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
     .view-row { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; min-height: 28px; }
-    .view-switch { margin-left: 0; }
+    .view-switch { margin-left: auto; }
     .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.8125rem; color: var(--text-muted); }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; }
     .sw.planted { background: linear-gradient(90deg, #7BF542, #BF4E33, #FFF04D, #5B86E0); border: 2px solid #5b4a2a; }
+    .sw.tilled { background: #a37650; border-color: #8a6040; }
+    .sw.sprout { background: #7cc35f; border-color: #4f9e3f; }
+    .sw.ripe { background: linear-gradient(90deg, #4f9e3f 50%, #e5432f 50%); border-color: #4f9e3f; }
     .sw.pale { background: linear-gradient(90deg, #7BF542, #BF4E33, #FFF04D, #5B86E0); border-color: #c9c9c9; }
     .sw.unused { background: #f7f8f7; border-color: #d7dbd8; }
     .sw.water { background: #dbeafe; border-color: #60a5fa; }
+    .sw.greenhouse { background: #c9ecdc; border-color: #2f9e77; }
     .sat-box { flex: 1; min-width: 0; position: relative; min-height: 420px; border-radius: var(--radius-md); overflow: hidden; }
     .sat-box app-mac-map-3d:not(.m3-expanded), .sat-box app-farm-3d { position: absolute; inset: 0; }
     .layout-body { display: flex; gap: 24px; align-items: stretch; }
@@ -281,11 +341,35 @@ export type ZoneMapView = 'farm' | 'satellite';
     .no-place strong { color: var(--text); font-size: 1rem; }
     .no-place p { max-width: 420px; margin: 0 0 6px; font-size: 0.875rem; line-height: 1.5; }
     .no-place-actions { display: flex; gap: 8px; }
-    .details { flex: none; align-self: flex-start; width: 240px; padding: 14px 16px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid); }
+    /* Editing: the sidebar goes to the left of the map and is larger, its items easy to grab. */
+    .layout-body.is-editing { flex-direction: row-reverse; }
+    .layout-body.is-editing .side { width: 340px; align-self: stretch; overflow-y: auto; }
+    .layout-body.is-editing .palette { padding: 18px 18px 20px; gap: 12px; }
+    .layout-body.is-editing .palette h3 { font-size: 1.25rem; }
+    .layout-body.is-editing .palette .muted { font-size: 0.875rem; line-height: 1.45; }
+    .layout-body.is-editing .tool { gap: 14px; padding: 14px 16px; }
+    .layout-body.is-editing .tool-icon { width: 52px; height: 52px; border-radius: 12px; }
+    .layout-body.is-editing .tool-text strong { font-size: 1.0625rem; }
+    .layout-body.is-editing .tool-text small { font-size: 0.8125rem; }
+    .layout-body.is-editing .details { padding: 16px 18px; }
+    /* A plot picked: its details and its whole story, planting to harvest, in a panel that scrolls on its own when it is long. */
+    .layout-body:not(.is-editing) .side { width: 340px; max-height: 640px; overflow-y: auto; }
+    .side { flex: none; align-self: flex-start; width: 240px; display: flex; flex-direction: column; gap: 12px; }
+    .palette { padding: 14px 16px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid); display: flex; flex-direction: column; gap: 8px; }
+    .palette h3 { font-size: 1.0625rem; font-weight: 700; }
+    .palette .muted { margin: 0; }
+    .tool { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid); font: inherit; text-align: left; cursor: grab; touch-action: none; user-select: none; }
+    .tool:hover:not(:disabled) { border-color: var(--accent); }
+    .tool:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tool-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 2px solid; border-radius: 8px; color: #1d1d1f; }
+    .tool-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+    .tool-text strong { font-size: 0.875rem; }
+    .tool-text small { font-size: 0.75rem; color: var(--text-muted); }
+    .tool-grip { flex: none; color: var(--text-muted); }
+    .drag-ghost { position: fixed; z-index: 1000; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; transform: translate(-50%, -50%); background: var(--surface-solid); border: var(--hairline) solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.3); font-size: 0.8125rem; font-weight: 600; pointer-events: none; }
+    .details { align-self: stretch; width: 100%; padding: 14px 16px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid); }
     .details-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
     .details h3 { font-size: 1.0625rem; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
-    .show-switch { margin-left: auto; }
-    .show-switch .segment small { margin-left: 4px; font-size: 0.6875rem; font-weight: 500; opacity: 0.65; }
     .edit-shapes { margin-left: 0; }
     .edit-bar { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .edit-hint { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: 0.8125rem; color: var(--text-muted); }
@@ -293,11 +377,8 @@ export type ZoneMapView = 'farm' | 'satellite';
     dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.8125rem; }
     dt { color: var(--text-muted); }
     dd { font-weight: 500; text-align: right; }
-    .records { display: flex; flex-direction: column; gap: 8px; font-size: 0.8125rem; }
-    .records li { display: flex; flex-direction: column; }
-    .records span { color: var(--text-muted); }
     .muted { color: var(--text-muted); font-size: 0.8125rem; }
-    @media (max-width: 900px) { .layout-body { flex-direction: column; } .details { width: 100%; } }
+    @media (max-width: 900px) { .layout-body, .layout-body.is-editing { flex-direction: column; } .side, .layout-body.is-editing .side, .layout-body:not(.is-editing) .side { width: 100%; max-height: none; } }
   `,
 })
 export class ZoneMapPage {
@@ -319,18 +400,16 @@ export class ZoneMapPage {
 
   readonly zonesSheet = computed(() => this.store.sheets().find((sheet) => sheet.templateKey === 'zones') ?? null);
   private readonly recordsSheet = computed(() => this.store.sheets().find((sheet) => sheet.templateKey === 'zone-records') ?? null);
-  readonly layout = computed(() => buildZoneLayout(this.zonesSheet(), this.recordsSheet()));
+  private readonly harvestSheet = computed(() => this.store.sheets().find((sheet) => sheet.templateKey === 'harvest') ?? null);
+  readonly layout = computed(() => buildZoneLayout(this.zonesSheet(), this.recordsSheet(), this.harvestSheet()));
   readonly selected = computed(() => this.layout().cells.find((cell) => cell.id === this.selectedId()) ?? null);
 
   /** Which plots the map shows: all, the zones (in use), or the rest (water, not in use…). */
   readonly show = signal<PlotShow>('zones');
   /** The layout as that shows it. */
   readonly shown = computed(() => filterLayout(this.layout(), this.show()));
-  readonly showCounts = computed(() => {
-    const cells = this.layout().cells;
-    const zones = cells.filter((cell) => cell.usage === 'normal').length;
-    return { all: cells.length, zones, other: cells.length - zones };
-  });
+  /** The All / Zones / Other switch over the map, each with how many plots it shows. */
+  readonly shows = computed(() => plotShowOptions(this.layout()));
   setShow(show: PlotShow) {
     this.show.set(show);
     // A plot picked that is not shown now is let go of (its details would point at nothing on the map).
@@ -366,14 +445,29 @@ export class ZoneMapPage {
       plots: usable.length,
       planted: usable.filter((cell) => cell.planted).length,
       free: usable.filter((cell) => !cell.planted).length,
-      unused: cells.filter((cell) => cell.usage === 'unused').length,
+      unused: cells.filter((cell) => cell.usage === 'unused' || cell.usage === 'greenhouse').length,
       water: cells.filter((cell) => cell.usage === 'water').length,
     };
   });
 
+  /** What the not-in-use plots are: greenhouses, chicken farm, forest…, with how many of each. */
+  readonly kinds = computed(() => notInUseKinds(this.layout().cells));
+  readonly kindsText = computed(() => this.kinds().map((kind) => `${kind.kind} ${kind.count}`).join(', ') || 'none');
+  /** The first few kinds, for the legend. */
+  readonly kindsShort = computed(() => {
+    const names = this.kinds().filter((kind) => !kind.kind.includes('empty land') && kind.kind !== 'Greenhouse').map((kind) => kind.kind.toLowerCase());
+    return names.length > 3 ? `${names.slice(0, 3).join(', ')}…` : names.join(', ') || 'none';
+  });
+
   /** The plots as drawn: while editing, each reshaped one at its new outline. */
   readonly shapes = computed<MapShape[]>(() => {
-    const shapes = plotShapes(this.shown());
+    const cells = new Map(this.shown().cells.map((cell) => [cell.id, cell]));
+    const shapes = plotShapes(this.shown()).map((shape): MapShape => {
+      const cell = cells.get(shape.id);
+      if (!cell) return shape;
+      const stage = plantStage(cell);
+      return { ...shape, bed: cell.usage === 'water' ? 'water' : cell.usage !== 'normal' ? 'unused' : stage ?? 'tilled' };
+    });
     if (!this.editing()) return shapes;
     this.step();
     const changed = this.history.now;
@@ -402,11 +496,12 @@ export class ZoneMapPage {
   });
   readonly formTitle = computed(() => {
     const cell = this.formCell();
-    return cell ? 'Edit plot ' + (cell.plot || cell.label) : 'New plot';
+    if (cell) return 'Edit plot ' + (cell.plot || cell.label);
+    return isGreenhouseZone(this.form().zone) ? 'New greenhouse' : this.form().usage === 'normal' ? 'New plot' : 'New area';
   });
   readonly formSubtitle = computed(() => {
     const cell = this.formCell();
-    return cell ? (cell.section !== null ? 'Zone ' : '') + cell.zone + ' · saved into the Zones table' : 'Drawn on the map · added to the Zones table';
+    return cell ? (cell.section !== null ? 'Zone ' : '') + cell.zone + ' · saved into the Zones table' : 'Placed on the map · added to the Zones table';
   });
   closeForm() {
     this.formCell.set(null);
@@ -441,6 +536,47 @@ export class ZoneMapPage {
     const [added] = await this.store.addRows(sheet.sheetId, [row]);
     // The new plot is the one picked, so it can be reshaped or edited straight away.
     if (added) this.selectedId.set(String(added.rowId));
+  }
+
+  // ---- Drag a Plot, Greenhouse or Other from the side onto the satellite, then drag its corners to the real size ----
+  readonly palette: PaletteItem[] = [
+    { kind: 'plot', label: 'Plot', about: 'A zone plot, for the chili', icon: 'sprout', fill: '#e8f3d8', edge: '#6aa84f' },
+    { kind: 'greenhouse', label: 'Greenhouse', about: 'Under cover, with its own name', icon: 'home', fill: '#c9ecdc', edge: '#2f9e77' },
+    { kind: 'other', label: 'Other', about: 'A road, a building, forest…', icon: 'pin', fill: '#eef0ee', edge: '#9aa39c' },
+  ];
+  private readonly satellite = viewChild(MacMap3d);
+  /** A tool being dragged from the side: which, and where the pointer is. */
+  readonly dragging = signal<{ item: PaletteItem; x: number; y: number } | null>(null);
+
+  startDrag(kind: NewKind, event: PointerEvent) {
+    if (this.drawing() || event.button !== 0) return;
+    event.preventDefault();
+    const item = this.palette.find((entry) => entry.kind === kind)!;
+    const from = { x: event.clientX, y: event.clientY };
+    let moved = false;
+    const move = (e: PointerEvent) => {
+      moved = moved || Math.hypot(e.clientX - from.x, e.clientY - from.y) > 6;
+      if (moved) this.dragging.set({ item, x: e.clientX, y: e.clientY });
+    };
+    const up = (e: PointerEvent) => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      this.dragging.set(null);
+      // Let go over the map: there. A plain click: the middle of the view.
+      const at = moved ? this.satellite()?.pointAt(e.clientX, e.clientY) : this.satellite()?.centre();
+      if (at) this.dropShape(kind, at);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  }
+  /** The new shape on the map where it was dropped, its details asked for; then it is picked, its corners ready to drag. */
+  private dropShape(kind: NewKind, at: [number, number]) {
+    const cells = this.layout().cells;
+    this.nearCell = null;
+    this.form.set(newShapeForm(kind, at, cells));
+    this.creating.set(startOutline(kind, at, cells));
   }
 
   // ---- Draw a new plot: click its corners on the satellite, then fill in its details ----
@@ -488,16 +624,20 @@ export class ZoneMapPage {
       const n = this.draft().length;
       return n < 3 ? `Click the plot's corners on the map, one after another (${n} so far, at least 3).` : `${n} corners. Click more, or Finish plot.`;
     }
-    if (!cell) return 'Click a plot, then drag a corner, or the round handle to move it. Or Add plot to draw a new one.';
+    if (!cell) return 'Click a plot, then drag a corner, or the round handle to move it. Or drag a Plot, Greenhouse or Other from the side onto the map.';
     if (!cell.outline.length) return `${cell.plot || cell.label} has no shape on the map to edit.`;
     return `Editing ${cell.plot || cell.label}: drag a corner, or the round handle to move it whole.`;
   });
 
   /** Editing the satellite: reshaping the plots there, or drawing a new one (needs the Zones table). */
   canEdit(mac: { latitude: number | null; longitude: number | null }) {
-    return this.view() === 'satellite' && this.hasMap(mac) && !!this.zonesSheet();
+    return this.hasMap(mac) && !!this.zonesSheet();
   }
+  /** The view to go back to when editing ends (shapes are edited on the satellite, whichever view began it). */
+  private viewBeforeEdit: ZoneMapView = 'satellite';
   startEdit() {
+    this.viewBeforeEdit = this.view();
+    this.view.set('satellite');
     // Shapes are edited with every plot there.
     this.show.set('all');
     this.history.reset();
@@ -525,6 +665,7 @@ export class ZoneMapPage {
     if (this.history.changed && !(await this.api.confirm('Leave without saving the changes to the shapes?', 'Edit shapes', 'Discard'))) return;
     this.stopDrawing();
     this.editing.set(false);
+    this.view.set(this.viewBeforeEdit);
   }
   async saveEdit() {
     const sheet = this.zonesSheet();
@@ -532,12 +673,17 @@ export class ZoneMapPage {
     const changes = outlineChanges(sheet, this.history.now);
     this.stopDrawing();
     this.editing.set(false);
+    this.view.set(this.viewBeforeEdit);
     await this.store.updateCells(sheet.sheetId, changes);
   }
   /** Leaving the page (the route guard): ask first if shapes were changed and not saved. */
   async canLeave() {
     if (!this.editing() || !this.history.changed) return true;
     return this.api.confirm('You have changes to the shapes that are not saved. Leave and lose them?', 'Edit shapes', 'Leave');
+  }
+
+  isGreenhouse(zone: string) {
+    return isGreenhouseZone(zone);
   }
 
   usageWord(cell: ZoneCell) {

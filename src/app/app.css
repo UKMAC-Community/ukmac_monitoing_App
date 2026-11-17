@@ -85,6 +85,20 @@ a.crumb-item:hover {
   line-height: 1.25;
   color: var(--text-muted);
   white-space: nowrap;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.google-chip:hover {
+  background: var(--surface-hover);
+}
+
+.google-chip-edit {
+  opacity: 0.6;
 }
 
 .google-chip-name {

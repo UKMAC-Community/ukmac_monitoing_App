@@ -783,7 +783,7 @@ mod tests {
         let mut here = memory();
         let mac_id = farm(&mut here);
         let file = through_a_file(&build_full(&here, mac_id).unwrap());
-        assert_eq!(file.sheets.len(), 15);
+        assert_eq!(file.sheets.len(), 17);
 
         let mut there = memory();
         let done = import(&mut there, file, false).unwrap();
@@ -794,7 +794,7 @@ mod tests {
                 done.code_changed,
                 done.replaced_mac_id
             ),
-            (15, 3, false, None)
+            (17, 3, false, None)
         );
         assert_eq!(done.mac.mac_uuid, "uuid-1");
         assert_eq!(done.mac.mac_code, "MAC-001");
@@ -1175,7 +1175,7 @@ mod tests {
 
         let mut there = memory();
         let done = import(&mut there, file, false).unwrap();
-        assert_eq!((done.sheets, done.rows, done.linked), (15, 0, 1));
+        assert_eq!((done.sheets, done.rows, done.linked), (17, 0, 1));
         let rows: i64 = there
             .query_row("SELECT COUNT(*) FROM sheet_rows", [], |row| row.get(0))
             .unwrap();
@@ -1244,7 +1244,7 @@ mod tests {
         let still: i64 = here
             .query_row("SELECT COUNT(*) FROM sheets WHERE mac_id = ?1", [mac_id], |row| row.get(0))
             .unwrap();
-        assert_eq!(still, 15);
+        assert_eq!(still, 17);
     }
 
     #[test]
@@ -1282,8 +1282,8 @@ mod tests {
         }
         let mut there = memory();
         let done = import(&mut there, old, false).unwrap();
-        assert_eq!((done.sheets, done.rows, done.linked), (15, 0, 0));
-        assert_eq!(done.empty, 15);
+        assert_eq!((done.sheets, done.rows, done.linked), (17, 0, 0));
+        assert_eq!(done.empty, 17);
         let total: i64 = there.query_row("SELECT COUNT(*) FROM sheet_rows", [], |row| row.get(0)).unwrap();
         assert_eq!(total, 0);
     }

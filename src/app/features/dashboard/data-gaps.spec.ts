@@ -9,7 +9,7 @@ import { DataGaps } from './data-gaps-panel';
 const columns: Column[] = [
   { key: 'c1', name: 'Zone', type: 'text', required: true },
   { key: 'c2', name: 'Plants', type: 'number' },
-  { key: 'c3', name: 'Note', type: 'text' },
+  { key: 'c3', name: 'Variety', type: 'text' },
   { key: 'c4', name: 'Doubled', type: 'formula', formula: '=[Plants]*2' },
   { key: 'c5', name: 'ID', type: 'number', auto: true },
   { key: 'c6', name: 'Checked', type: 'yesno' },
@@ -28,12 +28,22 @@ describe('tableGaps: what a table still lacks', () => {
     const gaps = tableGaps(records);
     expect(gaps.rows).toBe(3);
     const by = (name: string) => gaps.columns.find((column) => column.name === name)!;
-    expect([by('Zone'), by('Plants'), by('Note'), by('Checked')].map((column) => [column.state, column.filled, column.missing])).toEqual([
+    expect([by('Zone'), by('Plants'), by('Variety'), by('Checked')].map((column) => [column.state, column.filled, column.missing])).toEqual([
       ['complete', 3, 0],
       ['partly', 2, 1],
       ['missing', 0, 3],
       ['partly', 1, 2], // "No" is an answer, but only one record has one
     ]);
+  });
+
+  it('leaves out a note and a file link: not the data, and fine left blank', () => {
+    const harvest = makeSheet(9, 'Harvest', [
+      { key: 'h1', name: 'Yield', type: 'number' },
+      { key: 'h2', name: 'Note', type: 'text' },
+      { key: 'h3', name: 'Main file link:', type: 'text' },
+      { key: 'h4', name: 'Remarks', type: 'text' },
+    ], [{ h1: '5' }]);
+    expect(tableGaps(harvest).columns.map((column) => column.name)).toEqual(['Yield']);
   });
 
   it('leaves out the worked-out and the numbered columns, nobody types them', () => {
@@ -72,6 +82,7 @@ describe('columnRecords: which records have it and which not', () => {
 
 describe('the Missing data panel', () => {
   function mount() {
+    localStorage.removeItem('ukmac.data-check.shape');
     TestBed.configureTestingModule({ providers: [provideRouter([])] });
     const fixture = TestBed.createComponent(DataGaps);
     fixture.componentRef.setInput('sheets', [{ ...done, heading: 'Setup' }, { ...records, heading: 'Planting' }, { ...empty, heading: 'Planting' }]);
@@ -107,7 +118,7 @@ describe('the Missing data panel', () => {
     expect(el.querySelector('.lead')?.textContent).toContain('1 column with nothing entered');
     // A board: a lane for each state, the columns as cards in the lane they belong to.
     const lane = (state: string) => [...el.querySelectorAll(`.lane.is-${state} .line .name`)].map((name) => name.textContent);
-    expect(lane('missing')).toEqual(['Note']);
+    expect(lane('missing')).toEqual(['Variety']);
     expect(lane('partly')).toEqual(['Checked', 'Plants']);
     expect(lane('complete').length).toBe(1);
     expect([...el.querySelectorAll('.lane-count')].map((count) => count.textContent?.trim())).toEqual(['1', '2', '1']);
@@ -158,5 +169,36 @@ describe('the Missing data panel', () => {
     plants.click();
     fixture.detectChanges();
     expect(el.querySelector('.records')).toBeNull();
+  });
+
+  it('shows the table itself, as the table page does: its records with something missing, each empty cell marked, and keeps the choice', () => {
+    const { fixture, el } = mount();
+    open(fixture, el, 'Plant Progress');
+    const shape = (name: string) => ([...el.querySelectorAll('.segmented .segment')] as HTMLButtonElement[]).find((button) => button.textContent?.includes(name))!;
+    shape('As the table').click();
+    fixture.detectChanges();
+    expect(el.querySelector('.board')).toBeNull();
+    // Every record lacks a Variety, so all three are listed.
+    expect(el.querySelectorAll('app-sheet-table tbody tr').length).toBe(3);
+    expect(el.querySelector('.table-note')?.textContent?.replace(/\s+/g, ' ')).toContain('3 of 3 records have something missing');
+    // Plants on one record, Variety on all three, Checked on two; the formula and the ID are never missing.
+    expect([...el.querySelectorAll('.gap-count')].map((count) => count.textContent?.trim())).toEqual(['1 missing', '3 missing', '2 missing']);
+    expect(el.querySelectorAll('td.is-gap').length).toBe(6);
+    expect(localStorage.getItem('ukmac.data-check.shape')).toBe('table');
+    // A column's count clicked: its records missing it on top, lit; clicked again, the usual order.
+    const first = () => el.querySelector('app-sheet-table tbody tr td')?.textContent?.trim();
+    expect(first()).toBe('A1');
+    const plants = () => ([...el.querySelectorAll('.gap-count')] as HTMLButtonElement[])[0];
+    plants().click();
+    fixture.detectChanges();
+    expect(first()).toBe('A2');
+    expect(plants().classList).toContain('on');
+    plants().click();
+    fixture.detectChanges();
+    expect(first()).toBe('A1');
+    shape('By column').click();
+    fixture.detectChanges();
+    expect(el.querySelector('app-sheet-table')).toBeNull();
+    expect(el.querySelector('.board')).not.toBeNull();
   });
 });

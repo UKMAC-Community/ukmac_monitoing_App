@@ -37,6 +37,16 @@ export function columnLabel(column: Pick<Column, 'name' | 'unit'>) {
 /** A column a person fills in: not a worked-out formula, not an ID the app numbers. */
 export const isEntryColumn = (column: Column) => column.type !== 'formula' && !column.auto;
 
+/**
+ * A column for remarks, or a file's link, rather than the data itself: Note, Notes, Remarks, Comments, "Main file link:".
+ * Left blank is fine, so the Data Check and the table's missing data don't count it.
+ */
+export function isRemarkColumn(column: Pick<Column, 'name' | 'type'>): boolean {
+  if (column.type !== 'text') return false;
+  const name = column.name.trim().toLowerCase().replace(/[\s:.]+$/, '');
+  return /^(notes?|remarks?|comments?)\b/.test(name) || /\b(file links?|photos?|pictures?|attachments?)$/.test(name);
+}
+
 export function hasBoxes(columns: Column[]) {
   return new Set(columns.map((column) => column.box?.trim()).filter(Boolean)).size > 1;
 }

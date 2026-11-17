@@ -27,6 +27,8 @@ export interface MapShape {
   stack?: StackPane[];
   /** A dot of this colour before the plot's name on the 3D map (what the plot comes to as a whole). */
   badge?: string;
+  /** What is on the plot, for the farm's beds on the 3D map (`farm`): tilled, young plants, harvest, water; not in use gets none. */
+  bed?: 'tilled' | 'planting' | 'harvest' | 'water' | 'unused';
   /** A few words told beside the pointer on the 3D map when the plot is pointed at (what the plot is, when its name is not shown). */
   hint?: string;
 }

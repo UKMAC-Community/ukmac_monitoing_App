@@ -1,5 +1,5 @@
 import type { CellChange, Cells, SheetWithRows } from '@core/models';
-import { formatOutline, type Usage, type ZoneCell } from '@shared/map/zone-layout';
+import { formatOutline, isGreenhouseZone, type Usage, type ZoneCell } from '@shared/map/zone-layout';
 
 /** What the Plot form holds. Strings, as the Zones table keeps them (numbers too: "9"). */
 export interface PlotForm {
@@ -17,7 +17,8 @@ export interface PlotForm {
 }
 
 /** The words the Zones table already holds for a plot's use (the system's own). */
-const STATUS_WORD: Record<Usage, string> = { normal: 'Active', unused: 'Unused', water: 'Water' };
+// A greenhouse is kept as Unused, in a zone named Greenhouse (as the farm's own greenhouses are).
+const STATUS_WORD: Record<Usage, string> = { normal: 'Active', unused: 'Unused', water: 'Water', greenhouse: 'Unused' };
 
 export function formOf(cell: ZoneCell, statusName: string): PlotForm {
   return {
@@ -26,7 +27,7 @@ export function formOf(cell: ZoneCell, statusName: string): PlotForm {
     section: cell.section === null ? '' : String(cell.section),
     row: String(cell.row),
     column: String(cell.column),
-    usage: cell.usage,
+    usage: cell.usage === 'greenhouse' ? 'unused' : cell.usage,
     statusName,
     capacity: cell.capacity,
     note: cell.note,
@@ -193,7 +194,9 @@ export function newPlotForm(cells: ZoneCell[], near: ZoneCell | null): PlotForm 
 /** A new plot's problems: the ones every plot has, and a code that is given and not already a plot's. */
 export function newPlotProblem(form: PlotForm, cells: ZoneCell[]): string | null {
   const code = form.plot.trim();
-  if (!code) return 'Give the plot a code (like A66): the records find the plot by it.';
+  // A plot in use and a greenhouse are found by their code; water or another area has only a name.
+  if (!code && (form.usage === 'normal' || isGreenhouseZone(form.zone))) return 'Give the plot a code (like A66): the records find the plot by it.';
+  if (!code && !form.statusName.trim()) return 'Give it a name, so it can be told on the map.';
   if (code && cells.some((cell) => cell.plot.trim().toLowerCase() === code.toLowerCase())) return `${code} is already a plot. Give this one another code.`;
   return formProblem(form);
 }
@@ -218,4 +221,86 @@ export function newPlotCells(sheet: SheetWithRows, form: PlotForm, outline: [num
     if (key && value.trim()) cells[key] = value.trim();
   }
   return keyOf(sheet, 'Plot') && keyOf(sheet, 'Outline') ? cells : null;
+}
+
+/** What can be dragged out of the Edit sidebar onto the map. */
+export type NewKind = 'plot' | 'greenhouse' | 'other';
+
+/** How big each starts on the ground (metres: along, across); the person drags the corners to the real size. */
+const START_SIZE: Record<NewKind, [number, number]> = { plot: [50, 20], greenhouse: [30, 12], other: [20, 20] };
+
+const M_PER_LAT = 110_574;
+const M_PER_LNG = 111_320;
+
+/**
+ * A new shape's outline: a rectangle centred on `at`, lying the way the nearest plot lies (so it sits square with the farm), else
+ * north-up. [lat, lng] corners, no closing point.
+ */
+export function startOutline(kind: NewKind, at: [number, number], cells: ZoneCell[]): [number, number][] {
+  const k = Math.cos((at[0] * Math.PI) / 180);
+  const toMetres = ([lat, lng]: [number, number]) => ({ x: (lng - at[1]) * k * M_PER_LNG, y: (lat - at[0]) * M_PER_LAT });
+  let near: { d: number; angle: number } | null = null;
+  for (const cell of cells) {
+    if (cell.outline.length < 3) continue;
+    const metres = cell.outline.map(toMetres);
+    const mid = { x: metres.reduce((sum, p) => sum + p.x, 0) / metres.length, y: metres.reduce((sum, p) => sum + p.y, 0) / metres.length };
+    const d = Math.hypot(mid.x, mid.y);
+    if (near && d >= near.d) continue;
+    let angle = 0;
+    let longest = -1;
+    metres.forEach((p, i) => {
+      const q = metres[(i + 1) % metres.length];
+      const length = Math.hypot(q.x - p.x, q.y - p.y);
+      if (length > longest) {
+        longest = length;
+        angle = Math.atan2(q.y - p.y, q.x - p.x);
+      }
+    });
+    near = { d, angle };
+  }
+  const angle = near?.angle ?? Math.PI / 2;
+  const [along, across] = START_SIZE[kind];
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as const).map(([a, c]) => {
+    const u = (a * along) / 2;
+    const v = (c * across) / 2;
+    const x = u * cos - v * sin;
+    const y = u * sin + v * cos;
+    return [at[0] + y / M_PER_LAT, at[1] + x / (k * M_PER_LNG)] as [number, number];
+  });
+}
+
+/** The cell nearest a point (by its outline's middle), for the new shape's zone and place to follow on from. */
+export function nearestCell(at: [number, number], cells: ZoneCell[]): ZoneCell | null {
+  let best: { d: number; cell: ZoneCell } | null = null;
+  for (const cell of cells) {
+    if (cell.outline.length < 3 || cell.usage !== 'normal') continue;
+    const lat = cell.outline.reduce((sum, p) => sum + p[0], 0) / cell.outline.length;
+    const lng = cell.outline.reduce((sum, p) => sum + p[1], 0) / cell.outline.length;
+    const d = Math.hypot(lat - at[0], lng - at[1]);
+    if (!best || d < best.d) best = { d, cell };
+  }
+  return best?.cell ?? null;
+}
+
+/** The form a dragged-out shape starts with: a plot follows on from the nearest one; a greenhouse or another area is named, in its own zone. */
+export function newShapeForm(kind: NewKind, at: [number, number], cells: ZoneCell[]): PlotForm {
+  const near = nearestCell(at, cells);
+  if (kind === 'plot') return newPlotForm(cells, near);
+  const zone = kind === 'greenhouse' ? 'Greenhouse' : 'Other';
+  const inZone = cells.filter((cell) => cell.zone === zone);
+  const number = Math.max(0, ...inZone.map((cell) => Number(/(\d+)\s*$/.exec(cell.plot)?.[1] ?? 0))) + 1;
+  return {
+    // The farm's own greenhouses are "Greenhouse 1", "Greenhouse 2"…, in the zone Greenhouse, one to a column of row 1.
+    plot: kind === 'greenhouse' ? `Greenhouse ${number}` : '',
+    zone,
+    section: '',
+    row: '1',
+    column: String(Math.max(0, ...inZone.map((cell) => cell.column)) + 1),
+    usage: 'unused',
+    statusName: kind === 'greenhouse' ? 'Greenhouse' : '',
+    capacity: '',
+    note: '',
+  };
 }

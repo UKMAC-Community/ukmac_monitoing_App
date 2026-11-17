@@ -61,7 +61,10 @@ export interface FarmBlock {
 export type PlantStage = 'planting' | 'harvest' | null;
 
 export function plantStage(cell: ZoneCell): PlantStage {
-  if (cell.usage !== 'normal' || !cell.records.length) return null;
+  if (cell.usage !== 'normal') return null;
+  // A picking in the Harvest table means the harvest has begun, whatever the plant records say.
+  if (cell.harvested) return 'harvest';
+  if (!cell.records.length) return null;
   return cell.records.some((record) => /harvest/i.test(record.status)) ? 'harvest' : 'planting';
 }
 

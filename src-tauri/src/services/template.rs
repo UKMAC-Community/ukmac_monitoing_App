@@ -836,6 +836,16 @@ fn chili_sheets() -> Vec<TemplateSheet> {
             about: "Log the fertilizer given through the irrigation water — mix, dose and date — for each zone.",
             columns: zone_log(vec![]),
         },
+        // The Google Sheet's own Fertilizer and Fungicide tabs, named as the sheet names them so the Connect page pairs
+        // each with its tab; Sync brings in the tab's other columns (Application, Disease, Chemical, Dose, …).
+        TemplateSheet {
+            key: "fertilizer",
+            title: "Fertilizer",
+            heading: "Planting",
+            icon: "leaf",
+            about: "Each fertilizer given to a zone plot: what, how much and when. Read from the Google Sheet's Fertilizer tab.",
+            columns: zone_log(vec![]),
+        },
         TemplateSheet {
             key: "pruning",
             title: "Pruning",
@@ -850,6 +860,14 @@ fn chili_sheets() -> Vec<TemplateSheet> {
             heading: "Planting",
             icon: "spray",
             about: "Record every spray: the product, dose, target pest and the safe-to-harvest date.",
+            columns: zone_log(vec![]),
+        },
+        TemplateSheet {
+            key: "fungicide",
+            title: "Fungicide",
+            heading: "Planting",
+            icon: "spray",
+            about: "Each fungicide application on a zone plot (1st, 2nd, …): the disease, the chemical, its dose and the date. Read from the Google Sheet's Fungicide tab.",
             columns: zone_log(vec![]),
         },
         TemplateSheet {

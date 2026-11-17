@@ -6,7 +6,7 @@ import type { Mac, MacInput } from '@core/models';
 import { Modal } from '@shared/ui/modal';
 
 const CHILI_TABLES =
-  'Zones, Batch, Nursery Progress, Zone Records, Soil Preparation, Irrigation, Fertigation, Pruning, Pesticides, Harvest, QA/QC Management (the 10-stage QC form), Planting Date, Inventory Management, Finance & Accounting';
+  'Zones, Batch, Nursery Progress, Zone Records, Soil Preparation, Irrigation, Fertigation, Fertilizer, Pruning, Pesticides, Fungicide, Harvest, QA/QC Management (the 10-stage QC form), Planting Date, Inventory Management, Finance & Accounting';
 
 /** Makes a MAC (a farm), or changes one. */
 @Component({

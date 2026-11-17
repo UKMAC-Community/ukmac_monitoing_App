@@ -10,6 +10,7 @@ export const routes: Routes = [
       { path: '', loadComponent: () => import('@features/mac/mac-page').then((m) => m.MacPage) },
       { path: 'data-check', loadComponent: () => import('@features/data-check/data-check-page').then((m) => m.DataCheckPage), title: 'Data Check' },
       { path: 'zone-map', loadComponent: () => import('@features/zone-map/zone-map-page').then((m) => m.ZoneMapPage), title: 'Zone Map', canDeactivate: [(page: { canLeave(): Promise<boolean> | boolean }) => page.canLeave()] },
+      { path: 'weather', loadComponent: () => import('@features/weather/weather-page').then((m) => m.WeatherPage), title: 'Weather' },
       { path: 'table/:sheetId', loadComponent: () => import('@features/tables/sheet-page').then((m) => m.SheetPage) },
       { path: 'google', loadComponent: () => import('@features/google/google-connect-page').then((m) => m.GoogleConnectPage), title: 'Connect a Google Sheet' },
     ],

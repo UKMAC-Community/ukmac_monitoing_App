@@ -1,6 +1,6 @@
 import type { Cells, Column } from '@core/models';
 import { makeSheet } from '@shared/testing/test-helpers';
-import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, outlineChanges, suggestPlotCode, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf } from './zone-edit';
+import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, newShapeForm, nearestCell, outlineChanges, startOutline, suggestPlotCode, placeTakenBy, plotChanges, ReshapeHistory, statusNameOf } from './zone-edit';
 import { buildZoneLayout, formatOutline, moveOutline, parseOutline } from '@shared/map/zone-layout';
 
 const columns: Column[] = ['Zone', 'Plot', 'Plant capacity', 'Note', 'Zone number', 'Row', 'Column', 'Plot status', 'Status name', 'Outline'].map((name, index) => ({
@@ -119,5 +119,67 @@ describe('a new plot drawn on the map', () => {
     expect(row['c8']).toBe('Active');
     expect(row['c10']).toBe('10.1000000,100.1000000;10.1000000,100.2000000;10.2000000,100.2000000');
     expect(row['c9']).toBeUndefined();
+  });
+});
+
+describe('a plot, a greenhouse or another area dragged onto the map', () => {
+  const at: [number, number] = [10.137, 100.0953];
+
+  it('starts as a rectangle on the ground, centred where it was dropped, as big as each kind usually is', () => {
+    const size = (kind: 'plot' | 'greenhouse' | 'other') => {
+      const ring = startOutline(kind, at, []);
+      const k = Math.cos((at[0] * Math.PI) / 180);
+      const sides = ring.map((point, i) => {
+        const next = ring[(i + 1) % 4];
+        return Math.hypot((next[1] - point[1]) * k * 111_320, (next[0] - point[0]) * 110_574);
+      });
+      return { ring, sides: sides.map((side) => Math.round(side)) };
+    };
+    expect(size('plot').sides).toEqual([50, 20, 50, 20]);
+    expect(size('greenhouse').sides).toEqual([30, 12, 30, 12]);
+    expect(size('other').sides).toEqual([20, 20, 20, 20]);
+    const mid = size('plot').ring.reduce((sum, p) => [sum[0] + p[0] / 4, sum[1] + p[1] / 4], [0, 0]);
+    expect(mid[0]).toBeCloseTo(at[0], 6);
+    expect(mid[1]).toBeCloseTo(at[1], 6);
+  });
+
+  it('lies the way the nearest plot lies, so it sits square with the farm', () => {
+    const ring = startOutline('plot', [10.1373, 100.0953], layout.cells);
+    // The plot there runs north to south (its long edges), so the new one's long side does too.
+    const [a, b] = [ring[0], ring[1]];
+    expect(Math.abs(b[0] - a[0])).toBeGreaterThan(Math.abs(b[1] - a[1]));
+  });
+
+  it('follows on from the nearest plot for a plot, and is named in its own zone for a greenhouse or another area', () => {
+    expect(nearestCell([10.1373, 100.0953], layout.cells)?.plot).toBe('A61');
+    expect(newShapeForm('plot', [10.1373, 100.0953], layout.cells).zone).toBe('A');
+    const greenhouse = newShapeForm('greenhouse', at, layout.cells);
+    // As the farm's own are kept: zone Greenhouse, plot "Greenhouse 1", status Unused.
+    expect([greenhouse.usage, greenhouse.zone, greenhouse.statusName, greenhouse.plot]).toEqual(['unused', 'Greenhouse', 'Greenhouse', 'Greenhouse 1']);
+    const other = newShapeForm('other', at, layout.cells);
+    expect([other.usage, other.zone, other.statusName]).toEqual(['unused', 'Other', '']);
+  });
+
+  it('needs a plot and a greenhouse a code, and another area a name', () => {
+    // A plot's code is suggested; without one, it can't be saved.
+    expect(newPlotProblem(newShapeForm('plot', at, layout.cells), layout.cells)).toBeNull();
+    expect(newPlotProblem({ ...newShapeForm('plot', at, layout.cells), plot: '' }, layout.cells)).toContain('code');
+    expect(newPlotProblem(newShapeForm('other', at, layout.cells), layout.cells)).toContain('name');
+    expect(newPlotProblem(newShapeForm('greenhouse', at, layout.cells), layout.cells)).toBeNull();
+    expect(newPlotProblem({ ...newShapeForm('greenhouse', at, layout.cells), plot: '' }, layout.cells)).toContain('code');
+  });
+
+  it('saves a greenhouse into the Zones table as the farm keeps them, with its shape, and reads it back as a greenhouse', () => {
+    const form = newShapeForm('greenhouse', at, layout.cells);
+    const cells = newPlotCells(sheet, form, startOutline('greenhouse', at, layout.cells))!;
+    expect(cells['c8']).toBe('Unused');
+    expect(cells['c2']).toBe('Greenhouse 1');
+    expect(cells['c1']).toBe('Greenhouse');
+    expect(String(cells['c10']).split(';').length).toBe(4);
+    const drawn = buildZoneLayout(makeSheet(2, 'Zones', columns, [cells], 'zones'), null).cells[0];
+    expect([drawn.usage, drawn.label]).toEqual(['greenhouse', 'Greenhouse 1']);
+    // The next greenhouse is numbered on from those there.
+    const next = newShapeForm('greenhouse', at, [drawn, ...layout.cells]);
+    expect([next.plot, next.column]).toEqual(['Greenhouse 2', '2']);
   });
 });

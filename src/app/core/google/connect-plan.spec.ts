@@ -164,6 +164,13 @@ describe('connecting a MAC to one Google Sheet', () => {
     it('is never picked for Zones by itself: a read would replace the map', () => {
       expect(defaultTab(makeSheet(1, 'Zones', [], [], 'zones'), tabs, null, 's')).toBeNull();
     });
+
+    it('pairs Fertilizer, Fungicide and Pruning with the farm sheet\'s tabs of those names; Fertigation and Pesticides find none', () => {
+      const farm = ['Zone_Map', 'Pruning', 'Fertilizer', 'Fungicide', 'Zone_Map_Data', 'Plant Progress', 'Harvest'].map((name) => ({ name }));
+      const tab = (title: string, key: string) => defaultTab(makeSheet(7, title, [], [], key), farm, null, 's');
+      expect([tab('Fertilizer', 'fertilizer'), tab('Fungicide', 'fungicide'), tab('Pruning', 'pruning')]).toEqual(['Fertilizer', 'Fungicide', 'Pruning']);
+      expect([tab('Fertigation', 'fertigation'), tab('Pesticides', 'pesticides')]).toEqual([null, null]);
+    });
   });
 
   it('says a link changes only when its sheet, tab, matches or layout do', () => {

@@ -84,20 +84,22 @@ interface Cell {
                   </th>
                 }
               </tr>
-              <tr class="boxes">
-                @for (item of view().checks; track $index) {
-                  <th class="group" [class.edge]="item.edge" [attr.colspan]="item.span"><span class="stick">{{ item.label }}</span></th>
-                }
-              </tr>
+              @if (view().named) {
+                <tr class="boxes">
+                  @for (item of view().checks; track $index) {
+                    <th class="group" [class.edge]="item.edge" [attr.colspan]="item.span"><span class="stick">{{ item.label }}</span></th>
+                  }
+                </tr>
+              }
               <tr>
                 @for (item of view().columns; track $index) {
-                  <th [class.edge]="item.edge" [style.min-width.px]="item.col.width" [class.left]="item.col.kind === 'result' || item.col.kind === 'action'">{{ item.col.header }}</th>
+                  <th [class.edge]="item.edge" [class.num]="item.num" [style.min-width.px]="item.col.width">{{ item.col.header }}</th>
                 }
               </tr>
               @if (showFormulas()) {
                 <tr class="formulas">
                   @for (item of view().columns; track $index) {
-                    <th [class.edge]="item.edge" [title]="item.col.formulaText"><code>{{ item.col.formulaText || (item.col.kind === 'identity' || item.col.kind === 'date' ? 'From the record' : '') }}</code></th>
+                    <th [class.edge]="item.edge" [class.num]="item.num" [title]="item.col.formulaText"><code>{{ item.col.formulaText || (item.col.kind === 'identity' || item.col.kind === 'date' ? 'From the record' : '') }}</code></th>
                   }
                 </tr>
               }
@@ -106,7 +108,7 @@ interface Cell {
               @for (line of view().lines; track line.id) {
                 <tr>
                   @for (cell of line.cells; track $index) {
-                    <td [class.edge]="view().columns[$index].edge" [class.left]="view().columns[$index].col.kind === 'result' || view().columns[$index].col.kind === 'action'" [title]="cell.error ?? cell.text">
+                    <td [class.edge]="view().columns[$index].edge" [class.num]="view().columns[$index].num" [title]="cell.error ?? cell.text">
                       @if (cell.status) {
                         <span class="pill" [class]="'pill ' + cell.status">{{ cell.text }}</span>
                       } @else {
@@ -161,10 +163,13 @@ interface Cell {
     .more-note { font-size: 0.8125rem; color: var(--text-muted); }
     .scroller { background: transparent; overflow-x: auto; }
     .data-table { width: max-content; min-width: 100%; }
-    .data-table thead th { background: var(--surface-solid); text-align: center; }
-    .data-table thead th.box, .data-table thead th.group { color: var(--text); font-weight: 600; text-align: center; }
-    .data-table th.left, .data-table td.left { text-align: left; }
-    .data-table td { text-align: center; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .data-table thead tr:last-child th, .data-table thead tr.formulas th { min-width: 130px; }
+    .data-table th.num, .data-table td.num { text-align: right; }
+    .data-table th.group { text-align: center; color: var(--text); font-weight: 600; }
+    .data-table thead th { position: sticky; background: var(--surface-solid); z-index: 1; }
+    .data-table tr.boxes:nth-child(1) th { top: 0; }
+    .data-table td { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .data-table td.num { font-variant-numeric: tabular-nums; }
     .data-table tr.formulas th { font-weight: 400; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .data-table tr.formulas code { font-size: 0.6875rem; color: var(--text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .pill { display: inline-block; min-width: 64px; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
@@ -192,7 +197,8 @@ export class QaQcAnalysis {
   private readonly opened = signal<ReadonlySet<string> | null>(null);
   /** Each stage's standing over the plots (red / yellow / green / no reading), and the plots needing action. */
   readonly summaries = computed(() => stageSummaries(this.built(), this.formulas()));
-  readonly showFormulas = signal(true);
+  /** The formulas under the names are off to begin with, so the table reads like the table's own rows. */
+  readonly showFormulas = signal(false);
 
   constructor() {
     effect(() => {
@@ -249,7 +255,12 @@ export class QaQcAnalysis {
     const byId = new Map(rows.map((row) => [row.rowId, row]));
     const ordered = order ? order.flatMap((id) => byId.get(id) ?? []) : rows;
     const lines = (this.allRows() ? ordered : ordered.slice(0, this.preview)).map((row) => ({ id: row.rowId, cells: shown.map((item) => this.cellOf(formulas, sheet, row, item.col)) }));
-    return { groups, checks, columns: shown, lines, total: rows.length };
+    // A column of numbers lines up on the right, as the table's own rows do; the rest on the left.
+    const columnsShown = shown.map((item, index) => {
+      const texts = lines.map((line) => line.cells[index].text).filter((text) => text !== '');
+      return { ...item, num: texts.length > 0 && texts.every((text) => NUMBER.test(text)) };
+    });
+    return { groups, checks, named: checks.some((item) => item.label !== ''), columns: columnsShown, lines, total: rows.length };
   });
 
   readonly anyOpen = computed(() => this.stages().some((name) => this.openSet().has(name)));
@@ -294,6 +305,9 @@ export class QaQcAnalysis {
     return { text, status, error: null };
   }
 }
+
+/** A number as the cells write one: 1,234.5, -3, 90%. */
+const NUMBER = /^-?[\d,]*\.?\d+%?$/;
 
 const openedKey = (sheetId: number) => `ukmac.qaqc-open.${sheetId}`;
 

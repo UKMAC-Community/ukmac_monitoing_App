@@ -3,8 +3,9 @@ import { Router, RouterLink } from '@angular/router';
 
 import { Icon } from '@shared/ui/icon';
 import { MacMap3d } from '@shared/map/mac-map-3d';
+import { plantStage } from '@features/zone-map/farm/farm-scene';
+import type { MapShape } from '@shared/map/mac-map';
 import { buildZoneLayout, filterLayout, mapCentre, plotCard, plotShapes, plotShowOptions, showsPlot, type PlotShow } from '@shared/map/zone-layout';
-import { ChiliDashboard } from '@features/dashboard/chili-dashboard';
 import { ChiliDashboardExport } from '@features/dashboard/chili-dashboard-export';
 import { ChiliDashboardVersions } from '@features/dashboard/chili-dashboard-versions';
 import { ChiliKpiEditor } from '@features/dashboard/chili-kpi-editor';
@@ -12,6 +13,7 @@ import { ChiliKpiStore } from '@features/dashboard/chili-kpi-store';
 import { ChiliVersionStore, importMessage } from '@features/dashboard/chili-version-store';
 import { GoogleImportDialog } from '@features/google/google-import-dialog';
 import { MacDialog } from './mac-dialog';
+import { PlotJourney } from './plot-journey';
 import { Api, errorText } from '@core/api';
 import { MacList } from '@core/mac-list';
 import type { Mac, SheetWithRows } from '@core/models';
@@ -31,10 +33,12 @@ const HEADING_ICONS: Record<string, string> = {
   Operational: 'wallet',
 };
 
+const PROGRESS_KEY = 'ukmac.map-progress';
+
 /** A MAC: where it is, and its tables under their headings. */
 @Component({
   selector: 'app-mac-page',
-  imports: [RouterLink, Icon, MacDialog, ChiliDashboard, ChiliDashboardExport, ChiliDashboardVersions, ChiliKpiEditor, MacMap3d, GoogleImportDialog],
+  imports: [RouterLink, Icon, MacDialog, ChiliDashboardExport, ChiliDashboardVersions, ChiliKpiEditor, MacMap3d, GoogleImportDialog, PlotJourney],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.mac(); as mac) {
@@ -62,28 +66,52 @@ const HEADING_ICONS: Record<string, string> = {
         </header>
 
         @if (place(mac); as at) {
-          <section class="card map-card" aria-label="Where this MAC is">
+          <section class="card map-card" aria-label="The farm and how far each plot has come">
             <app-mac-map-3d
               [latitude]="at.lat"
               [longitude]="at.lng"
               [name]="mac.macName"
               [shapes]="shapes()"
+              [farm]="progress()"
               [selected]="pickedPlot()"
               [card]="plotCard()"
+              [openable]="true"
+              (opened)="journeyOpen.set(true)"
               [filters]="shows()"
               [filter]="show()"
               (filterChange)="setShow($any($event))"
               (picked)="pickPlot($event)"
               (cleared)="pickedPlot.set(null)"
-            />
+            >
+            @if (!progressOpen()) {
+              <button type="button" mapTop class="progress-open" title="Progress: how far each plot has come" aria-label="Open the progress key" (click)="progressOpen.set(true)">
+                <app-icon name="sprout" [size]="16" />
+              </button>
+            } @else {
+            <div mapTop class="progress-key" role="group" aria-label="Progress on the plots">
+              <button
+                type="button"
+                class="pk-toggle"
+                role="switch"
+                [attr.aria-checked]="progress()"
+                [title]="progress() ? 'Showing how far each plot has come: switch off for the plain zone colours' : 'Show how far each plot has come: not planted, planting, harvest'"
+                (click)="setProgress(!progress())"
+              >
+                <i class="pk-track"><i class="pk-knob"></i></i> Progress
+              </button>
+              <!-- Always there, dimmed while the switch is off, so the pill keeps its size. -->
+              <span class="pk-legend" [class.is-off]="!progress()">
+                <span><i class="sw tilled"></i> Not planted yet</span>
+                <span><i class="sw sprout"></i> Planting</span>
+                <span><i class="sw ripe"></i> Harvest</span>
+              </span>
+              <button type="button" class="pk-close" title="Fold it away" aria-label="Fold the progress key away" (click)="progressOpen.set(false)"><app-icon name="x" [size]="12" /></button>
+            </div>
+            }
+            </app-mac-map-3d>
           </section>
-        }
-
-        @if (kpiStore.loaded()) {
-          <div class="kpi-bar">
-            <button type="button" class="btn btn-plain btn-sm" (click)="editingKpis.set(true)" title="Choose the numbers and charts on this dashboard"><app-icon name="gauge" [size]="14" /> Edit dashboard</button>
-          </div>
-          <app-chili-dashboard [sheets]="store.sheets()" [formulas]="store.formulas()" [kpis]="kpiStore.kpis()" (edit)="editingKpis.set(true)" />
+          <!-- The picked plot's whole story, from planting to harvest, on a full screen (its card opens it). -->
+          <app-plot-journey [open]="journeyOpen() && !!pickedCell()" [cell]="pickedCell()" [sheets]="store.sheets()" (closed)="journeyOpen.set(false)" />
         }
 
         <section class="card shortcuts" aria-labelledby="shortcuts-title">
@@ -152,7 +180,23 @@ const HEADING_ICONS: Record<string, string> = {
     .map-card { flex: none; height: clamp(440px, 62vh, 680px); padding: 0; overflow: hidden; margin: 14px 0 0; position: relative; }
     /* In its card, unless opened bigger (then it fills the window, as on the Zone Map). */
     .map-card app-mac-map-3d:not(.m3-expanded) { position: absolute; inset: 0; }
-    .kpi-bar { display: flex; justify-content: flex-end; margin: 14px 0 -2px; }
+    .progress-key { flex: none; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px 0 8px; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; }
+    .progress-open { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); color: var(--accent); cursor: pointer; box-shadow: var(--shadow-card); }
+    .progress-open:hover { background: #fff; }
+    .progress-key .pk-legend { display: inline-flex; align-items: center; gap: 14px; transition: opacity 0.15s; }
+    .progress-key .pk-legend.is-off { opacity: 0.4; }
+    .progress-key .pk-close { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; }
+    .progress-key .pk-close:hover { background: var(--surface-hover, #f2f2f4); color: var(--text); }
+    .progress-key .pk-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 0 6px; border: 0; background: transparent; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; }
+    .progress-key .pk-track { position: relative; width: 28px; height: 16px; border-radius: 999px; background: #c7ccc8; transition: background 0.15s; }
+    .progress-key .pk-knob { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+    .progress-key .pk-toggle[aria-checked='true'] .pk-track { background: var(--accent, #0a84ff); }
+    .progress-key .pk-toggle[aria-checked='true'] .pk-knob { transform: translateX(12px); }
+    .progress-key span { display: inline-flex; align-items: center; gap: 6px; }
+    .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; }
+    .sw.tilled { background: #a37650; border-color: #8a6040; }
+    .sw.sprout { background: #7cc35f; border-color: #4f9e3f; }
+    .sw.ripe { background: linear-gradient(90deg, #4f9e3f 50%, #e5432f 50%); border-color: #4f9e3f; }
     .shortcuts { padding: 18px 20px; }
     .groups { margin-top: 6px; }
     .group-row { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px 0; }
@@ -203,27 +247,49 @@ export class MacPage {
       this.toasts.error(errorText(error));
     }
   }
-  /** The plots, as the Zone Map lays them out. */
-  private readonly layout = computed(() =>
+  /** The plots, as the Zone Map lays them out: a plot with records is growing, one with a picking in Harvest is harvesting. */
+  private readonly allPlots = computed(() =>
     buildZoneLayout(
       this.store.sheets().find((sheet) => sheet.templateKey === 'zones') ?? null,
       this.store.sheets().find((sheet) => sheet.templateKey === 'zone-records') ?? null,
+      this.store.sheets().find((sheet) => sheet.templateKey === 'harvest') ?? null,
     ),
   );
-  /** Which plots the map shows: the zones (in use) to begin with, or all, or the rest (water, not in use…), as on the Zone Map. */
+  /** Which plots the map shows: the zones to begin with, or all, or the rest (water, not in use…). */
   readonly show = signal<PlotShow>('zones');
-  readonly shows = computed(() => plotShowOptions(this.layout()));
-  /** The plots drawn on the satellite, as the Zone Map shows them. */
-  readonly shapes = computed(() => plotShapes(filterLayout(this.layout(), this.show())));
+  readonly shows = computed(() => plotShowOptions(this.allPlots()));
+  readonly layout = computed(() => filterLayout(this.allPlots(), this.show()));
+  /** The plots drawn on the satellite with the farm's beds: tilled where not planted, young plants, bushes with red once harvest has begun. */
+  readonly shapes = computed(() => {
+    const cells = new Map(this.layout().cells.map((cell) => [cell.id, cell]));
+    return plotShapes(this.layout()).map((shape): MapShape => {
+      const cell = cells.get(shape.id);
+      if (!cell) return shape;
+      if (!this.progress()) return shape;
+      return { ...shape, bed: cell.usage === 'water' ? 'water' : cell.usage !== 'normal' ? 'unused' : (plantStage(cell) ?? 'tilled') };
+    });
+  });
+  /** Whether the plots show how far they have come (beds and plants), or just their zone colours; kept on this Mac. */
+  /** The progress key is open (folded to a round button to begin with, so it never covers the map's credit). */
+  readonly progressOpen = signal(false);
+  readonly progress = signal(localStorage.getItem(PROGRESS_KEY) !== 'off');
+  setProgress(on: boolean) {
+    this.progress.set(on);
+    try {
+      localStorage.setItem(PROGRESS_KEY, on ? 'on' : 'off');
+    } catch {
+      /* kept for this run only */
+    }
+  }
   setShow(show: PlotShow) {
     this.show.set(show);
     // A plot picked that is not shown now is let go of.
-    const picked = this.layout().cells.find((cell) => cell.id === this.pickedPlot());
+    const picked = this.allPlots().cells.find((cell) => cell.id === this.pickedPlot());
     if (picked && !showsPlot(picked, show)) this.pickedPlot.set(null);
   }
-  /** Where the map looks: the MAC's own place, else the middle of its plots (a MAC opened from a file has no place of its own). It does not follow the filter. */
+  /** Where the map looks: the MAC's own place, else the middle of its plots. It does not follow the filter. */
   place(mac: { latitude: number | null; longitude: number | null }) {
-    return mapCentre(mac, plotShapes(this.layout()));
+    return mapCentre(mac, plotShapes(this.allPlots()));
   }
   /** The plot picked on the map: the camera goes to it, its card over it (as on the Zone Map). */
   readonly pickedPlot = signal<string | null>(null);
@@ -231,6 +297,10 @@ export class MacPage {
     const cell = this.layout().cells.find((item) => item.id === this.pickedPlot());
     return cell ? plotCard(cell) : null;
   });
+
+  /** The plot picked, whatever the map shows now. */
+  readonly pickedCell = computed(() => this.allPlots().cells.find((item) => item.id === this.pickedPlot()) ?? null);
+  readonly journeyOpen = signal(false);
 
   pickPlot(id: string) {
     this.pickedPlot.set(this.pickedPlot() === id ? null : id);

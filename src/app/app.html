@@ -102,19 +102,24 @@
               }
             </a>
           }
-          @if (layoutGroup() || showZoneMap()) {
-            @if (!shell.collapsed()) {
-              <span class="nav-section-label">Farm Layout</span>
+          <a class="nav-link" [routerLink]="['/mac', mac.macId, 'weather']" routerLinkActive="active" #wxLink="routerLinkActive" title="Weather: now, the last two weeks and the next week, from Open-Meteo">
+            @if (wxLink.isActive) {
+              <span class="nav-pill"></span>
             }
-            @if (showZoneMap()) {
-              <a class="nav-link" [routerLink]="['/mac', mac.macId, 'zone-map']" routerLinkActive="active" #zmLink="routerLinkActive" title="Zone Map">
-                @if (zmLink.isActive) {
-                  <span class="nav-pill"></span>
-                }
-                <app-icon name="pin" [size]="17" />
-                <span class="nav-label">Zone Map</span>
-              </a>
-            }
+            <app-icon name="cloud-sun" [size]="17" />
+            <span class="nav-label">Weather</span>
+          </a>
+          @if (!shell.collapsed()) {
+            <span class="nav-section-label">Farm Layout</span>
+          }
+          @if (showZoneMap()) {
+            <a class="nav-link" [routerLink]="['/mac', mac.macId, 'zone-map']" routerLinkActive="active" #zmLink="routerLinkActive" title="Zone Map">
+              @if (zmLink.isActive) {
+                <span class="nav-pill"></span>
+              }
+              <app-icon name="pin" [size]="17" />
+              <span class="nav-label">Zone Map</span>
+            </a>
           }
           @if (layoutGroup(); as layout) {
             @for (sheet of layout.sheets; track sheet.sheetId) {
@@ -202,13 +207,17 @@
     <div class="topbar-right">
       <app-update-button />
       @if (tableLink(); as link) {
-        <span class="google-chip" [title]="'Connected to the Google Sheet ' + link.spreadsheetTitle + ' › ' + link.tabTitle + ': Sync reads it again'">
+        <button
+          type="button"
+          class="google-chip"
+          [title]="'Reads the Google Sheet ' + link.spreadsheetTitle + ' › ' + link.tabTitle + '. Click to change the link; Sync reads it again'"
+          [attr.aria-label]="'Google Sheet link: ' + link.spreadsheetTitle + ' › ' + link.tabTitle"
+          (click)="google.editLinkRequest.update(n => n + 1)"
+        >
           <app-icon name="table" [size]="13" />
-          <span class="google-chip-name">{{ link.spreadsheetTitle }} › {{ link.tabTitle }}</span>
-          <span>· {{ link.lastSyncedAt ? 'read ' + google.ago(link.lastSyncedAt) : 'not read yet' }}</span>
-        </span>
-        <button type="button" class="icon-btn is-quiet is-sm" title="Edit the Google Sheet link" aria-label="Edit the Google Sheet link" (click)="google.editLinkRequest.update(n => n + 1)">
-          <app-icon name="edit" [size]="14" />
+          <span class="google-chip-name">{{ link.tabTitle }}</span>
+          <span>· {{ link.lastSyncedAt ? google.ago(link.lastSyncedAt) : 'not read yet' }}</span>
+          <app-icon name="edit" [size]="12" class="google-chip-edit" />
         </button>
       }
       @if (onTable()) {

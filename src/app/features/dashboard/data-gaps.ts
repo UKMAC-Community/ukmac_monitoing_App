@@ -1,11 +1,12 @@
 import type { Column, SheetWithRows } from '@core/models';
-import { columnLabel, displayCell, isEntryColumn } from '@shared/sheet/columns';
+import { columnLabel, displayCell, isEntryColumn, isRemarkColumn } from '@shared/sheet/columns';
 
 /**
  * What a table still lacks: for each column a person fills in, on how many
  * of its records it has a value. A column with nothing anywhere is
  * "missing", one with some blanks is "partly" filled, the rest are "complete".
- * Worked-out (formula) and numbered (ID) columns are left out: nobody types them.
+ * Worked-out (formula) and numbered (ID) columns are left out: nobody types them. So are a note's and a file link's
+ * (Note, Remarks, "Main file link:"): not the data, and fine left blank.
  */
 
 export type GapState = 'missing' | 'partly' | 'complete';
@@ -54,7 +55,7 @@ const ORDER: Record<GapState, number> = { missing: 0, partly: 1, complete: 2 };
 export function tableGaps(sheet: SheetWithRows): TableGaps {
   const rows = sheet.rows.length;
   const columns = sheet.columns
-    .filter(isEntryColumn)
+    .filter((column) => isEntryColumn(column) && !isRemarkColumn(column))
     .map((column) => gapOf(column, rows, sheet.rows.filter((row) => !blank(row.data[column.key])).length));
   // Stable: the table's own column order within each kind; a required one first, and the emptiest of the partly filled.
   const sorted = columns

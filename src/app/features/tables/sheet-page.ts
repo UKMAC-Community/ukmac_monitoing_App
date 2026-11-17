@@ -6,6 +6,9 @@ import { Router, RouterLink } from '@angular/router';
 
 import { ColumnDialog } from './column-dialog';
 import { ColumnsPanel } from './columns-panel';
+import { emptyColumnKeys } from './empty-columns';
+import { gapsFirst, hasGap, missingData } from './missing-data';
+import { GapRing } from '@shared/ui/gap-ring';
 import { Icon } from '@shared/ui/icon';
 import { GoogleImportDialog } from '@features/google/google-import-dialog';
 import { GoogleLinkDialog } from '@features/google/google-link-dialog';
@@ -36,7 +39,7 @@ import { baseName } from '@core/paths';
 /** One table: the sheet, and everything done to it. */
 @Component({
   selector: 'app-sheet-page',
-  imports: [RouterLink, Icon, UniverSheet, SheetTable, QaQcAnalysis, QaQcMap, SheetDashboard, DashboardStudio, ColumnDialog, ColumnsPanel, ImportDialog, GoogleImportDialog, GoogleLinkDialog, TableDialog, Modal],
+  imports: [RouterLink, Icon, UniverSheet, SheetTable, GapRing, QaQcAnalysis, QaQcMap, SheetDashboard, DashboardStudio, ColumnDialog, ColumnsPanel, ImportDialog, GoogleImportDialog, GoogleLinkDialog, TableDialog, Modal],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sheet-page.html',
   styleUrl: './sheet-page.css',
@@ -56,6 +59,37 @@ export class SheetPage {
   readonly column = input<string | undefined>();
   readonly mode = computed<'table' | 'dashboard' | 'sheet'>(() => (this.view() === 'dashboard' ? 'dashboard' : this.view() === 'sheet' ? 'sheet' : 'table'));
   readonly sheet = computed(() => this.store.sheet(Number(this.sheetId())));
+
+  /** The table's empty columns: nothing entered in any row. */
+  readonly emptyKeys = computed(() => {
+    const sheet = this.sheet();
+    return sheet ? emptyColumnKeys(sheet) : new Set<string>();
+  });
+  /**
+   * The columns left out now: the empty ones, for a clean table, while the missing data is not shown. Shown, it shows them
+   * too (they are missing data); and never while a column is asked for (from the Data Check, a link).
+   */
+  readonly leftOut = computed<ReadonlySet<string>>(() => (!this.showMissing() && !this.column() ? this.emptyKeys() : NO_KEYS));
+
+  /** The switch in the table's header: off, a clean table (the empty columns left out); on, the rows with a cell left empty, each empty cell marked, and the ring of how filled the table is. */
+  readonly showMissing = signal(false);
+  /** What the table is missing, counted as the Data Check counts it (a table with no rows has nothing to fill yet). */
+  readonly missing = computed(() => {
+    const sheet = this.sheet();
+    return sheet?.rows.length ? missingData(sheet) : null;
+  });
+  readonly gapColumns = computed(() => (this.showMissing() ? (this.missing()?.columns ?? null) : null));
+  /** A column's "9 missing" clicked: its rows with nothing there on top (clicked again: the usual order). */
+  readonly gapFirst = signal<string | null>(null);
+  setShowMissing(on: boolean) {
+    this.showMissing.set(on);
+    if (!on) this.gapFirst.set(null);
+  }
+  toggleGapFirst(key: string) {
+    this.gapFirst.update((now) => (now === key ? null : key));
+  }
+  /** No rows with a gap to show: why, in plain words. */
+  readonly missingEmptyText = computed(() => (this.gapColumns() && !this.filtered() ? 'Nothing missing: every row has all its columns filled in.' : null));
   readonly linkOptions = (column: Column) => this.store.linkOptions(column);
 
   /** What a click on a group in the dashboard keeps in its other visuals (of this table only). */
@@ -82,8 +116,7 @@ export class SheetPage {
   readonly linkOpen = signal(false);
   readonly importsOpen = signal(false);
   readonly imports = signal<ImportRecord[]>([]);
-  /** The Import and Export menus, where they open (null: closed). */
-  readonly importMenu = signal<{ x: number; y: number } | null>(null);
+  /** The Export menu, where it opens (null: closed). */
   readonly exportMenu = signal<{ x: number; y: number } | null>(null);
   /** The dialog that makes a new table. */
   readonly newTableOpen = signal(false);
@@ -258,12 +291,6 @@ export class SheetPage {
     this.sort.set(!sort || sort.key !== key ? { key, dir: 1 } : sort.dir === 1 ? { key, dir: -1 } : null);
   }
 
-  toggleImport(event: MouseEvent) {
-    if (this.importMenu()) return this.importMenu.set(null);
-    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.importMenu.set({ x: Math.min(box.right - 260, window.innerWidth - 280), y: box.bottom + 6 });
-  }
-
   toggleExport(event: MouseEvent) {
     if (this.exportMenu()) return this.exportMenu.set(null);
     const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -298,6 +325,8 @@ export class SheetPage {
         return words.every((word) => text.includes(word));
       });
     }
+    const gaps = this.gapColumns();
+    if (gaps) rows = rows.filter((row) => hasGap(row, gaps));
     const sort = this.sort();
     const column = this.sortColumn();
     if (sort && column) {
@@ -316,6 +345,8 @@ export class SheetPage {
         return String(x).localeCompare(String(y), 'en', { numeric: true, sensitivity: 'base' }) * sort.dir;
       });
     }
+    const first = this.gapFirst();
+    if (gaps && first && gaps.has(first)) rows = gapsFirst(rows, first);
     return rows;
   });
 
@@ -721,3 +752,5 @@ export class SheetPage {
       : date.toLocaleString('en-GB', { timeZone: 'Asia/Phnom_Penh', dateStyle: 'medium', timeStyle: 'short' });
   }
 }
+
+const NO_KEYS: ReadonlySet<string> = new Set();

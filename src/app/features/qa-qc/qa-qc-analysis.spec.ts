@@ -46,7 +46,7 @@ describe('QaQcAnalysis', () => {
   const open = (el: HTMLElement) => [...el.querySelectorAll('thead tr:first-child th.group')].filter((th) => th.querySelector('.fold[aria-expanded="true"]')).map((th) => th.querySelector('.fold-label')?.textContent?.trim());
 
   it('is one table with a group of columns for each stage, the first stage open and the rest folded to their first column', () => {
-    const { el } = mount();
+    const { fixture, el } = mount();
     expect(el.querySelectorAll('table').length).toBe(1);
     expect(stageHeads(el)).toEqual([
       'Stage 1 (0 DAT)',
@@ -66,13 +66,16 @@ describe('QaQcAnalysis', () => {
     expect([...el.querySelectorAll('thead tr:nth-child(3) th')].slice(0, 2).map((th) => th.textContent?.trim())).toEqual(['Zone', 'Planting Date']);
     const pills = [...el.querySelectorAll('tbody tr:first-child .pill')].map((pill) => [pill.textContent?.trim(), pill.className]);
     expect(pills[0]).toEqual(['GREEN', 'pill green']);
-    // The formulas under the names.
+    // The formulas are not under the names until asked for (Show formulas).
+    expect(el.querySelectorAll('thead tr.formulas').length).toBe(0);
+    button(el, /Show formulas/).click();
+    fixture.detectChanges();
     expect([...el.querySelectorAll('thead tr.formulas th')].some((th) => th.textContent?.includes('IFS('))).toBe(true);
   });
 
   it('folds and opens a stage from its heading, and Fold all / Open all do every stage', () => {
     const { fixture, el } = mount();
-    const width = () => el.querySelectorAll('thead tr:nth-child(3) th').length;
+    const width = () => el.querySelector('thead tr:last-child')!.querySelectorAll('th').length;
     const folded = width();
     (el.querySelectorAll('thead tr:first-child .fold')[1] as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -97,6 +100,10 @@ describe('QaQcAnalysis', () => {
     fixture.detectChanges();
     expect(stageHeads(el)).toEqual(['Stage 2 (7 DAT)']);
     expect(open(el)).toEqual(['Stage 2 (7 DAT)']);
+    expect(el.querySelectorAll('thead tr').length).toBe(3);
+    button(el, /formulas/i).click();
+    fixture.detectChanges();
+    expect(el.querySelectorAll('thead tr').length).toBe(4);
     button(el, /formulas/i).click();
     fixture.detectChanges();
     expect(el.querySelectorAll('thead tr').length).toBe(3);

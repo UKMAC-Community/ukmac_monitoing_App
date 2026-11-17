@@ -30,7 +30,9 @@ describe('SheetTable: boxes and groups that fold', () => {
     HTMLElement.prototype.scrollTo = () => {};
   });
 
-  function show() {
+  /** A table opened as a person left it (all open) unless it is `fresh`: seen for the first time. */
+  function show(fresh = false) {
+    if (!fresh && localStorage.getItem('ukmac.folded.41') === null) localStorage.setItem('ukmac.folded.41', '[]');
     const fixture = TestBed.createComponent(SheetTable);
     fixture.componentRef.setInput('sheet', sheet);
     fixture.componentRef.setInput('rows', sheet.rows);
@@ -52,6 +54,24 @@ describe('SheetTable: boxes and groups that fold', () => {
     expect(el.querySelectorAll('tr.boxes:first-of-type button.fold').length).toBe(3);
     expect(el.querySelectorAll('tr.boxes:nth-of-type(2) button.fold').length).toBe(0);
     expect(el.querySelectorAll('tr.boxes:nth-of-type(2) th.group').length).toBe(5);
+  });
+
+  it('begins a table of stages with the first stage open and the rest folded, a hairline before each stage', () => {
+    const { el, heads } = show(true);
+    expect(heads().length).toBe(6); // c1, c2, c3, c4 (Stage 1 open), c5, c7
+    expect(el.querySelectorAll('tr.boxes:first-of-type th.box.is-folded').length).toBe(2);
+    // The hairline begins each stage (not the first column, which belongs to none).
+    const edges = [...el.querySelectorAll('thead tr:last-child th.edge')].map((th) => th.textContent?.trim());
+    expect(edges).toEqual(['Leaf', 'Leaf', 'Leaf']);
+    expect(el.querySelectorAll('tbody tr:first-child td.edge').length).toBe(3);
+  });
+
+  it('keeps what a person opened, so it is not folded again', () => {
+    const { heads, button, fixture } = show(true);
+    button('Open all').click();
+    fixture.detectChanges();
+    expect(heads().length).toBe(8);
+    expect(JSON.parse(localStorage.getItem('ukmac.folded.41')!)).toEqual([]);
   });
 
   it('writes a numbered stage as "Stage 1 · …"', () => {

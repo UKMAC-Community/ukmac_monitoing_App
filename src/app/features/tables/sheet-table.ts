@@ -6,6 +6,7 @@ import type { WorkbookFormulas } from '@shared/formula/sheet-formulas';
 import { alignsRight, columnLabel, displayCell, formatDate, isIsoDate } from '@shared/sheet/columns';
 import { Icon } from '@shared/ui/icon';
 import { Pager, pageSlice, savedPageSize } from '@shared/ui/pager';
+import { isBlank } from './missing-data';
 
 interface Span {
   /** What folds: a box's or a group's name (with the box it sits in). */
@@ -31,6 +32,7 @@ interface Span {
   selector: 'app-sheet-table',
   imports: [Icon, Pager],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(window:resize)': 'measure()' },
   template: `
     @if (stageChips().length >= 3 || foldables().length) {
       <div class="bar">
@@ -57,13 +59,25 @@ interface Span {
         }
       </div>
     }
-    <div class="table-card scroller" #scroller>
+    <div class="scroll-wrap">
+    <!-- Missing data on, and some columns with gaps out of sight: an arrow each way says how many, and goes to the next. -->
+    @if (aside().left.length) {
+      <button type="button" class="gap-aside is-left" [title]="asideTitle(aside().left.length, 'left')" (click)="goGap('left')">
+        <app-icon name="arrow-left" [size]="14" /> {{ aside().left.length }} missing
+      </button>
+    }
+    @if (aside().right.length) {
+      <button type="button" class="gap-aside is-right" [title]="asideTitle(aside().right.length, 'right')" (click)="goGap('right')">
+        {{ aside().right.length }} missing <app-icon name="arrow-right" [size]="14" />
+      </button>
+    }
+    <div class="table-card scroller" #scroller (scroll)="measure()">
       <table class="data-table">
         <thead>
           @if (showBoxes()) {
             <tr class="boxes">
               @for (box of boxSpans(); track box.id) {
-                <th [attr.colspan]="box.span" [attr.data-start]="box.start" class="box" [class.is-folded]="box.folded">
+                <th [attr.colspan]="box.span" [attr.data-start]="box.start" class="box" [class.edge]="startsBox(box.start)" [class.is-folded]="box.folded">
                   @if (box.foldable) {
                     <button type="button" class="fold" [attr.aria-expanded]="!box.folded" [title]="box.folded ? 'Open the group' : 'Fold the group to its first column'" (click)="toggle(box.id)">
                       <app-icon [name]="box.folded ? 'circle-plus' : 'circle-minus'" [size]="14" />
@@ -79,7 +93,7 @@ interface Span {
           @if (showGroups()) {
             <tr class="boxes">
               @for (group of groupSpans(); track group.id) {
-                <th [attr.colspan]="group.span" class="group" [class.is-folded]="group.folded">
+                <th [attr.colspan]="group.span" class="group" [class.edge]="startsBox(group.start)" [class.is-folded]="group.folded">
                   @if (group.foldable) {
                     <button type="button" class="fold" [attr.aria-expanded]="!group.folded" [title]="group.folded ? 'Open the group' : 'Fold the group to its first column'" (click)="toggle(group.id)">
                       <app-icon [name]="group.folded ? 'circle-plus' : 'circle-minus'" [size]="14" />
@@ -94,13 +108,27 @@ interface Span {
           }
           <tr>
             @for (item of visible(); track item.column.key) {
-              <th [class.num]="right(item.column)" [class.is-lit]="lit() === item.column.key" [attr.data-col]="item.column.key">
+              <th [class.num]="right(item.column)" [class.edge]="startsBox(item.index)" [class.is-lit]="lit() === item.column.key" [attr.data-col]="item.column.key">
                 <button type="button" class="sort-btn" [class.is-active]="sort()?.key === item.column.key" (click)="sortBy.emit(item.column.key)">
                   {{ label(item.column) }}
                   @if (sort()?.key === item.column.key) {
                     <app-icon [name]="sort()!.dir === 1 ? 'arrow-up' : 'arrow-down'" [size]="12" />
                   }
                 </button>
+                @if (missing()?.get(item.column.key); as gaps) {
+                  <span class="gap-line">
+                    <button
+                      type="button"
+                      class="gap-count"
+                      [class.on]="gapFirst() === item.column.key"
+                      [attr.aria-pressed]="gapFirst() === item.column.key"
+                      [title]="gapFirst() === item.column.key ? 'The rows missing ' + label(item.column) + ' are on top: click for the usual order' : 'Nothing entered on ' + gaps + ' of the ' + sheet().rows.length + ' rows: click to put them on top'"
+                      (click)="gapFirstBy.emit(item.column.key)"
+                    >
+                      {{ gaps.toLocaleString('en') }} missing
+                    </button>
+                  </span>
+                }
               </th>
             }
           </tr>
@@ -109,15 +137,20 @@ interface Span {
           @for (row of shown(); track row.rowId) {
             <tr>
               @for (item of visible(); track item.column.key) {
-                <td [class.num]="right(item.column)" [class.is-lit]="lit() === item.column.key" [title]="text(row, item.column)">{{ text(row, item.column) }}</td>
+                @if (isGap(row, item.column)) {
+                  <td class="is-gap" [class.num]="right(item.column)" [class.edge]="startsBox(item.index)" [class.is-lit]="lit() === item.column.key" title="Nothing entered"><span class="gap">Missing</span></td>
+                } @else {
+                  <td [class.num]="right(item.column)" [class.edge]="startsBox(item.index)" [class.is-lit]="lit() === item.column.key" [title]="text(row, item.column)">{{ text(row, item.column) }}</td>
+                }
               }
             </tr>
           }
         </tbody>
       </table>
       @if (!rows().length) {
-        <p class="none">{{ searching() ? 'No rows match the search.' : 'No rows yet — import an Excel file, or open the sheet and type them in.' }}</p>
+        <p class="none">{{ emptyText() ?? (searching() ? 'No rows match the search.' : 'No rows yet — Sync them from the Google Sheet, or open the sheet and type them in.') }}</p>
       }
+    </div>
     </div>
     <app-pager [always]="true" [total]="rows().length" [(page)]="page" [(size)]="pageSize" (moved)="toTop()" />
   `,
@@ -132,10 +165,19 @@ interface Span {
     .fold app-icon { flex: none; color: var(--text-muted); }
     .fold-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .data-table th.is-folded { min-width: 130px; }
+    /* Each stage starts behind a hairline, as the QA/QC Analysis draws its stages. */
+    .data-table .edge { border-left: var(--hairline) solid var(--border); }
     .jump .chip small { color: var(--text-muted); font-size: 0.6875rem; margin-left: 4px; font-variant-numeric: tabular-nums; }
     .jump-label { font-size: 0.8125rem; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
     .jump .chip { white-space: nowrap; cursor: pointer; font-size: 0.8125rem; }
-    .scroller { background: transparent; max-height: 70vh; overflow: auto; }
+    /* Sideways only: the rows run down the page, so the wheel over the table scrolls the page, not a box inside it. */
+    .scroll-wrap { position: relative; }
+    .scroller { background: transparent; overflow-x: auto; }
+    /* The arrows to the columns with gaps that are out of sight: on the table's edges, over the header. */
+    .gap-aside { position: absolute; top: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 0; border-radius: 999px; background: var(--warning); color: #fff; font: inherit; font-size: 0.75rem; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-card); cursor: pointer; }
+    .gap-aside:hover { filter: brightness(0.95); }
+    .gap-aside.is-left { left: 10px; }
+    .gap-aside.is-right { right: 10px; }
     .data-table { width: max-content; min-width: 100%; }
     .data-table thead tr:last-child th { min-width: 130px; }
     .data-table th.num, .data-table td.num { text-align: right; }
@@ -148,6 +190,15 @@ interface Span {
     .data-table tr.boxes:nth-child(1) th { top: 0; }
     .data-table td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .data-table td.num { font-variant-numeric: tabular-nums; }
+    /* Missing data, when the page's switch shows it: each column's count under its name, each empty cell tinted. */
+    .data-table thead tr:last-child th { vertical-align: top; }
+    .gap-line { display: block; margin-top: 2px; }
+    /* A click puts the rows missing it on top; lit while they are. */
+    .gap-count { margin: 0 -6px; padding: 1px 6px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 0.6875rem; font-weight: 600; color: var(--warning); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+    .gap-count:hover { background: var(--warning-soft); }
+    .gap-count.on { background: var(--warning); color: #fff; }
+    .data-table td.is-gap { background: var(--warning-soft); }
+    .gap { font-size: 0.75rem; font-weight: 600; color: var(--warning); }
     .none { position: sticky; left: 0; padding: 28px 20px; text-align: center; color: var(--text-muted); font-size: 0.875rem; }
     .data-table td.none { text-align: center; color: var(--text-muted); height: 96px; max-width: none; }
   `,
@@ -159,6 +210,15 @@ export class SheetTable {
   readonly formulas = input.required<WorkbookFormulas>();
   readonly sort = input<{ key: string; dir: 1 | -1 } | null>(null);
   readonly searching = input(false);
+  /** Columns left out of the table (the empty ones, when the page's switch hides them). */
+  readonly hide = input<ReadonlySet<string>>(new Set());
+  /** The page's missing data, when its switch shows it: each column with a gap and on how many rows (none: not shown). */
+  readonly missing = input<ReadonlyMap<string, number> | null>(null);
+  /** The column whose rows missing it are on top (its count lit); a click on a count asks for it, or for none. */
+  readonly gapFirst = input<string | null>(null);
+  readonly gapFirstBy = output<string>();
+  /** What to say when there are no rows to show, in place of the usual words. */
+  readonly emptyText = input<string | null>(null);
   readonly sortBy = output<string>();
   /** A column to bring into view and light up (from the Data Check, or a link): its key. */
   readonly focusColumn = input<string | null>(null);
@@ -171,6 +231,8 @@ export class SheetTable {
   /** The box (or group, in a table with no boxes) whose columns are shown with the row's own; null: all of them. */
   readonly stage = signal<string | null>(null);
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
+  /** The columns with gaps that are out of sight, to the left and to the right of what is on the screen (their keys, in table order). */
+  readonly aside = signal<{ left: string[]; right: string[] }>({ left: [], right: [] });
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly shown = computed(() => pageSlice(this.rows(), this.page(), this.pageSize()));
@@ -189,6 +251,24 @@ export class SheetTable {
   readonly foldables = computed(() => [...this.boxRuns(), ...(this.showBoxes() ? [] : this.groupRuns())].filter((run) => run.label && run.total > 1));
   readonly allFolded = computed(() => this.foldables().every((run) => this.folded().has(run.id)));
 
+  /** Whether the column at this place (among those in view) is the first of its stage: a hairline is drawn before it. */
+  startsBox(index: number): boolean {
+    const columns = this.columns();
+    const box = columns[index]?.box;
+    return !!box && index > 0 && columns[index - 1].box !== box;
+  }
+
+  /**
+   * A table of stages seen for the first time: its first stage open and the rest folded to their first column, as the
+   * QA/QC Analysis begins, so a table of hundreds of columns reads at once. What a person folds or opens is kept after.
+   */
+  private firstOpen(): ReadonlySet<string> {
+    if (!this.showBoxes() || this.stageChips().length < 3) return new Set();
+    const counts = new Map<string, number>();
+    for (const column of this.sheet().columns) if (column.box) counts.set(column.box, (counts.get(column.box) ?? 0) + 1);
+    return new Set([...counts].filter(([, total]) => total > 1).slice(1).map(([label]) => `box:${label}`));
+  }
+
   /** The columns a folded box or group hides: each one's but its first. */
   private readonly hidden = computed(() => {
     const hidden = new Set<number>();
@@ -201,7 +281,8 @@ export class SheetTable {
   /** The columns of the table that are in view: all, or one stage's with the columns that belong to none (the row's own) and, in a table with no boxes, its Batch group. */
   readonly columns = computed(() => {
     const stage = this.stage();
-    const all = this.sheet().columns;
+    const skip = this.hide();
+    const all = skip.size ? this.sheet().columns.filter((column) => !skip.has(column.key)) : this.sheet().columns;
     if (stage === null) return all;
     const part = this.showBoxes() ? (column: Column) => column.box : (column: Column) => column.group;
     // A row is known by its batch (Nursery Progress): that group stays beside whichever group is shown, with the row's ID.
@@ -234,10 +315,17 @@ export class SheetTable {
   });
 
   constructor() {
+    // The arrows to columns with gaps out of sight follow what is drawn: measured once the columns and counts are in the page.
+    effect(() => {
+      this.visible();
+      this.missing();
+      this.shown();
+      untracked(() => setTimeout(() => this.measure(), 0));
+    });
     // Each table's folds are kept, and read again when another table is shown.
     effect(() => {
       const key = this.foldKey();
-      untracked(() => this.folded.set(readFolded(key)));
+      untracked(() => this.folded.set(readFolded(key) ?? this.firstOpen()));
     });
     // Another table is shown: all its columns again.
     effect(() => {
@@ -271,6 +359,47 @@ export class SheetTable {
     this.litTimer = setTimeout(() => this.lit.set(null), 5000);
     // After the columns have been drawn.
     setTimeout(() => this.host.nativeElement.querySelector(`th[data-col="${key}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'center' }), 80);
+  }
+
+  /** Which columns with gaps are out of sight to the left and to the right of what is on the screen. */
+  measure() {
+    const scroller = this.scroller()?.nativeElement;
+    const gaps = this.missing();
+    const none = this.aside().left.length === 0 && this.aside().right.length === 0;
+    if (!scroller || !gaps?.size) {
+      if (!none) this.aside.set({ left: [], right: [] });
+      return;
+    }
+    const box = scroller.getBoundingClientRect();
+    const left: string[] = [];
+    const right: string[] = [];
+    scroller.querySelectorAll<HTMLElement>('thead th[data-col]').forEach((th) => {
+      const key = th.dataset['col'] ?? '';
+      if (!gaps.has(key)) return;
+      const at = th.getBoundingClientRect();
+      if (at.right <= box.left + 4) left.push(key);
+      else if (at.left >= box.right - 4) right.push(key);
+    });
+    const now = this.aside();
+    if (now.left.join() !== left.join() || now.right.join() !== right.join()) this.aside.set({ left, right });
+  }
+
+  /** To the next column with a gap on that side: scrolled into the middle, and lit for a moment. */
+  goGap(side: 'left' | 'right') {
+    const key = side === 'right' ? this.aside().right[0] : this.aside().left.at(-1);
+    const scroller = this.scroller()?.nativeElement;
+    const th = key ? scroller?.querySelector<HTMLElement>(`thead th[data-col="${key}"]`) : null;
+    if (!scroller || !th || !key) return;
+    const box = scroller.getBoundingClientRect();
+    const at = th.getBoundingClientRect();
+    scroller.scrollTo({ left: scroller.scrollLeft + (at.left - box.left) - (scroller.clientWidth - at.width) / 2, behavior: 'smooth' });
+    this.lit.set(key);
+    clearTimeout(this.litTimer);
+    this.litTimer = setTimeout(() => this.lit.set(null), 3000);
+  }
+
+  asideTitle(count: number, side: string) {
+    return `${count} column${count === 1 ? '' : 's'} with missing data to the ${side}: click to go to the next one`;
   }
 
   toTop() {
@@ -345,6 +474,11 @@ export class SheetTable {
     return alignsRight(column) || column.type === 'formula';
   }
 
+  /** A cell to mark as missing: blank, in a column a person fills in (formula and ID columns are never on the list). */
+  isGap(row: Row, column: Column): boolean {
+    return !!this.missing()?.has(column.key) && isBlank(row.data[column.key]);
+  }
+
   text(row: Row, column: Column): string {
     if (column.type === 'formula') {
       const value = this.formulas().value(this.sheet(), row, column);
@@ -371,11 +505,13 @@ export class SheetTable {
 }
 
 /** What a table had folded, as saved. */
-function readFolded(key: string): Set<string> {
+function readFolded(key: string): Set<string> | null {
   try {
-    const saved = JSON.parse(localStorage.getItem(key) ?? '[]');
+    const raw = localStorage.getItem(key);
+    if (raw === null) return null;
+    const saved = JSON.parse(raw);
     return new Set(Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : []);
   } catch {
-    return new Set();
+    return null;
   }
 }

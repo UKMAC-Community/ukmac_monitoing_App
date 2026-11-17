@@ -66,13 +66,44 @@ describe('KpiChart: the newer charts', () => {
 
   it('waterfall: a step per group rising from where the one before ended, then a Total of them all', () => {
     const el = draw('waterfall');
-    const bars = [...el.querySelectorAll('rect')];
+    const bars = [...el.querySelectorAll('path.mark')];
     expect(bars.length).toBe(5);
     expect(el.textContent).toContain('Total');
     expect(el.textContent).toContain('980'); // 400 + 260 + 180 + 140
     // Each step starts where the last ended: the first bar's top is above the second's bottom... (each rises).
-    const tops = bars.map((bar) => Number(bar.getAttribute('y')));
+    // A rising step's outline goes up from its foot to its rounded top (the same 5px under every top), so where it turns is its top.
+    const tops = bars.map((bar) => Number(bar.getAttribute('d')!.match(/V([\d.]+)/)![1]));
     expect(tops[1]).toBeLessThan(tops[0]);
+  });
+
+  it('every bar has the same round end as a column, square where it stands: a stack, a bar on its side, a waterfall step', () => {
+    const round = (d: string | null) => /a5 5 0 0 [01]/.test(d ?? '');
+    // A column, and a waterfall's steps.
+    expect([...draw('column').querySelectorAll('path.grow-y')].every((bar) => round(bar.getAttribute('d')))).toBe(true);
+    expect([...draw('waterfall').querySelectorAll('path.mark')].every((bar) => round(bar.getAttribute('d')))).toBe(true);
+    // A bar on its side: its far end rounded (no rx on all four corners, as before).
+    const side = [...draw('bar').querySelectorAll('path.grow-x')];
+    expect(side.length).toBe(points.length);
+    expect(side.every((bar) => round(bar.getAttribute('d')))).toBe(true);
+    // A stack: its parts cut to a column's outline, each column its own, so the top part's corners are round however thin.
+    const fixture = TestBed.createComponent(KpiChart);
+    fixture.componentRef.setInput('points', [{ key: 'B1', label: 'B1', value: 11 }, { key: 'B2', label: 'B2', value: 9 }]);
+    fixture.componentRef.setInput('visual', 'stacked');
+    fixture.componentRef.setInput('series', [
+      { label: 'Stem rot', points: [{ key: 'B1', label: 'B1', value: 10 }, { key: 'B2', label: 'B2', value: 5 }] },
+      { label: 'Leaf rot', points: [{ key: 'B1', label: 'B1', value: 1 }, { key: 'B2', label: 'B2', value: 4 }] },
+    ]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    // (jsdom finds the clipPath by its id: its own name is matched in lower case.)
+    const clips = [...el.querySelectorAll('svg [id*="-stack-"]')];
+    expect(clips.every((clip) => clip.localName === 'clipPath')).toBe(true);
+    expect(clips.length).toBe(2);
+    expect(new Set(clips.map((clip) => clip.id)).size).toBe(2);
+    expect(clips.every((clip) => round(clip.querySelector('path')!.getAttribute('d')))).toBe(true);
+    const cut = [...el.querySelectorAll('g[clip-path]')];
+    expect(cut.map((group) => group.getAttribute('clip-path'))).toEqual(clips.map((clip) => `url(#${clip.id})`));
+    expect(cut.map((group) => group.querySelectorAll('rect').length)).toEqual([2, 2]);
   });
 
   it('funnel: the largest first, each narrower than the one before', () => {

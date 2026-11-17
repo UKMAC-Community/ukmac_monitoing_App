@@ -127,6 +127,7 @@ app-mac-page,
 app-data-check-page,
 app-settings-page,
 app-sheet-page,
+app-weather-page,
 app-zone-map-page {
   display: flex;
   flex-direction: column;

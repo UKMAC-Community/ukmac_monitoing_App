@@ -23,12 +23,6 @@
       @if (mode() === 'sheet' && problemCount()) {
         <span class="badge danger" title="Cells drawn red don't fit their column: a number, a date, a value from the list"><app-icon name="alert" /> {{ problemCount() }} cell{{ problemCount() === 1 ? '' : 's' }} to check</span>
       }
-      <button type="button" class="btn btn-secondary btn-sm" [disabled]="busy()" (click)="downloadTemplate()" title="A blank workbook with this table's columns: fill it in, then Import">
-        <app-icon name="download" /> Template
-      </button>
-      <button type="button" class="btn btn-secondary btn-sm" (click)="toggleImport($event)" [attr.aria-expanded]="importMenu() !== null" title="Rows from an Excel file or a Google Sheet, checked before they're saved">
-        <app-icon name="upload" /> Import <app-icon name="chevron-down" [size]="14" />
-      </button>
       <button type="button" class="btn btn-secondary btn-sm" (click)="toggleExport($event)" [attr.aria-expanded]="exportMenu() !== null">
         <app-icon name="file" /> Export <app-icon name="chevron-down" [size]="14" />
       </button>
@@ -126,17 +120,44 @@
             <h2>{{ sheet.title }}</h2>
             <p>
               {{ sheet.rows.length }} row{{ sheet.rows.length === 1 ? '' : 's' }} · {{ sheet.columns.length }} columns
-              @if (filtered()) {
+              @if (gapColumns()) {
+                · <span [class.gap-rows]="rows().length > 0">{{ rows().length }} with missing data</span>
+              } @else if (filtered()) {
                 · {{ rows().length }} found
+              }
+              @if (leftOut().size) {
+                · <span title="The columns with nothing entered in any row: switch Missing data on to see them">{{ leftOut().size }} empty column{{ leftOut().size === 1 ? '' : 's' }} left out</span>
               }
               @if (activeFilter(); as filter) {
                 · <button type="button" class="chip active" title="Show every row again" (click)="setFilter(null)">{{ filter.name }}: {{ filter.labels.join(', ') }} <app-icon name="x" [size]="12" /></button>
               }
             </p>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm" (click)="toggleExport($event)" [attr.aria-expanded]="exportMenu() !== null">
-            <app-icon name="download" /> Export <app-icon name="chevron-down" [size]="14" />
-          </button>
+          @if (gapColumns() && missing(); as gaps) {
+            <span class="gap-sum" [title]="gaps.filled.toLocaleString('en') + ' of ' + gaps.cells.toLocaleString('en') + ' cells filled in, as the Data Check counts them'">
+              <app-gap-ring [filled]="gaps.filled" [total]="gaps.cells" [tone]="gaps.tone" [size]="34" />
+              @if (gaps.missing) {
+                <span><b>{{ gaps.missing.toLocaleString('en') }}</b> missing</span>
+              } @else {
+                <span class="all">Nothing missing</span>
+              }
+            </span>
+          }
+          @if (missing(); as gaps) {
+            <label
+              class="head-switch"
+              [title]="
+                showMissing()
+                  ? 'Showing the rows with a cell left empty, and the empty columns: switch off for every row'
+                  : gaps.missing.toLocaleString('en') + ' cells with nothing entered: switch on to see them (only the rows that have one, each empty cell marked, the empty columns shown)'
+              "
+            >
+              <input type="checkbox" class="switch" [checked]="showMissing()" (change)="setShowMissing($any($event.target).checked)" /> Missing data
+              @if (!showMissing() && gaps.missing) {
+                <small>{{ gaps.missing.toLocaleString('en') }}</small>
+              }
+            </label>
+          }
           <button type="button" class="btn btn-secondary btn-sm" (click)="setMode('sheet')"><app-icon name="grid" /> Open in sheet</button>
         </header>
         <app-sheet-table
@@ -145,33 +166,17 @@
           [formulas]="store.formulas()"
           [sort]="sort()"
           [searching]="filtered()"
+          [hide]="leftOut()"
+          [missing]="gapColumns()"
+          [gapFirst]="gapFirst()"
+          (gapFirstBy)="toggleGapFirst($event)"
+          [emptyText]="missingEmptyText()"
           [focusColumn]="column() ?? null"
           (sortBy)="sortBy($event)"
         />
       </section>
     </div>
     }
-  }
-
-  @if (importMenu(); as menu) {
-    <div class="menu-scrim" (mousedown)="importMenu.set(null)"></div>
-    <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
-      <button type="button" class="menu-item" (click)="importMenu.set(null); pickImport()">
-        <app-icon name="file" />
-        <span class="menu-item-text">Excel file<span class="menu-item-sub">An .xlsx file from this Mac</span></span>
-      </button>
-      <button type="button" class="menu-item" (click)="importMenu.set(null); googleIntoOpen.set(true)">
-        <app-icon name="table" />
-        <span class="menu-item-text">Google Sheet<span class="menu-item-sub">A tab of one of your Google Sheets</span></span>
-      </button>
-      @if (google.linkOf(sheet.sheetId)) {
-        <div class="menu-divider"></div>
-        <button type="button" class="menu-item" [disabled]="busy()" (click)="importMenu.set(null); redefineGoogle()">
-          <app-icon name="refresh" />
-          <span class="menu-item-text">Define the Google tab again<span class="menu-item-sub">Say where its column names and data start, then read it again</span></span>
-        </button>
-      }
-    </div>
   }
 
   @if (exportMenu(); as menu) {
@@ -183,7 +188,7 @@
       </button>
       <button type="button" class="menu-item" (click)="exportMenu.set(null); downloadTemplate()">
         <app-icon name="download" />
-        <span class="menu-item-text">Excel template<span class="menu-item-sub">Blank, to fill in and import</span></span>
+        <span class="menu-item-text">Excel template<span class="menu-item-sub">Blank, with this table's columns</span></span>
       </button>
       <div class="menu-divider"></div>
       <button type="button" class="menu-item" (click)="exportMenu.set(null); openImports()">

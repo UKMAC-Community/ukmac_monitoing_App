@@ -36,6 +36,14 @@ const STAGE_WORDS: Record<BedState, string> = { harvest: 'Harvest', planting: 'P
         <strong>{{ tip.name }}</strong><span>{{ tip.stage }}</span>
       </div>
     }
+    @if (filters().length) {
+      <!-- Which plots show, at the top's right: the same white pill as the satellite map's, the pick in the accent. -->
+      <div class="f3-filter" role="group" aria-label="Which plots to show">
+        @for (item of filters(); track item.value) {
+          <button type="button" [class.on]="filter() === item.value" [title]="item.title ?? ''" [attr.aria-pressed]="filter() === item.value" (click)="filterChange.emit(item.value)">{{ item.label }} <small>{{ item.count }}</small></button>
+        }
+      </div>
+    }
     <div class="f3-legend" aria-label="What the colours mean">
       @for (entry of legend; track entry.label) {
         <span><i [style.background]="entry.fill" [style.border-color]="entry.stroke"></i>{{ entry.label }}</span>
@@ -66,6 +74,11 @@ const STAGE_WORDS: Record<BedState, string> = { harvest: 'Harvest', planting: 'P
     .f3-tools button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.8125rem; font-weight: 500; cursor: pointer; }
     .f3-tools button:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
     .f3-tools button.f3-icon { padding: 5px 8px; }
+    .f3-filter { position: absolute; z-index: 5; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 2px; padding: 3px; background: var(--surface-solid); border: var(--hairline) solid var(--border); border-radius: 999px; box-shadow: var(--shadow-card); }
+    .f3-filter button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.8125rem; font-weight: 500; cursor: pointer; }
+    .f3-filter button:hover:not(.on) { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
+    .f3-filter button.on { background: var(--accent); color: #fff; }
+    .f3-filter small { margin-left: 4px; font-size: 0.6875rem; font-weight: 500; opacity: 0.7; }
     .f3-zoom { min-width: 40px; text-align: center; font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text, #1d1d1f); }
     .f3-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
     /* The legend on the same line as the tools, keeping clear of them. */
@@ -79,6 +92,10 @@ export class Farm3d {
   readonly layout = input.required<ZoneLayout>();
   /** The plot picked (its id), lit on its bed. */
   readonly selected = input<string | null>(null);
+  /** A switch over the farm for which plots show (the page filters `layout` by it): each choice, its count. None: no switch. */
+  readonly filters = input<{ value: string; label: string; count: number; title?: string }[]>([]);
+  readonly filter = input('');
+  readonly filterChange = output<string>();
   readonly picked = output<string>();
   readonly cleared = output<void>();
 

@@ -221,7 +221,7 @@ export interface FarmLabel {
 export type BedState = 'unused' | 'soil' | NonNullable<PlantStage>;
 
 export function bedState(cell: ZoneCell): BedState {
-  if (cell.usage === 'unused') return 'unused';
+  if (cell.usage === 'unused' || cell.usage === 'greenhouse') return 'unused';
   return plantStage(cell) ?? 'soil';
 }
 

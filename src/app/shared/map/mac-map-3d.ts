@@ -4,6 +4,7 @@ import { getVersion, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 
 import { Icon } from '@shared/ui/icon';
 import type { MapShape } from './mac-map';
+import { plotBeds } from './plot-beds';
 import { flatFeatures, glassFeatures, stackLevels, stackSizes, stackTop } from './plot-stack';
 
 // MapLibre draws its tiles in a worker, served from the app's own files (copied there at build).
@@ -96,22 +97,41 @@ export interface PlotCard {
       <span class="m3-wait" aria-hidden="true"><span class="spinner-sm"></span></span>
     }
     @if (groups().length) {
-      <div class="m3-legend" aria-label="Sections">
-        @for (group of groups(); track group.name) {
-          <span><i [style.background]="group.color"></i>{{ group.name }}</span>
-        }
-      </div>
+      @if (keyShown()) {
+        <div class="m3-legend" aria-label="Sections">
+          <button type="button" class="m3-legend-x" title="Hide the key" aria-label="Hide the key" (click)="setKey(false)"><app-icon name="x" [size]="12" /></button>
+          @for (group of groups(); track group.name) {
+            <span><i [style.background]="group.color"></i>{{ group.name }}</span>
+          }
+        </div>
+      } @else {
+        <button type="button" class="m3-legend m3-legend-show" title="Show the key to the zones' colours" (click)="setKey(true)"><app-icon name="grid" [size]="13" /> Zone key</button>
+      }
     }
     @if (card(); as card) {
       <!-- Over the picked plot, following it as the map moves (placed by placeCard). -->
       <div class="m3-card" #cardEl role="status" aria-live="polite">
-        <span class="m3-card-dot" [style.background]="card.color"><app-icon name="sprout" [size]="13" /></span>
-        <span class="m3-card-text">
-          <strong>{{ card.title }}</strong>
-          @for (line of card.lines; track $index) {
-            <span>{{ line }}</span>
-          }
-        </span>
+        @if (openable()) {
+          <!-- The card opens the plot's whole story (planting to harvest) on a full screen. -->
+          <button type="button" class="m3-card-open" title="Open everything recorded for this plot, from planting to harvest" (click)="opened.emit(selected() ?? '')">
+            <span class="m3-card-dot" [style.background]="card.color"><app-icon name="sprout" [size]="13" /></span>
+            <span class="m3-card-text">
+              <strong>{{ card.title }}</strong>
+              @for (line of card.lines; track $index) {
+                <span>{{ line }}</span>
+              }
+            </span>
+            <app-icon class="m3-card-go" name="expand" [size]="13" />
+          </button>
+        } @else {
+          <span class="m3-card-dot" [style.background]="card.color"><app-icon name="sprout" [size]="13" /></span>
+          <span class="m3-card-text">
+            <strong>{{ card.title }}</strong>
+            @for (line of card.lines; track $index) {
+              <span>{{ line }}</span>
+            }
+          </span>
+        }
         <button type="button" class="m3-card-x" title="Close" aria-label="Close the plot" (click)="cleared.emit()"><app-icon name="x" [size]="12" /></button>
       </div>
     }
@@ -126,6 +146,8 @@ export interface PlotCard {
     }
     <!-- Along the top's right: which plots show (when the page has a switch), then the camera buttons next to it. -->
     <div class="m3-top">
+      <!-- What the page puts first in this row (the progress switch), so it sits with the other buttons. -->
+      <ng-content select="[mapTop]" />
       @if (filters().length) {
         <div class="m3-view m3-filter" role="group" aria-label="Which plots to show">
           @for (item of filters(); track item.value) {
@@ -188,6 +210,10 @@ export interface PlotCard {
     .m3-view button:disabled { opacity: 0.45; cursor: default; }
     .m3-view button.m3-icon, .m3-tools button.m3-icon { padding: 5px 8px; }
     .m3-legend { position: absolute; left: 12px; bottom: 16px; z-index: 5; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px; overflow-x: auto; scrollbar-width: none; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; width: fit-content; max-width: calc(100% - 12px - 250px); }
+    .m3-legend-x { position: sticky; left: 0; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: -6px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: var(--text-muted, #6e6e73); cursor: pointer; }
+    .m3-legend-x:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
+    .m3-legend-show { gap: 6px; padding: 0 14px; border: 0; font-family: inherit; color: var(--text, #1d1d1f); cursor: pointer; }
+    .m3-legend-show:hover { background: #fff; }
     .m3-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
     .m3-legend i { width: 12px; height: 12px; border-radius: 3px; }
     /* Editing a plot: a square at each corner to drag, and a round one in the middle to move the whole plot (as the web's). */
@@ -225,6 +251,9 @@ export interface PlotCard {
     .m3-card-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
     .m3-card-text strong { font-size: 13px; font-weight: 700; color: var(--text, #1d1d1f); }
     .m3-card-text span { font-size: 11.5px; color: var(--text-muted, #6e6e73); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .m3-card-open { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; border-radius: 999px; }
+    .m3-card-open:hover .m3-card-text strong { color: var(--accent, #0066d9); }
+    .m3-card-go { flex: none; color: var(--text-muted, #6e6e73); margin-right: 2px; }
     .m3-card-x { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted, #6e6e73); cursor: pointer; }
     .m3-card-x:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
     @media (prefers-reduced-motion: reduce) { .m3-card, .m3-map { transition: none; } }
@@ -238,8 +267,13 @@ export class MacMap3d implements OnDestroy {
   readonly selected = input<string | null>(null);
   /** The picked plot's card (none: no card). */
   readonly card = input<PlotCard | null>(null);
+  /** The card can be clicked to open the plot in full (its id comes out of `opened`). */
+  readonly openable = input(false);
+  readonly opened = output<string>();
   /** Reshape the picked plot: flat from above, a handle at each corner and one to move it whole. Off, the map is as the dashboard's. */
   readonly editable = input(false);
+  /** The farm's look on the plots (raised beds, plants, water), as the Farm view draws it; not in a map of stacks, nor while editing. */
+  readonly farm = input(false);
   /** A switch over the map for which plots show (the page filters `shapes` by it): each choice, its count. None: no switch. */
   readonly filters = input<{ value: string; label: string; count: number; title?: string }[]>([]);
   readonly filter = input('');
@@ -276,6 +310,16 @@ export class MacMap3d implements OnDestroy {
   private tourFrame = 0;
   /** The Mac asks for less motion: no tour. */
   readonly still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /** The key to the sections' colours is shown (hidden to begin with; as left by hand, on this Mac). */
+  readonly keyShown = signal(localStorage.getItem('ukmac.map-key') === 'shown');
+  setKey(on: boolean) {
+    this.keyShown.set(on);
+    try {
+      localStorage.setItem('ukmac.map-key', on ? 'shown' : 'hidden');
+    } catch {
+      /* kept for this run only */
+    }
+  }
   /** The sections on the map, named once each, in order. */
   readonly groups = computed(() => {
     const seen = new Map<string, string>();
@@ -331,6 +375,8 @@ export class MacMap3d implements OnDestroy {
         attributionControl: false,
         style: {
           version: 8,
+          // How far the plants have grown up (0 to 1): the farm's plants rise to their height when the map opens (see growPlants).
+          state: { grow: { default: 1 } },
           sources: {
             sat: { type: 'raster', tiles: [ESRI_TILES], tileSize: 256, maxzoom: 18, attribution: 'Tiles © Esri' },
             places: { type: 'raster', tiles: [ESRI_LABELS], tileSize: 256, maxzoom: 18 },
@@ -338,6 +384,8 @@ export class MacMap3d implements OnDestroy {
             // The layers stacked on a plot (see plot-stack): tipped back, panes (sheets and their edges); from above, flat bands.
             glass: { type: 'geojson', data: NOTHING },
             'glass-flat': { type: 'geojson', data: NOTHING },
+            // The farm's beds and plants on the plots (`farm`).
+            beds: { type: 'geojson', data: NOTHING },
             // A plot being drawn (editing): its corners so far.
             draft: { type: 'geojson', data: NOTHING },
           },
@@ -349,6 +397,27 @@ export class MacMap3d implements OnDestroy {
               type: 'fill-extrusion',
               source: 'plots',
               paint: { 'fill-extrusion-color': ['to-color', ['get', 'fill']], 'fill-extrusion-base': 0, 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 0.82 },
+            },
+            // Raised beds, water and the sandy field under them, then the plants on the beds (only once close enough to see them).
+            {
+              id: 'farm-ground',
+              type: 'fill-extrusion',
+              source: 'beds',
+              filter: ['!=', ['get', 'part'], 'plant'],
+              paint: { 'fill-extrusion-color': ['to-color', ['get', 'colour']], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 1 },
+            },
+            {
+              id: 'farm-plants',
+              type: 'fill-extrusion',
+              source: 'beds',
+              minzoom: 15.6,
+              filter: ['==', ['get', 'part'], 'plant'],
+              paint: {
+                'fill-extrusion-color': ['to-color', ['get', 'colour']],
+                'fill-extrusion-base': ['get', 'base'],
+                'fill-extrusion-height': ['+', ['get', 'base'], ['*', ['-', ['get', 'top'], ['get', 'base']], ['global-state', 'grow']]],
+                'fill-extrusion-opacity': 1,
+              },
             },
             {
               id: 'plot-lines',
@@ -388,6 +457,20 @@ export class MacMap3d implements OnDestroy {
         },
       });
       map.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-left');
+      // Only the (i) shows; the credit opens on a click (the control starts open on a wide map).
+      const credit = map.getContainer().querySelector('.maplibregl-ctrl-attrib');
+      if (credit) {
+        const fold = () => {
+          // Only when open (removing what is not there still counts as a change, which would set the observer off again).
+          if (credit.classList.contains('maplibregl-compact-show')) credit.classList.remove('maplibregl-compact-show');
+          if (credit.hasAttribute('open')) credit.removeAttribute('open');
+        };
+        // The control reopens itself as the map loads: keep it folded until a click on the (i) opens it.
+        const keep = new MutationObserver(fold);
+        keep.observe(credit, { attributes: true, attributeFilter: ['open', 'class'] });
+        credit.querySelector('summary')?.addEventListener('pointerdown', () => keep.disconnect(), { once: true });
+        fold();
+      }
       // Draw as soon as the style is in (not waiting for every tile, as 'load' does).
       const start = () => {
         if (this.ready || !map.getSource('plots')) return;
@@ -634,8 +717,9 @@ export class MacMap3d implements OnDestroy {
     const editing = this.editable();
     // The picked plot stands out of the rest, outlined in white (edited from above, every plot lies flat). A plot with a stack stays a low
     // bed under its layers, and is outlined alone: raised, it would swallow them.
+    const farm = this.farm() && !editing;
     const heightOf = (shape: MapShape) =>
-      editing ? FLAT_HEIGHT : shape.stack?.length && shape.points.length >= 3 ? stackSizes(shape.points, shape.stack.length).bed : shape.id === selected ? PICKED_HEIGHT : PLOT_HEIGHT;
+      editing ? FLAT_HEIGHT : farm && !shape.stack?.length ? PLOT_HEIGHT : shape.stack?.length && shape.points.length >= 3 ? stackSizes(shape.points, shape.stack.length).bed : shape.id === selected ? PICKED_HEIGHT : PLOT_HEIGHT;
     const features = shapes.map((shape) => ({
       type: 'Feature' as const,
       properties: { id: shape.id, fill: shape.fill, stroke: shape.id === selected ? '#ffffff' : shape.stroke, sel: shape.id === selected, top: heightOf(shape) },
@@ -644,6 +728,12 @@ export class MacMap3d implements OnDestroy {
     this.features = features;
     (map.getSource('plots') as GeoJSONSource).setData({ type: 'FeatureCollection', features });
     untracked(() => this.drawGlass());
+    const beds = farm && !shapes.some((shape) => shape.stack?.length) ? plotBeds(shapes, PLOT_HEIGHT) : [];
+    (map.getSource('beds') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: beds } as never);
+    if (beds.length && !this.grown) {
+      this.grown = true;
+      this.growPlants(map);
+    }
     this.drawHandles(editing && !this.drawing() ? this.selectedShape() : null);
 
     this.tags.forEach((tag) => tag.remove());
@@ -1223,7 +1313,45 @@ export class MacMap3d implements OnDestroy {
     }
   }
 
+  /** The ground point ([lat, lng]) under a place on the screen, or null when that is off the map (for a shape dropped on it). */
+  pointAt(clientX: number, clientY: number): [number, number] | null {
+    const map = this.map;
+    if (!map) return null;
+    const box = this.box().nativeElement.getBoundingClientRect();
+    if (clientX < box.left || clientX > box.right || clientY < box.top || clientY > box.bottom) return null;
+    const point = map.unproject([clientX - box.left, clientY - box.top]);
+    return [point.lat, point.lng];
+  }
+
+  /** The ground point at the middle of the view. */
+  centre(): [number, number] | null {
+    const middle = this.map?.getCenter();
+    return middle ? [middle.lat, middle.lng] : null;
+  }
+
+  /** The plants have been grown up once (they rise when the map first shows the farm, not on every redraw). */
+  private grown = false;
+  private growFrame = 0;
+
+  /** The farm's plants rise from the beds to their height (the Farm view's grow-up), once the map has settled. Reduced motion: already grown. */
+  private growPlants(map: maplibregl.Map) {
+    if (this.still) return;
+    map.setGlobalStateProperty('grow', 0);
+    const start = performance.now() + 900;
+    const length = 2200;
+    // A window kept out of sight pauses its frames: whatever happens, the plants stand grown a few seconds on.
+    const settle = window.setTimeout(() => map.setGlobalStateProperty('grow', 1), 6000);
+    const frame = (now: number) => {
+      const t = Math.min(1, Math.max(0, (performance.now() - start) / length));
+      if (t >= 1) window.clearTimeout(settle);
+      map.setGlobalStateProperty('grow', 1 - Math.pow(1 - t, 3));
+      if (t < 1) this.growFrame = requestAnimationFrame(frame);
+    };
+    this.growFrame = requestAnimationFrame(frame);
+  }
+
   ngOnDestroy() {
+    cancelAnimationFrame(this.growFrame);
     cancelAnimationFrame(this.tourFrame);
     cancelAnimationFrame(this.moveFrame);
     this.rungs.forEach((rung) => rung.marker.remove());

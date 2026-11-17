@@ -1,51 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { Icon } from '@shared/ui/icon';
 import { HEADING_ICONS, LAYOUT_HEADING } from '@core/headings';
+import { GapRing } from '@shared/ui/gap-ring';
 import { SegmentedThumb } from '@shared/ui/segmented-thumb';
-import type { SheetWithRows } from '@core/models';
+import type { Row, SheetWithRows } from '@core/models';
+import { WorkbookStore } from '@core/workbook-store';
+import { isFormulaError } from '@shared/formula/evaluate-formula';
+import { gapsFirst, hasGap, missingData } from '@features/tables/missing-data';
+import { SheetTable } from '@features/tables/sheet-table';
 import { columnRecords, gapSentence, tableGaps, type ColumnGap, type GapState, type TableGaps } from './data-gaps';
 
 const STATE_TEXT: Record<GapState, string> = { missing: 'Nothing entered', partly: 'Partly filled', complete: 'Complete' };
 const STATE_BADGE: Record<GapState, string> = { missing: 'danger', partly: 'warning', complete: 'success' };
-
-/** A round gauge: the share filled, drawn as an arc over a track (a partly filled one never reads 0% or 100%). */
-@Component({
-  selector: 'app-gap-ring',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <svg viewBox="0 0 36 36" [style.width.px]="size()" [style.height.px]="size()" aria-hidden="true">
-      <circle class="track" cx="18" cy="18" r="15.9155" />
-      <circle class="arc" [class]="tone()" cx="18" cy="18" r="15.9155" [attr.stroke-dasharray]="share() + ' ' + (100 - share())" />
-    </svg>
-    <span class="pct" [style.font-size.px]="size() * (label() === '100%' ? 0.22 : 0.27)">{{ label() }}</span>
-  `,
-  styles: `
-    :host { position: relative; display: inline-grid; place-items: center; flex: none; }
-    svg { transform: rotate(-90deg); display: block; }
-    circle { fill: none; stroke-width: 4; }
-    .track { stroke: var(--border); }
-    .arc { stroke-linecap: butt; transition: stroke-dasharray var(--dur) var(--ease); }
-    .arc.danger { stroke: var(--danger); }
-    .arc.warning { stroke: var(--warning); }
-    .arc.success { stroke: var(--success); }
-    .pct { position: absolute; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
-  `,
-})
-export class GapRing {
-  readonly filled = input.required<number>();
-  readonly total = input.required<number>();
-  readonly tone = input<'danger' | 'warning' | 'success'>('warning');
-  readonly size = input(44);
-  readonly share = computed(() => (this.total() ? Math.min(100, (this.filled() / this.total()) * 100) : 0));
-  readonly label = computed(() => {
-    const share = this.share();
-    if (share >= 100) return '100%';
-    return `${Math.min(99, Math.max(share > 0 ? 1 : 0, Math.round(share)))}%`;
-  });
-}
 
 /**
  * "Data Check": a tab for each table, and for the one
@@ -54,7 +23,7 @@ export class GapRing {
  */
 @Component({
   selector: 'app-data-gaps',
-  imports: [Icon, RouterLink, SegmentedThumb, GapRing, DecimalPipe],
+  imports: [Icon, RouterLink, SegmentedThumb, GapRing, DecimalPipe, SheetTable],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card gaps" aria-labelledby="gaps-title">
@@ -140,6 +109,29 @@ export class GapRing {
             }
 
             @if (table.rows) {
+              <div class="segmented" role="group" aria-label="Show what is missing">
+                <button type="button" class="segment" [attr.aria-pressed]="shape() === 'columns'" (click)="setShape('columns')"><app-icon name="grid" [size]="14" /> By column</button>
+                <button type="button" class="segment" [attr.aria-pressed]="shape() === 'table'" (click)="setShape('table')"><app-icon name="table" [size]="14" /> As the table</button>
+              </div>
+            }
+
+            @if (table.rows && shape() === 'table') {
+              <!-- The table itself: only its records with something missing, each empty cell saying so, each column how many it lacks. -->
+              <p class="table-note">
+                @if (gapRows().length) {
+                  <b>{{ gapRows().length | number }}</b> of {{ table.rows | number }} {{ table.rows === 1 ? 'record has' : 'records have' }} something missing. Each empty cell says <span class="gone">Missing</span>, and each column how many it lacks.
+                } @else {
+                  Every record has all its columns filled in.
+                }
+              </p>
+              @if (gapRows().length) {
+                <div class="gap-table">
+                  <app-sheet-table [sheet]="table.sheet" [rows]="gapRows()" [formulas]="store.formulas()" [sort]="sort()" [missing]="gapColumns()" [gapFirst]="gapFirst()" (gapFirstBy)="toggleGapFirst($event)" (sortBy)="sortBy($event)" />
+                </div>
+              }
+            }
+
+            @if (table.rows && shape() === 'columns') {
               <!-- A board: a lane for each state, a card for each column. -->
               <div class="board" role="list" aria-label="Columns by how filled they are">
                 @for (lane of lanes(); track lane.state) {
@@ -272,6 +264,10 @@ export class GapRing {
     .overview-text { display: flex; flex-direction: column; gap: 2px; font-size: 0.8125rem; }
     .overview-text .fraction { font-size: 1.5rem; line-height: 1.1; }
     .open { margin-top: 2px; }
+    .table-note { font-size: 0.8125rem; color: var(--text-muted); }
+    .table-note b { color: var(--text); font-variant-numeric: tabular-nums; }
+    .table-note .gone { font-weight: 600; color: var(--warning); }
+    .gap-table { align-self: stretch; min-width: 0; border: var(--hairline) solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface-solid); }
     .back { align-self: flex-start; margin-left: -6px; }
     .sections { display: flex; flex-direction: column; gap: 14px; }
     .section-label { margin-top: 6px; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
@@ -284,6 +280,15 @@ export class GapRing {
 })
 export class DataGaps {
   readonly sheets = input.required<readonly SheetWithRows[]>();
+  readonly store = inject(WorkbookStore);
+  /** How the open table's gaps are shown: a card for each column, or the table itself with each empty cell marked (kept). */
+  readonly shape = signal<'columns' | 'table'>(readShape());
+  readonly sort = signal<{ key: string; dir: 1 | -1 } | null>(null);
+  /** A column's "9 missing" clicked in the table: its records with nothing there on top (clicked again: the usual order). */
+  readonly gapFirst = signal<string | null>(null);
+  toggleGapFirst(key: string) {
+    this.gapFirst.update((now) => (now === key ? null : key));
+  }
   readonly PAGE = 25;
   /** The column opened (its records shown), which of its records, and how many of them are listed. */
   readonly open = signal<string | null>(null);
@@ -347,6 +352,54 @@ export class DataGaps {
   pick(sheetId: number | null) {
     this.picked.set(sheetId);
     this.open.set(null);
+    this.sort.set(null);
+    this.gapFirst.set(null);
+  }
+
+  setShape(shape: 'columns' | 'table') {
+    this.shape.set(shape);
+    try {
+      localStorage.setItem(SHAPE_KEY, shape);
+    } catch {
+      /* kept for this run only */
+    }
+  }
+
+  /** The open table's columns with a gap, and on how many records (as the ring above counts them). */
+  readonly gapColumns = computed(() => {
+    const table = this.current();
+    return table ? missingData(table.sheet).columns : null;
+  });
+
+  /** The open table's records with something missing, sorted as its table page sorts (a blank last). */
+  readonly gapRows = computed<Row[]>(() => {
+    const table = this.current();
+    const gaps = this.gapColumns();
+    if (!table || !gaps) return [];
+    const rows = table.sheet.rows.filter((row) => hasGap(row, gaps));
+    const first = this.gapFirst();
+    const sort = this.sort();
+    const column = sort && table.sheet.columns.find((item) => item.key === sort.key);
+    if (!sort || !column) return first && gaps.has(first) ? gapsFirst(rows, first) : rows;
+    const formulas = this.store.formulas();
+    const value = (row: Row) => {
+      const raw = formulas.cell(table.sheet, row, column);
+      return raw === null || raw === '' || isFormulaError(raw) ? null : raw;
+    };
+    const sorted = [...rows].sort((a, b) => {
+      const x = value(a);
+      const y = value(b);
+      if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+      if (typeof x === 'number' && typeof y === 'number') return (x - y) * sort.dir;
+      return String(x).localeCompare(String(y), 'en', { numeric: true, sensitivity: 'base' }) * sort.dir;
+    });
+    return first && gaps.has(first) ? gapsFirst(sorted, first) : sorted;
+  });
+
+  /** A column's name clicked in the table: sorted up, then down, then as entered. */
+  sortBy(key: string) {
+    const sort = this.sort();
+    this.sort.set(!sort || sort.key !== key ? { key, dir: 1 } : sort.dir === 1 ? { key, dir: -1 } : null);
   }
 
   /** The open column's records: those with nothing entered, and those with something. */
@@ -389,5 +442,15 @@ export class DataGaps {
 
   badge(state: GapState) {
     return STATE_BADGE[state];
+  }
+}
+
+const SHAPE_KEY = 'ukmac.data-check.shape';
+
+function readShape(): 'columns' | 'table' {
+  try {
+    return localStorage.getItem(SHAPE_KEY) === 'table' ? 'table' : 'columns';
+  } catch {
+    return 'columns';
   }
 }

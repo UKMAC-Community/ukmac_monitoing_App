@@ -23,8 +23,9 @@ const SECTION_COLORS = [
 const UNNUMBERED = { bg: '#eef0ee', border: '#c7ccc8', text: '#5b615c' };
 const UNUSED = { bg: '#f7f8f7', border: '#d7dbd8', text: '#8a928e' };
 const WATER = { bg: '#dbeafe', border: '#60a5fa', text: '#1d4ed8' };
+const GREENHOUSE = { bg: '#c9ecdc', border: '#2f9e77', text: '#1f7a5a' };
 
-export type Usage = 'normal' | 'unused' | 'water';
+export type Usage = 'normal' | 'unused' | 'water' | 'greenhouse';
 
 export interface Palette {
   bg: string;
@@ -54,6 +55,8 @@ export interface ZoneCell {
   outline: [number, number][];
   records: PlotRecord[];
   planted: boolean;
+  /** The Harvest table has a picking from this plot. */
+  harvested: boolean;
   palette: Palette;
 }
 
@@ -94,6 +97,7 @@ function mix(hex: string, ratio: number, to: number): string {
 /** A plot is its section's colour from the sheet; one with a plant record is outlined darker. */
 function paletteFor(usage: Usage, section: number | null, planted: boolean): Palette {
   if (usage === 'water') return WATER;
+  if (usage === 'greenhouse') return GREENHOUSE;
   if (usage === 'unused') return UNUSED;
   const base = sectionPalette(section);
   return planted ? { ...base, border: mix(base.bg, 0.55, 0) } : base;
@@ -117,9 +121,15 @@ export function moveOutline(points: [number, number][], dLat: number, dLng: numb
   return points.map(([lat, lng]) => [lat + dLat, lng + dLng] as [number, number]);
 }
 
-function usageOf(text: string): Usage {
+/** A zone named Greenhouse (Greenhouse 1, 2…) is a greenhouse, whatever its status; the Zones table keeps those as Unused. */
+export function isGreenhouseZone(zone: string): boolean {
+  return /^greenhouse/i.test(zone.trim());
+}
+
+function usageOf(text: string, zone: string): Usage {
   const word = text.trim().toLowerCase();
   if (word === 'water') return 'water';
+  if (isGreenhouseZone(zone)) return 'greenhouse';
   return ['unused', 'not use', 'not usable', 'blocked'].includes(word) ? 'unused' : 'normal';
 }
 
@@ -133,8 +143,16 @@ function byName(sheet: SheetWithRows) {
 }
 
 /** The Zones table as the system's Zone Map lays it out: each zone an area, its numbered sections stacked, every plot at its row and column. */
-export function buildZoneLayout(zones: SheetWithRows | null, records: SheetWithRows | null): ZoneLayout {
+export function buildZoneLayout(zones: SheetWithRows | null, records: SheetWithRows | null, harvest: SheetWithRows | null = null): ZoneLayout {
   if (!zones) return { areas: [], cells: [] };
+  const harvested = new Set<string>();
+  if (harvest) {
+    const harvestValue = byName(harvest);
+    for (const row of harvest.rows) {
+      const plot = harvestValue(row, 'Zone plot');
+      if (plot) harvested.add(plot);
+    }
+  }
   const zoneValue = byName(zones);
   const byPlot = new Map<string, PlotRecord[]>();
   if (records) {
@@ -161,7 +179,7 @@ export function buildZoneLayout(zones: SheetWithRows | null, records: SheetWithR
     const columnNumber = Number(zoneValue(row, 'Column'));
     if (!(rowNumber >= 1) || !(columnNumber >= 1)) continue;
     const plot = zoneValue(row, 'Plot');
-    const usage = usageOf(zoneValue(row, 'Plot status'));
+    const usage = usageOf(zoneValue(row, 'Plot status'), zoneValue(row, 'Zone'));
     const sectionText = zoneValue(row, 'Zone number');
     const section = sectionText && Number.isFinite(Number(sectionText)) ? Number(sectionText) : null;
     const name = zoneValue(row, 'Status name');
@@ -173,13 +191,14 @@ export function buildZoneLayout(zones: SheetWithRows | null, records: SheetWithR
       row: rowNumber,
       column: columnNumber,
       plot,
-      label: usage === 'water' ? name || 'Water' : usage === 'unused' ? name || 'not use' : plot,
+      label: usage === 'water' ? name || 'Water' : usage === 'greenhouse' ? plot || name || 'Greenhouse' : usage === 'unused' ? name || 'not use' : plot,
       usage,
       capacity: zoneValue(row, 'Plant capacity'),
       note: zoneValue(row, 'Note'),
       outline: parseOutline(zoneValue(row, 'Outline')),
       records: plot ? (byPlot.get(plot) ?? []) : [],
       planted,
+      harvested: usage === 'normal' && harvested.has(plot),
       palette: paletteFor(usage, section, planted),
     });
   }
@@ -264,9 +283,24 @@ export function mapCentre(
   return { lat: (Math.min(...lats) + Math.max(...lats)) / 2, lng: (Math.min(...lngs) + Math.max(...lngs)) / 2 };
 }
 
+/**
+ * What the plots not growing chili are, by kind and how many of each, most first: the greenhouses, chicken farm,
+ * forest, other vegetables, town, and land of a chili zone left empty. The Zone Map says it, so "not in use" isn't a riddle.
+ */
+export function notInUseKinds(cells: ZoneCell[]): { kind: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const cell of cells) {
+    if (cell.usage !== 'unused' && cell.usage !== 'greenhouse') continue;
+    const zone = cell.zone.trim();
+    const kind = cell.usage === 'greenhouse' ? 'Greenhouse' : /^[A-Za-z]$/.test(zone) || !zone ? `Zone ${zone || '?'} · empty land` : zone.replace(/\s*\d+$/, '') || zone;
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return [...counts].map(([kind, count]) => ({ count, kind })).sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind));
+}
+
 /** What a plot is used for, in a word. */
 export function usageWord(cell: ZoneCell) {
-  return cell.usage === 'water' ? 'Water' : cell.usage === 'unused' ? 'Not in use' : cell.planted ? 'Planted' : 'Not planted yet';
+  return cell.usage === 'water' ? 'Water' : cell.usage === 'greenhouse' ? 'Greenhouse' : cell.usage === 'unused' ? 'Not in use' : cell.harvested ? 'Harvesting' : cell.planted ? 'Planted' : 'Not planted yet';
 }
 
 /** A picked plot's card on the satellite map: its zone and use, and its latest record. */

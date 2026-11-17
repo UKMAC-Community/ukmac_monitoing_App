@@ -1,0 +1,38 @@
+mac: {
+    id (primarykey, unique, autoincrease)
+    uuid
+    name
+    location (str), input the localtion like the province or the localtion
+    longitude (float)
+    latitude (float)
+    
+}
+
+zone: {
+    id (primarykey, unique, autoincrease)
+    uuid
+    mac_id (foreingkey)
+    name (str) A or B or C
+    number (int) 1 2 3 ...
+    plot (str) A1 A2... base on zone_name
+    
+}
+
+nursery_progress: {
+    id 
+    batch_number
+    variety_name
+    healthy_seeding
+    stem_root
+    smaller
+    dicease
+    physical damage
+    supply_start_date
+    supply_end_date
+    origin
+    min_hight
+    max_hight
+    mean_hight
+    leaf/plant
+    Fertilizer name
+} 

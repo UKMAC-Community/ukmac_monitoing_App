@@ -40,7 +40,7 @@ describe('Zone Measurement: the dashboard by zone number', () => {
     expect(summary.title).toBe('By zone number');
     const result = summaryResult(book, sheet, summary)!;
     expect(result.header).toBe('Zone number');
-    expect(result.rows.map((line) => [line.label, ...line.values])).toEqual([['1', 2, 2200, 20, 200], ['2', 1, 1000, 10, 100]]);
+    expect(result.rows.map((line) => [line.label, ...line.values])).toEqual([['1', 2200, 20, 200], ['2', 1000, 10, 100]]);
   });
 
   it('still adds an older table without the Zone number column up by plot', () => {

@@ -160,6 +160,7 @@ export class App implements OnInit {
     if (match && mac) {
       crumbs.push({ label: mac.macName, link: ['/mac', mac.macId] });
       if (url.includes('/zone-map')) crumbs.push({ label: 'Zone Map' });
+      if (url.includes('/weather')) crumbs.push({ label: 'Weather' });
       if (url.includes('/data-check')) crumbs.push({ label: 'Data Check' });
       const sheet = match[2] ? this.store.sheet(Number(match[2])) : null;
       if (sheet) crumbs.push({ label: sheet.heading }, { label: sheet.title });
