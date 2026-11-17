@@ -1,8 +1,8 @@
 # UKMAC Monitoring: the database
 
-One SQLite file on the computer, `ukmac.db`, made by `src-tauri/src/db.rs` (rusqlite, WAL mode).
+One SQLite file on the computer, `ukmac.db`, made by `src-tauri/src/db/mod.rs` (rusqlite, WAL mode).
 Folder on a Mac: `~/Library/Application Support/com.ukmac.monitoring/`.
-Schema version: **6** (`PRAGMA user_version`; each entry of `MIGRATIONS` in `db.rs` moves it up by one).
+Schema version: **6** (`PRAGMA user_version`; each entry of `MIGRATIONS` in `db/mod.rs` moves it up by one).
 Foreign keys are on, so deleting a parent removes its children (see "What deletes what").
 
 Everything lives in **7 tables**. Everything below `macs` hangs off `sheets`.
@@ -111,7 +111,7 @@ settings              loose key/value (counters, last Google source, view choice
 
 ### `mac_access`: who may open a MAC
 Primary key `(mac_id, email)`; index on `email`. The app only shows a signed-in Google account the MACs
-listed for it (`src-tauri/src/access.rs`). This is a lock inside the app, not encryption: the `.db` file
+listed for it (`src-tauri/src/services/access.rs`). This is a lock inside the app, not encryption: the `.db` file
 is plain.
 
 ### `sheets`: a table of a MAC

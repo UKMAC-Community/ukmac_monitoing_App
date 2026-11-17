@@ -73,7 +73,7 @@ shown there too.
 
 - Signing in is OAuth 2.0 with PKCE over a loopback address: the browser
   opens Google's page, Google sends it back to a port the app listens on for
-  a moment (`src-tauri/src/google.rs`). Everything with Google is in Rust; the
+  a moment (`src-tauri/src/services/google.rs`). Everything with Google is in Rust; the
   page never holds a token. Scope: `drive.readonly` (and `openid email profile`).
 - A sheet is read the way the web system reads one: downloaded as an Excel
   workbook (Google's export address, then Drive's own export), then read with
@@ -83,23 +83,50 @@ shown there too.
   (owner-only), not in `ukmac.db`: "Save a backup" copies the database.
 - Which table is read from which tab is in the database (`google_links`, with
   which header went to which column, so a renamed column stays filled).
-  `src/app/google/sheet-sync.ts` matches a tab's headers to a table's columns.
+  `src/app/core/google/sheet-sync.ts` matches a tab's headers to a table's columns.
 - Sync is manual (a table's page, or Settings): rows are replaced, so edits
   made here to what came from Google are overwritten by the next Sync.
 
 ## Stack
 
-- Tauri 2 (Rust): `src-tauri/` — `commands.rs` (the local backend), `db.rs`
-  (schema + migrations), `template.rs` (the chili template), `model.rs`,
-  `google.rs` (sign-in with Google, Drive and the sheet download), `links.rs`
-  (which table is read from which tab).
-- Angular 22 (standalone, zoneless, signals): `src/app/` — `core/` (API,
-  store), `formula/` (the formula engine, from the system's UI), `excel/`
-  (template, import, Power BI export, with exceljs), `univer/` (the full
-  sheet: `univer-layout.ts` lays a table out and reads it back,
-  `univer-engine.ts` is Univer, loaded only with the sheet,
-  `univer-sheet.ts` saves each change, `fixes/` the system's own fixes to
-  Univer), `pages/`.
+- Tauri 2 (Rust): `src-tauri/`, laid out below.
+- Angular 22 (standalone, zoneless, signals): `src/app/`, laid out below.
+
+## Project structure
+
+```
+src/app/                    Angular frontend
+  app.ts, app.routes.ts     the shell (sidebar, top bar) and the routes
+  core/                     app-wide services and models: api, workbook-store, mac-list, theme, toast, updater…
+    google/                 the Google service, and how a tab's rows become a table's (sheet-sync, link-plan, connect-plan)
+    layout/                 the shell's parts: sign-in gate, Google sign-in button, update button
+  shared/
+    ui/                     small reusable components: icon, modal, pager, count-up, segmented control, spark
+    map/                    the 2D and 3D farm maps, the zone layout, the QA/QC stacks (plot-stack)
+    formula/                the formula engine (from the system's UI)
+    excel/                  Excel template, import, sync and the Power BI export (exceljs)
+    sheet/                  the column model and the template's columns
+    testing/                helpers for the unit tests
+  features/                 one folder per part of the app (pages, dialogs and their logic)
+    home/  mac/  tables/  dashboard/  qa-qc/  zone-map/  import/  google/  data-check/  settings/
+    tables/univer/          the full sheet (Open in sheet): univer-layout lays a table out and reads it back,
+                            univer-engine is Univer (loaded only with the sheet), univer-sheet saves each change,
+                            fixes/ the system's own fixes to Univer
+
+src-tauri/src/              Rust (Tauri 2)
+  lib.rs                    start-up: the database, Google sign-in, the AI connection, and the command list
+  commands/                 every command the frontend calls (`invoke`), by area: macs, sheets, rows, files,
+                            settings, access, mac_file, google, links, ai
+  db/                       the SQLite file: schema and migrations (mod.rs), and the queries the commands share
+                            (macs, sheets, rows, ids)
+  services/                 google (sign-in, Drive), ai, mac_file (.ukmac files), template (the chili template),
+                            links (which table reads which tab), access (whose MACs these are), client_seal
+  models/                   the data passed between Rust and the frontend
+  error.rs                  the result every command returns
+```
+
+Imports across areas use the `@core/…`, `@shared/…` and `@features/…` aliases (`tsconfig.json`); inside one area
+they stay relative. Shared and core code doesn't import from features.
 
 Univer is pinned at 1.0.2, as the system has it: `npm install` runs
 `scripts/patch-univer.mjs` (the system's two fixes to it). Keep every

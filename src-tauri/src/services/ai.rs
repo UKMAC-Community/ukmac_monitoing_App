@@ -10,12 +10,11 @@ use std::time::Duration;
 
 use reqwest::{StatusCode, Url};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use tauri::State;
+use serde_json::{json, Value};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-type CmdResult<T> = Result<T, String>;
+use crate::error::CmdResult;
 
 const OPENROUTER: &str = "https://openrouter.ai/api/v1";
 const LOCAL: &str = "http://127.0.0.1:11434/v1";
@@ -147,7 +146,7 @@ impl AiState {
             .map_err(|_| "AI connection is busy. Try again.".into())
     }
 
-    fn status(&self) -> CmdResult<AiStatus> {
+    pub(crate) fn status(&self) -> CmdResult<AiStatus> {
         let s = self.snapshot()?;
         Ok(AiStatus {
             configured: valid_stored(&s).is_ok(),
@@ -162,7 +161,7 @@ impl AiState {
         })
     }
 
-    fn save(&self, input: AiConnectionInput) -> CmdResult<AiStatus> {
+    pub(crate) fn save(&self, input: AiConnectionInput) -> CmdResult<AiStatus> {
         let mut current = self
             .stored
             .lock()
@@ -213,7 +212,7 @@ impl AiState {
         Ok(())
     }
 
-    fn clear(&self) -> CmdResult<AiStatus> {
+    pub(crate) fn clear(&self) -> CmdResult<AiStatus> {
         let mut stored = self
             .stored
             .lock()
@@ -237,7 +236,7 @@ impl AiState {
         }
     }
 
-    fn cancel_request(&self, request_id: &str) -> CmdResult<()> {
+    pub(crate) fn cancel_request(&self, request_id: &str) -> CmdResult<()> {
         valid_request_id(request_id)?;
         let mut cancel = self
             .cancel
@@ -552,73 +551,49 @@ async fn generate(stored: &Stored, input: &AiGenerationInput) -> CmdResult<Strin
     completion_text(&bounded_json(response, MAX_REPLY_BYTES, secs).await?)
 }
 
-#[tauri::command]
-pub fn ai_status(state: State<'_, AiState>) -> CmdResult<AiStatus> {
-    state.status()
-}
-
-#[tauri::command]
-pub fn ai_save_connection(
-    state: State<'_, AiState>,
-    input: AiConnectionInput,
-) -> CmdResult<AiStatus> {
-    state.save(input)
-}
-
-#[tauri::command]
-pub fn ai_clear_connection(state: State<'_, AiState>) -> CmdResult<AiStatus> {
-    state.clear()
-}
-
-#[tauri::command]
-pub fn ai_cancel_generation(state: State<'_, AiState>, request_id: String) -> CmdResult<()> {
-    state.cancel_request(&request_id)
-}
-
-#[tauri::command]
-pub async fn ai_generate_visuals(
-    state: State<'_, AiState>,
-    input: AiGenerationInput,
-) -> CmdResult<String> {
-    let stored = state.snapshot()?;
-    valid_stored(&stored)?;
-    request_payload(&input, &stored.model)?;
-    let receiver = state.start_request(&input.request_id)?;
-    let result = tokio::select! {
-        _ = receiver => Err("AI generation cancelled.".into()),
-        result = generate(&stored, &input) => result,
-    };
-    state.finish_request(&input.request_id);
-    result
-}
-
-#[tauri::command]
-pub async fn ai_test_connection(state: State<'_, AiState>) -> CmdResult<ConnectionTest> {
-    let stored = state.snapshot()?;
-    valid_stored(&stored)?;
-    let mut request =
-        http_client(stored.provider, PROBE_SECS)?.get(format!("{}/models", stored.base_url));
-    if !stored.api_key.is_empty() {
-        request = request.bearer_auth(&stored.api_key);
+impl AiState {
+    /// Asks the model for dashboard suggestions; a request cancelled meanwhile (by its id) ends with an error.
+    pub(crate) async fn generate_visuals(&self, input: &AiGenerationInput) -> CmdResult<String> {
+        let stored = self.snapshot()?;
+        valid_stored(&stored)?;
+        request_payload(input, &stored.model)?;
+        let receiver = self.start_request(&input.request_id)?;
+        let result = tokio::select! {
+            _ = receiver => Err("AI generation cancelled.".into()),
+            result = generate(&stored, input) => result,
+        };
+        self.finish_request(&input.request_id);
+        result
     }
-    let response = request.send().await.map_err(|e| net(e, PROBE_SECS))?;
-    let reply = bounded_json(response, MAX_MODELS_BYTES, PROBE_SECS).await?;
-    let models = reply
-        .get("data")
-        .and_then(Value::as_array)
-        .ok_or("The server did not return a compatible model list. Check the base API address.")?;
-    let available = models
-        .iter()
-        .any(|model| model.get("id").and_then(Value::as_str) == Some(stored.model.as_str()));
-    Ok(ConnectionTest {
-        message: if available {
-            "Connected. The configured model is available."
-        } else {
-            "Connected, but this server did not list the configured model. Check the model ID."
+
+    /// Checks the connection: the server answers and lists the model that is set.
+    pub(crate) async fn test_connection(&self) -> CmdResult<ConnectionTest> {
+        let stored = self.snapshot()?;
+        valid_stored(&stored)?;
+        let mut request =
+            http_client(stored.provider, PROBE_SECS)?.get(format!("{}/models", stored.base_url));
+        if !stored.api_key.is_empty() {
+            request = request.bearer_auth(&stored.api_key);
         }
-        .into(),
-        model_available: available,
-    })
+        let response = request.send().await.map_err(|e| net(e, PROBE_SECS))?;
+        let reply = bounded_json(response, MAX_MODELS_BYTES, PROBE_SECS).await?;
+        let models = reply
+            .get("data")
+            .and_then(Value::as_array)
+            .ok_or("The server did not return a compatible model list. Check the base API address.")?;
+        let available = models
+            .iter()
+            .any(|model| model.get("id").and_then(Value::as_str) == Some(stored.model.as_str()));
+        Ok(ConnectionTest {
+            message: if available {
+                "Connected. The configured model is available."
+            } else {
+                "Connected, but this server did not list the configured model. Check the model ID."
+            }
+            .into(),
+            model_available: available,
+        })
+    }
 }
 
 #[cfg(test)]

@@ -1,14 +1,17 @@
-mod access;
-mod ai;
-mod client_seal;
+//! UKMAC Monitoring's desktop side: opens the local database and Google sign-in, then serves the
+//! commands the Angular app calls.
+//!
+//! - `commands`: every command the frontend calls (`invoke`), grouped by what it works on
+//! - `db`: the SQLite file, its schema and the queries the commands share
+//! - `services`: Google, the AI connection, `.ukmac` files, the chili template, access
+//! - `models`: the data the app and the frontend pass between them
+//! - `error`: the result every command returns
+
 mod commands;
 mod db;
-mod google;
-mod ids;
-mod links;
-mod macfile;
-mod model;
-mod template;
+mod error;
+mod models;
+mod services;
 
 use std::sync::Mutex;
 
@@ -35,71 +38,71 @@ pub fn run() {
             let path = folder.join("ukmac.db");
             let conn = db::open(&path)?;
             // Google sign-in: its client and tokens are kept beside the database, not in it.
-            let google = google::GoogleState::load(&folder);
+            let google = services::google::GoogleState::load(&folder);
             // MACs from before accounts existed go to the account signed in on this computer now.
             if let Some(email) = google.account() {
-                access::adopt_unowned(&conn, &email)?;
+                services::access::adopt_unowned(&conn, &email)?;
             }
-            app.manage(commands::Db {
+            app.manage(db::Db {
                 conn: Mutex::new(conn),
                 path,
             });
             app.manage(google);
             // Optional AI connection: keys stay outside the database and its backups.
-            app.manage(ai::AiState::load(&folder));
+            app.manage(services::ai::AiState::load(&folder));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            access::unowned_macs,
-            access::claim_macs,
-            commands::computer_name,
-            commands::list_macs,
-            commands::create_mac,
-            commands::update_mac,
-            commands::delete_mac,
-            commands::get_workbook,
-            commands::get_all_workbooks,
-            commands::create_sheet,
-            commands::update_sheet,
-            commands::save_columns,
-            commands::template_columns,
-            commands::save_dashboard,
-            commands::delete_sheet,
-            commands::reorder_sheets,
-            commands::add_rows,
-            commands::update_cells,
-            commands::reorder_rows,
-            commands::delete_rows,
-            commands::list_imports,
-            commands::undo_import,
-            commands::read_file,
-            commands::write_file,
-            commands::get_setting,
-            commands::set_setting,
-            commands::database_info,
-            commands::backup_database,
-            macfile::export_mac_file,
-            macfile::peek_mac_file,
-            macfile::import_mac_file,
-            google::google_status,
-            google::google_save_client,
-            google::google_sign_in,
-            google::google_cancel_sign_in,
-            google::google_sign_out,
-            google::google_list_spreadsheets,
-            google::google_file_info,
-            google::google_download,
-            google::open_link,
-            links::list_google_links,
-            links::save_google_link,
-            links::google_link_synced,
-            links::delete_google_link,
-            ai::ai_status,
-            ai::ai_save_connection,
-            ai::ai_test_connection,
-            ai::ai_generate_visuals,
-            ai::ai_cancel_generation,
-            ai::ai_clear_connection,
+            commands::access::unowned_macs,
+            commands::access::claim_macs,
+            commands::settings::computer_name,
+            commands::macs::list_macs,
+            commands::macs::create_mac,
+            commands::macs::update_mac,
+            commands::macs::delete_mac,
+            commands::macs::get_workbook,
+            commands::macs::get_all_workbooks,
+            commands::sheets::create_sheet,
+            commands::sheets::update_sheet,
+            commands::sheets::save_columns,
+            commands::sheets::template_columns,
+            commands::sheets::save_dashboard,
+            commands::sheets::delete_sheet,
+            commands::sheets::reorder_sheets,
+            commands::rows::add_rows,
+            commands::rows::update_cells,
+            commands::rows::reorder_rows,
+            commands::rows::delete_rows,
+            commands::rows::list_imports,
+            commands::rows::undo_import,
+            commands::files::read_file,
+            commands::files::write_file,
+            commands::settings::get_setting,
+            commands::settings::set_setting,
+            commands::settings::database_info,
+            commands::settings::backup_database,
+            commands::mac_file::export_mac_file,
+            commands::mac_file::peek_mac_file,
+            commands::mac_file::import_mac_file,
+            commands::google::google_status,
+            commands::google::google_save_client,
+            commands::google::google_sign_in,
+            commands::google::google_cancel_sign_in,
+            commands::google::google_sign_out,
+            commands::google::google_list_spreadsheets,
+            commands::google::google_file_info,
+            commands::google::google_download,
+            commands::google::open_link,
+            commands::links::list_google_links,
+            commands::links::save_google_link,
+            commands::links::google_link_synced,
+            commands::links::delete_google_link,
+            commands::ai::ai_status,
+            commands::ai::ai_save_connection,
+            commands::ai::ai_test_connection,
+            commands::ai::ai_generate_visuals,
+            commands::ai::ai_cancel_generation,
+            commands::ai::ai_clear_connection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running UKMAC Monitoring");

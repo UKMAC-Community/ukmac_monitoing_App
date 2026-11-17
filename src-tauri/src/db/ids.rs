@@ -5,10 +5,10 @@
 //! it is never typed and never changed (an edit to it is dropped); and rows that have none yet (a table that has
 //! just gained the column, or was saved before it) are numbered in the order they are shown.
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Map, Value};
 
-use crate::model::Column;
+use crate::models::Column;
 
 fn counter_key(sheet_id: i64) -> String {
     format!("row-id:{sheet_id}")

@@ -24,13 +24,12 @@ use reqwest::{StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use tauri::{Manager, State};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-type CmdResult<T> = Result<T, String>;
+use crate::error::{CmdResult, err};
 
 const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.readonly";
 const SCOPE: &str = "openid email profile https://www.googleapis.com/auth/drive.readonly";
@@ -40,7 +39,7 @@ const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadshe
 const MAX_BYTES: usize = 15 * 1024 * 1024;
 const SIGN_IN_WAIT: Duration = Duration::from_secs(300);
 /// Pages a link may open in the browser (the Google help and console pages the app points to).
-const LINK_HOSTS: &[&str] = &[
+pub(crate) const LINK_HOSTS: &[&str] = &[
     "console.cloud.google.com",
     "accounts.google.com",
     "myaccount.google.com",
@@ -48,10 +47,6 @@ const LINK_HOSTS: &[&str] = &[
     "drive.google.com",
     "support.google.com",
 ];
-
-fn err<E: std::fmt::Display>(error: E) -> String {
-    error.to_string()
-}
 
 /// A failed request as a sentence.
 fn net(error: reqwest::Error) -> String {
@@ -70,8 +65,6 @@ fn now() -> i64 {
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
 }
-
-// ------------------------------------------------------------------ what's kept
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -115,7 +108,7 @@ impl Urls {
 /// UKMAC_GOOGLE_CLIENT_ID / UKMAC_GOOGLE_CLIENT_SECRET build variables) into the app, and it is
 /// opened here. See client_seal.rs for what that hides and what it can't.
 fn built_in_client() -> Option<(String, String)> {
-    crate::client_seal::open(
+    crate::services::client_seal::open(
         option_env!("UKMAC_GOOGLE_CLIENT_SEALED")?,
         option_env!("UKMAC_GOOGLE_CLIENT_KEY")?,
     )
@@ -244,7 +237,7 @@ impl GoogleState {
 
     /// The Client ID and secret of the OAuth client the user made in Google Cloud. A different
     /// client can't use another's tokens, so changing it signs out.
-    fn save_client(&self, client_id: &str, client_secret: &str) -> CmdResult<()> {
+    pub(crate) fn save_client(&self, client_id: &str, client_secret: &str) -> CmdResult<()> {
         let client_id = client_id.trim();
         let mut client_secret = client_secret.trim().to_string();
         if client_id.is_empty() && client_secret.is_empty() {
@@ -360,8 +353,6 @@ fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     std::fs::File::create(path)?.write_all(bytes)
 }
 
-// ------------------------------------------------------------------ Google's token endpoint
-
 #[derive(Debug, Default, Deserialize)]
 struct TokenReply {
     access_token: Option<String>,
@@ -416,8 +407,6 @@ async fn post_token(
     }
     Ok(reply)
 }
-
-// ------------------------------------------------------------------ the sign-in
 
 struct Granted {
     access_token: String,
@@ -630,8 +619,6 @@ async fn sign_in(
     })
 }
 
-// ------------------------------------------------------------------ opening pages
-
 /// A page in the system browser.
 pub fn open_url(url: &str) -> CmdResult<()> {
     #[cfg(target_os = "macos")]
@@ -656,90 +643,10 @@ pub fn open_url(url: &str) -> CmdResult<()> {
         })
 }
 
-/// A Google page opened for the user (the console to make the OAuth client, a sheet): only https,
-/// only Google's own addresses.
-#[tauri::command]
-pub fn open_link(url: String) -> CmdResult<()> {
-    let parsed = Url::parse(&url).map_err(|_| "That isn't a web address.".to_string())?;
-    let host = parsed.host_str().unwrap_or("");
-    if parsed.scheme() != "https" || !LINK_HOSTS.contains(&host) {
-        return Err("That address isn't one the app opens.".into());
-    }
-    open_url(parsed.as_str())
-}
-
-// ------------------------------------------------------------------ commands
-
-#[tauri::command]
-pub fn google_status(state: State<'_, GoogleState>) -> GoogleStatus {
-    state.status()
-}
-
-#[tauri::command]
-pub fn google_save_client(
-    state: State<'_, GoogleState>,
-    client_id: String,
-    client_secret: String,
-) -> CmdResult<GoogleStatus> {
-    state.save_client(&client_id, &client_secret)?;
-    Ok(state.status())
-}
-
-#[tauri::command]
-pub async fn google_sign_in(
-    app: tauri::AppHandle,
-    state: State<'_, GoogleState>,
-) -> CmdResult<GoogleStatus> {
-    let Some((client_id, client_secret)) = state.client() else {
-        return Err("Add the Client ID and Client secret first (Settings → Google).".into());
-    };
-    let (sender, receiver) = oneshot::channel();
-    {
-        let mut waiting = state.cancel.lock().map_err(err)?;
-        if waiting.is_some() {
-            return Err("A Google sign-in is already waiting in your browser.".into());
-        }
-        *waiting = Some(sender);
-    }
-    let result = sign_in(
-        &state.http,
-        &state.urls,
-        &client_id,
-        &client_secret,
-        open_url,
-        receiver,
-        SIGN_IN_WAIT,
-    )
-    .await;
-    if let Ok(mut waiting) = state.cancel.lock() {
-        *waiting = None;
-    }
-    let granted = result?;
-    let mut next = state.stored();
-    next.access_token = granted.access_token;
-    next.refresh_token = granted.refresh_token;
-    next.expires_at = granted.expires_at;
-    next.email = granted.email;
-    next.name = granted.name;
-    state.keep(next)?;
-    // The browser is in front: bring the app back.
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
-    Ok(state.status())
-}
-
-/// Stops a sign-in that is waiting for the browser.
-#[tauri::command]
-pub fn google_cancel_sign_in(state: State<'_, GoogleState>) {
-    state.cancel_waiting_sign_in();
-}
-
 impl GoogleState {
     /// Ends a sign-in that waits in the browser, if one does. Whoever changes or removes the
     /// client or the tokens calls this first, so that sign-in can't finish into what they left.
-    fn cancel_waiting_sign_in(&self) {
+    pub(crate) fn cancel_waiting_sign_in(&self) {
         if let Ok(mut waiting) = self.cancel.lock() {
             if let Some(sender) = waiting.take() {
                 let _ = sender.send(());
@@ -750,7 +657,7 @@ impl GoogleState {
     /// Google is told to forget this app's access (best effort), the tokens are dropped. The Client
     /// ID and secret stay, unless `forget_client` is set: then they go too and the next sign-in
     /// starts from the setup steps.
-    async fn sign_out(&self, forget_client: bool) -> CmdResult<()> {
+    pub(crate) async fn sign_out(&self, forget_client: bool) -> CmdResult<()> {
         self.cancel_waiting_sign_in();
         let s = self.stored();
         if !s.refresh_token.is_empty() {
@@ -773,17 +680,6 @@ impl GoogleState {
         self.keep(next)
     }
 }
-
-#[tauri::command]
-pub async fn google_sign_out(
-    state: State<'_, GoogleState>,
-    forget_client: Option<bool>,
-) -> CmdResult<GoogleStatus> {
-    state.sign_out(forget_client.unwrap_or(false)).await?;
-    Ok(state.status())
-}
-
-// ------------------------------------------------------------------ Drive
 
 /// A Google Sheets or Drive link's file id (or the id itself).
 pub fn file_id(text: &str) -> CmdResult<String> {
@@ -879,7 +775,7 @@ fn query_value(text: &str) -> String {
 }
 
 impl GoogleState {
-    async fn list_spreadsheets(&self, query: Option<&str>) -> CmdResult<Vec<DriveFile>> {
+    pub(crate) async fn list_spreadsheets(&self, query: Option<&str>) -> CmdResult<Vec<DriveFile>> {
         let mut q = format!("mimeType='{SHEET_MIME}' and trashed=false");
         if let Some(words) = query.map(str::trim).filter(|w| !w.is_empty()) {
             q.push_str(&format!(" and name contains '{}'", query_value(words)));
@@ -911,7 +807,7 @@ impl GoogleState {
             .unwrap_or_default())
     }
 
-    async fn file_info(&self, id: &str) -> CmdResult<DriveFile> {
+    pub(crate) async fn file_info(&self, id: &str) -> CmdResult<DriveFile> {
         let url = Url::parse_with_params(
             &format!("{}/files/{id}", self.urls.drive),
             &[
@@ -934,7 +830,7 @@ impl GoogleState {
 
     /// The sheet as an Excel workbook: its export address first (what the web system uses), then
     /// Drive's own export. An Excel file kept in Drive is just downloaded.
-    async fn download(&self, id: &str) -> CmdResult<Vec<u8>> {
+    pub(crate) async fn download(&self, id: &str) -> CmdResult<Vec<u8>> {
         let info = self.file_info(id).await?;
         if info.mime_type == XLSX_MIME {
             let url = Url::parse_with_params(
@@ -987,33 +883,44 @@ fn drive_file(value: &Value) -> Option<DriveFile> {
     })
 }
 
-/// The user's Google Sheets, newest first (those whose name has `query`, if given).
-#[tauri::command]
-pub async fn google_list_spreadsheets(
-    state: State<'_, GoogleState>,
-    query: Option<String>,
-) -> CmdResult<Vec<DriveFile>> {
-    state.list_spreadsheets(query.as_deref()).await
+impl GoogleState {
+    /// Signs in through the system browser (Google's own page) and keeps the tokens it gives. Only one sign-in waits at a time.
+    pub(crate) async fn browser_sign_in(&self) -> CmdResult<()> {
+        let Some((client_id, client_secret)) = self.client() else {
+            return Err("Add the Client ID and Client secret first (Settings → Google).".into());
+        };
+        let (sender, receiver) = oneshot::channel();
+        {
+            let mut waiting = self.cancel.lock().map_err(err)?;
+            if waiting.is_some() {
+                return Err("A Google sign-in is already waiting in your browser.".into());
+            }
+            *waiting = Some(sender);
+        }
+        let result = sign_in(
+            &self.http,
+            &self.urls,
+            &client_id,
+            &client_secret,
+            open_url,
+            receiver,
+            SIGN_IN_WAIT,
+        )
+        .await;
+        if let Ok(mut waiting) = self.cancel.lock() {
+            *waiting = None;
+        }
+        let granted = result?;
+        let mut next = self.stored();
+        next.access_token = granted.access_token;
+        next.refresh_token = granted.refresh_token;
+        next.expires_at = granted.expires_at;
+        next.email = granted.email;
+        next.name = granted.name;
+        self.keep(next)?;
+        Ok(())
+    }
 }
-
-/// A sheet's name and kind, from its link or id.
-#[tauri::command]
-pub async fn google_file_info(state: State<'_, GoogleState>, file: String) -> CmdResult<DriveFile> {
-    let id = file_id(&file)?;
-    state.file_info(&id).await
-}
-
-/// A sheet as an Excel workbook, from its link or id.
-#[tauri::command]
-pub async fn google_download(
-    state: State<'_, GoogleState>,
-    file: String,
-) -> CmdResult<tauri::ipc::Response> {
-    let id = file_id(&file)?;
-    state.download(&id).await.map(tauri::ipc::Response::new)
-}
-
-// ------------------------------------------------------------------ tests
 
 #[cfg(test)]
 mod tests {
@@ -1181,13 +1088,6 @@ mod tests {
                 .is_err()
         );
         assert!(file_id("hello").is_err());
-    }
-
-    #[test]
-    fn only_google_pages_are_opened() {
-        assert!(open_link("http://console.cloud.google.com/".into()).is_err());
-        assert!(open_link("https://example.com/".into()).is_err());
-        assert!(open_link("file:///etc/passwd".into()).is_err());
     }
 
     #[test]

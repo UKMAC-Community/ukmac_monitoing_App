@@ -5,10 +5,27 @@
 //! here. A table is sheet-like — its columns are a JSON list on the table,
 //! a row's cells a JSON object keyed by column key (`c1`, `c2`, …; a key is
 //! never given twice, so renaming or moving a column keeps its data).
+//!
+//! The queries the commands share live beside it: `macs`, `sheets`, `rows`, and `ids` (automatic row numbers).
+
+pub mod ids;
+pub mod macs;
+pub mod rows;
+pub mod sheets;
+
+#[cfg(test)]
+mod query_tests;
 
 use std::path::Path;
+use std::sync::Mutex;
 
 use rusqlite::Connection;
+
+/// The database the commands share, opened once at start-up (and where its file is, for backups).
+pub struct Db {
+    pub conn: Mutex<Connection>,
+    pub path: std::path::PathBuf,
+}
 
 /// Each entry moves the database up one version (`PRAGMA user_version`).
 const MIGRATIONS: &[&str] = &[
@@ -76,7 +93,7 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE sheets ADD COLUMN dashboard TEXT;
     "#,
-    // 3: a table kept in step with a tab of a Google Sheet (src/links.rs).
+    // 3: a table kept in step with a tab of a Google Sheet (services/links.rs).
     r#"
     CREATE TABLE google_links (
         link_id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +111,7 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE google_links ADD COLUMN layout TEXT;
     "#,
-    // 5: which Google accounts have which MAC (src/access.rs): a MAC shows only for them.
+    // 5: which Google accounts have which MAC (services/access.rs): a MAC shows only for them.
     r#"
     CREATE TABLE mac_access (
         mac_id     INTEGER NOT NULL REFERENCES macs(mac_id) ON DELETE CASCADE,
@@ -111,9 +128,6 @@ const MIGRATIONS: &[&str] = &[
     "#,
 ];
 
-
-
-
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let mut conn = Connection::open(path)?;
     conn.execute_batch(
@@ -124,7 +138,7 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     )?;
     migrate(&mut conn)?;
     // A table that gained an ID column since the app last ran has its rows numbered.
-    crate::ids::fill_all(&mut conn)?;
+    crate::db::ids::fill_all(&mut conn)?;
     Ok(conn)
 }
 

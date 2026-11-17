@@ -20,14 +20,13 @@ use std::collections::BTreeMap;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use tauri::State;
 
-use crate::commands::{
-    CmdResult, Db, check_mac, check_title, code_taken, err, insert_rows, insert_sheet_from,
-    load_mac, load_rows, load_sheets,
-};
-use crate::links;
-use crate::model::{Column, Mac, MacInput};
+use crate::db::macs::{check_mac, code_taken, load_mac};
+use crate::db::rows::{insert_rows, load_rows};
+use crate::db::sheets::{check_title, insert_sheet_from, load_sheets};
+use crate::error::{CmdResult, err};
+use crate::models::{Column, Mac, MacInput};
+use crate::services::links;
 
 pub const FORMAT: &str = "ukmac-mac";
 /// What this app writes. It still reads version 1 (a copy with every row).
@@ -130,8 +129,6 @@ pub struct FileLink {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layout: Option<links::FileLayout>,
 }
-
-// ------------------------------------------------------------------ save
 
 /// A MAC as a file's content, as it is saved: no rows, no location, each table's Google link kept.
 pub fn build(conn: &Connection, mac_id: i64) -> CmdResult<MacFile> {
@@ -236,8 +233,6 @@ fn assemble(conn: &Connection, mac_id: i64, links_only: bool) -> CmdResult<MacFi
     })
 }
 
-// ------------------------------------------------------------------ open
-
 fn check_header(file: &MacFile) -> CmdResult<()> {
     if file.format != FORMAT {
         return Err("This isn't a MAC file saved by UKMAC Monitoring.".into());
@@ -248,7 +243,7 @@ fn check_header(file: &MacFile) -> CmdResult<()> {
     Ok(())
 }
 
-fn read(path: &str) -> CmdResult<MacFile> {
+pub(crate) fn read(path: &str) -> CmdResult<MacFile> {
     let size = std::fs::metadata(path).map_err(err)?.len();
     if size > MAX_FILE {
         return Err("This file is too big to be a MAC file.".into());
@@ -330,7 +325,7 @@ fn existing_with_uuid(
         Some(email) => conn.query_row(
             "SELECT m.mac_id FROM macs m JOIN mac_access a ON a.mac_id = m.mac_id
              WHERE m.mac_uuid = ?1 AND a.email = ?2",
-            params![uuid, crate::access::normalize(email)],
+            params![uuid, crate::services::access::normalize(email)],
             |row| row.get(0),
         ),
         None => conn.query_row(
@@ -520,7 +515,7 @@ pub fn import_as(
     .map_err(err)?;
     let mac_id = tx.last_insert_rowid();
     if let Some(email) = account {
-        crate::access::grant(&tx, mac_id, email)?;
+        crate::services::access::grant(&tx, mac_id, email)?;
     }
 
     let mut row_total = 0;
@@ -634,8 +629,6 @@ fn clean(text: &Option<String>) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-// -------------------------------------------------------------- commands
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Saved {
@@ -650,7 +643,7 @@ pub struct Saved {
 }
 
 /// The tables of a MAC that have rows here and no Google link: a file can't carry them.
-fn unlinked_with_rows(conn: &Connection, mac_id: i64) -> CmdResult<Vec<String>> {
+pub(crate) fn unlinked_with_rows(conn: &Connection, mac_id: i64) -> CmdResult<Vec<String>> {
     let mut statement = conn
         .prepare(
             "SELECT s.title FROM sheets s
@@ -668,67 +661,10 @@ fn unlinked_with_rows(conn: &Connection, mac_id: i64) -> CmdResult<Vec<String>> 
     Ok(titles)
 }
 
-/// Writes a MAC's tables and their Google links, with no rows, to `path`.
-#[tauri::command]
-pub fn export_mac_file(
-    db: State<'_, Db>,
-    google: State<'_, crate::google::GoogleState>,
-    mac_id: i64,
-    path: String,
-) -> CmdResult<Saved> {
-    let (file, empty_on_open) = {
-        let conn = db.conn.lock().map_err(err)?;
-        crate::access::guard_mac(&conn, &google, mac_id)?;
-        (build(&conn, mac_id)?, unlinked_with_rows(&conn, mac_id)?)
-    };
-    let bytes = serde_json::to_vec(&file).map_err(err)?;
-    // Written beside it first, so a failure never leaves half a file where the old one was.
-    let part = format!("{path}.part");
-    std::fs::write(&part, &bytes).map_err(err)?;
-    if let Err(error) = std::fs::rename(&part, &path) {
-        let _ = std::fs::remove_file(&part);
-        return Err(err(error));
-    }
-    Ok(Saved {
-        sheets: file.sheets.len(),
-        rows: file.sheets.iter().map(|sheet| sheet.rows.len()).sum(),
-        bytes: bytes.len() as u64,
-        linked: file.sheets.iter().filter(|sheet| sheet.google_link.is_some()).count(),
-        empty_on_open,
-    })
-}
-
-/// Reads a MAC file's header: what it holds, and whether this computer already has that MAC.
-#[tauri::command]
-pub fn peek_mac_file(
-    db: State<'_, Db>,
-    google: State<'_, crate::google::GoogleState>,
-    path: String,
-) -> CmdResult<Peek> {
-    let email = crate::access::require(&google)?;
-    let file = read(&path)?;
-    let conn = db.conn.lock().map_err(err)?;
-    peek(&conn, &file, Some(&email))
-}
-
-/// Adds the MAC in the file (see `import`).
-#[tauri::command]
-pub fn import_mac_file(
-    db: State<'_, Db>,
-    google: State<'_, crate::google::GoogleState>,
-    path: String,
-    replace: bool,
-) -> CmdResult<Imported> {
-    let email = crate::access::require(&google)?;
-    let file = read(&path)?;
-    let mut conn = db.conn.lock().map_err(err)?;
-    import_as(&mut conn, file, replace, Some(&email))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::template;
+    use crate::services::template;
 
     fn memory() -> Connection {
         let path =
@@ -874,7 +810,7 @@ mod tests {
                 (&a.title, &a.template_key, a.display_order),
                 (&b.title, &b.template_key, b.display_order)
             );
-            let keys = |s: &crate::model::Sheet| {
+            let keys = |s: &crate::models::Sheet| {
                 s.columns
                     .iter()
                     .map(|c| (c.key.clone(), c.name.clone(), c.col_type.clone()))
@@ -1287,7 +1223,7 @@ mod tests {
     fn another_account_never_sees_or_replaces_the_first_accounts_copy() {
         let mut here = memory();
         let mac_id = farm(&mut here);
-        crate::access::grant(&here, mac_id, "owner@gmail.com").unwrap();
+        crate::services::access::grant(&here, mac_id, "owner@gmail.com").unwrap();
         let file = through_a_file(&build(&here, mac_id).unwrap());
 
         // The owner's own copy is found, and Replace is theirs to choose.
@@ -1302,9 +1238,9 @@ mod tests {
         assert_eq!(done.replaced_mac_id, None);
         assert_ne!(done.mac.mac_id, mac_id);
         assert_ne!(done.mac.mac_uuid, "uuid-1");
-        assert!(crate::access::owns(&here, "other@gmail.com", done.mac.mac_id).unwrap());
-        assert!(!crate::access::owns(&here, "other@gmail.com", mac_id).unwrap());
-        assert!(crate::access::owns(&here, "owner@gmail.com", mac_id).unwrap());
+        assert!(crate::services::access::owns(&here, "other@gmail.com", done.mac.mac_id).unwrap());
+        assert!(!crate::services::access::owns(&here, "other@gmail.com", mac_id).unwrap());
+        assert!(crate::services::access::owns(&here, "owner@gmail.com", mac_id).unwrap());
         let still: i64 = here
             .query_row("SELECT COUNT(*) FROM sheets WHERE mac_id = ?1", [mac_id], |row| row.get(0))
             .unwrap();

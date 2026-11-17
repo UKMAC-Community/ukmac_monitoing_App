@@ -1,4 +1,4 @@
-#[path = "src/client_seal.rs"]
+#[path = "src/services/client_seal.rs"]
 mod client_seal;
 
 /// 32 random bytes for this build's seal.
@@ -19,7 +19,7 @@ fn random_key() -> Vec<u8> {
 
 fn main() {
     // The Google client shared by everyone who uses this build (see google-client.example.json): when
-    // google-client.json is here, its two values are sealed (client_seal.rs) and built into the app, so
+    // google-client.json is here, its two values are sealed (services/client_seal.rs) and built into the app, so
     // people only press Sign in. Their values are never printed.
     println!("cargo:rerun-if-changed=google-client.json");
     println!("cargo:rerun-if-env-changed=UKMAC_GOOGLE_CLIENT_ID");

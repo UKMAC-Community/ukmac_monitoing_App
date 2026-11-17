@@ -10,7 +10,7 @@
 //! zone → zone plot → zone measurement design (`zone_measurement_columns`), and answers to the server's old
 //! Width / Length / Area headers as other names.
 
-use crate::model::Column;
+use crate::models::Column;
 
 pub struct TemplateSheet {
     pub key: &'static str,
@@ -95,8 +95,6 @@ const BATCH_SOURCE: &str = "'Batch'[Batch number]";
 fn date_zone() -> Vec<Column> {
     vec![date("Date"), link("Zone", ZONE_SOURCE)]
 }
-
-// ---------------------------------------------------------------- QA/QC
 
 fn stage_box(number: u32, title: &str, target: Option<&str>) -> String {
     match target {
@@ -533,8 +531,6 @@ pub fn columns_and_retired(template_key: &str) -> (Vec<Column>, Vec<Retired>) {
     (columns, retired)
 }
 
-// -------------------------------------------------------------- Nursery
-
 /// The Batch table: one row for each nursery batch, its number (B1, B2, …) and the variety it is: the farm's two columns, no more.
 fn batch_columns() -> Vec<Column> {
     vec![
@@ -744,7 +740,7 @@ fn zone_measurement_retired() -> Vec<Retired> {
     .collect()
 }
 
-/// The ID every table starts with, first: a number the app gives each row (1, 2, 3…), never typed or changed (src/ids.rs).
+/// The ID every table starts with, first: a number the app gives each row (1, 2, 3…), never typed or changed (db/ids.rs).
 /// A file's "ID", "Id" or "No" column is this one's, so it is not added as a column of its own.
 pub fn id_column() -> Column {
     let mut column = also_called(number("ID"), &["Id", "No", "No."]);
@@ -1097,7 +1093,7 @@ mod tests {
     #[test]
     fn the_qa_qc_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/shared/sheet/fixtures/qa-qc-columns.json"
+            "../../../src/app/shared/sheet/fixtures/qa-qc-columns.json"
         ))
         .unwrap();
         let mut columns = qa_qc_columns();
@@ -1117,7 +1113,7 @@ mod tests {
     #[test]
     fn the_nursery_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/shared/sheet/fixtures/nursery-columns.json"
+            "../../../src/app/shared/sheet/fixtures/nursery-columns.json"
         ))
         .unwrap();
         let mut columns = nursery_batch_columns();
@@ -1136,7 +1132,7 @@ mod tests {
     #[test]
     fn the_batch_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/shared/sheet/fixtures/batches-columns.json"
+            "../../../src/app/shared/sheet/fixtures/batches-columns.json"
         ))
         .unwrap();
         let mut columns = batch_columns();
@@ -1307,7 +1303,7 @@ mod tests {
     #[test]
     fn the_zone_measurement_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/shared/sheet/fixtures/zone-measurement-columns.json"
+            "../../../src/app/shared/sheet/fixtures/zone-measurement-columns.json"
         ))
         .unwrap();
         let mut columns = zone_measurement_columns();
@@ -1326,7 +1322,7 @@ mod tests {
     #[test]
     fn the_zone_record_columns_the_app_tests_use_are_the_template_s() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../src/app/shared/sheet/fixtures/zone-records-columns.json"
+            "../../../src/app/shared/sheet/fixtures/zone-records-columns.json"
         ))
         .unwrap();
         let mut columns = zone_record_columns();
@@ -1344,7 +1340,7 @@ mod tests {
     /// copy (the "harvest" table's "columns" without its ID); a copy that drifts fails here.
     #[test]
     fn the_harvest_columns_the_app_tests_use_are_the_template_s() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../src/app/shared/sheet/fixtures/harvest-columns.json")).unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../../src/app/shared/sheet/fixtures/harvest-columns.json")).unwrap();
         let mut columns = harvest_columns();
         for (index, column) in columns.iter_mut().enumerate() {
             column.key = format!("c{}", index + 1);

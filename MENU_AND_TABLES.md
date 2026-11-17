@@ -2,7 +2,7 @@
 
 What each item in the sidebar opens, which **table** it needs, the table's **columns**, and the **features** on that page.
 
-Sources: the sidebar of the Pursat MAC, the chili template (`src-tauri/src/template.rs`), the suggested dashboards (`src/app/dashboard/dashboard-model.ts`) and the real database on this Mac, read on 2026-11-07. Row counts are Pursat's today.
+Sources: the sidebar of the Pursat MAC, the chili template (`src-tauri/src/services/template.rs`), the suggested dashboards (`src/app/features/dashboard/dashboard-model.ts`) and the real database on this Mac, read on 2026-11-07. Row counts are Pursat's today.
 
 Column notes: `*` = required · `→ Zones[Plot]` = a **link** column, a pick-list filled from that other table · `ƒ` = a **formula** column, worked out automatically, never typed.
 
