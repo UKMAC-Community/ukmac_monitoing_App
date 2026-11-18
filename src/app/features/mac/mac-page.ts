@@ -83,11 +83,31 @@ const PROGRESS_KEY = 'ukmac.map-progress';
               (picked)="pickPlot($event)"
               (cleared)="pickedPlot.set(null)"
             >
-            @if (!progressOpen()) {
-              <button type="button" mapTop class="progress-open" title="Progress: how far each plot has come" aria-label="Open the progress key" (click)="progressOpen.set(true)">
-                <app-icon name="sprout" [size]="16" />
-              </button>
-            } @else {
+            <!-- Over the map's top left: which farm and crop this is, and how far its plots have come (opens the key to the colours). -->
+            <button
+              type="button"
+              mapTop
+              class="farm-chip"
+              [attr.aria-expanded]="progressOpen()"
+              [title]="farm().total ? farm().planted + ' of ' + farm().total + ' plots planted, ' + farm().harvest + ' harvesting, ' + farm().rest + ' not planted yet. Click for the key to the colours.' : 'Click for the key to the colours.'"
+              (click)="progressOpen.set(!progressOpen())"
+            >
+              <span class="fc-icon"><app-icon name="sprout" [size]="16" /></span>
+              <span class="fc-text">
+                <strong>{{ mac.macName }} · Chili</strong>
+                <span class="fc-sub">
+                  @if (farm().total) {
+                    {{ farm().percent }}% planted · {{ farm().harvest }} harvesting
+                  } @else {
+                    No plots yet
+                  }
+                </span>
+              </span>
+              @if (farm().total) {
+                <span class="fc-bar" aria-hidden="true"><i class="h" [style.width.%]="farm().harvestPercent"></i><i class="p" [style.width.%]="farm().plantingPercent"></i></span>
+              }
+            </button>
+            @if (progressOpen()) {
             <div mapTop class="progress-key" role="group" aria-label="Progress on the plots">
               <button
                 type="button"
@@ -181,8 +201,16 @@ const PROGRESS_KEY = 'ukmac.map-progress';
     /* In its card, unless opened bigger (then it fills the window, as on the Zone Map). */
     .map-card app-mac-map-3d:not(.m3-expanded) { position: absolute; inset: 0; }
     .progress-key { flex: none; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px 0 8px; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; }
-    .progress-open { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); color: var(--accent); cursor: pointer; box-shadow: var(--shadow-card); }
-    .progress-open:hover { background: #fff; }
+    .farm-chip { flex: none; display: inline-flex; align-items: center; gap: 10px; height: 44px; box-sizing: border-box; padding: 0 16px 0 6px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--text); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--shadow-card); }
+    .farm-chip:hover { background: #fff; }
+    .fc-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft, rgba(0, 102, 217, 0.1)); color: var(--accent); }
+    .fc-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.2; }
+    .fc-text strong { font-size: 13px; font-weight: 650; white-space: nowrap; }
+    .fc-sub { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+    /* How far the plots have come: harvesting (red), planting (green), the rest not planted yet (earth). */
+    .fc-bar { flex: none; display: flex; width: 72px; height: 6px; overflow: hidden; border-radius: 999px; background: #d9c3a8; }
+    .fc-bar .h { background: #e5432f; }
+    .fc-bar .p { background: #7cc35f; }
     .progress-key .pk-legend { display: inline-flex; align-items: center; gap: 14px; transition: opacity 0.15s; }
     .progress-key .pk-legend.is-off { opacity: 0.4; }
     .progress-key .pk-close { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; }
@@ -272,6 +300,20 @@ export class MacPage {
   /** Whether the plots show how far they have come (beds and plants), or just their zone colours; kept on this Mac. */
   /** The progress key is open (folded to a round button to begin with, so it never covers the map's credit). */
   readonly progressOpen = signal(false);
+  /** How far the farm's plots in use have come: planted (growing or harvesting), harvesting, and the rest not planted yet. */
+  readonly farm = computed(() => {
+    const plots = this.allPlots().cells.filter((cell) => cell.usage === 'normal');
+    let harvest = 0;
+    let planting = 0;
+    for (const cell of plots) {
+      const stage = plantStage(cell);
+      if (stage === 'harvest') harvest++;
+      else if (stage === 'planting') planting++;
+    }
+    const total = plots.length;
+    const share = (n: number) => (total ? (n / total) * 100 : 0);
+    return { total, harvest, planting, planted: harvest + planting, rest: total - harvest - planting, percent: Math.round(share(harvest + planting)), harvestPercent: share(harvest), plantingPercent: share(planting) };
+  });
   readonly progress = signal(localStorage.getItem(PROGRESS_KEY) !== 'off');
   setProgress(on: boolean) {
     this.progress.set(on);
