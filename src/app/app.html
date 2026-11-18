@@ -282,8 +282,14 @@
     <app-sign-in-gate />
   } @else if (ready()) {
     <router-outlet />
+  } @else {
+    <div class="boot" role="status" aria-label="Starting"><img src="logo/UKMAC_Logo.webp" alt="" /><span class="boot-bar"></span></div>
   }
 </main>
+<!-- A thin bar along the top while the app is working: opening a MAC, reading a sheet, saving. -->
+@if (working()) {
+  <div class="top-progress" role="progressbar" aria-label="Working"></div>
+}
 
 <div class="toasts" aria-live="polite">
   @for (toast of toasts.items(); track toast.id) {

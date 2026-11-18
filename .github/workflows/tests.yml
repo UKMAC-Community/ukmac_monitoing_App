@@ -1,5 +1,6 @@
-# Runs the tests on every branch except main, and on pull requests. It builds and releases nothing: a push to main is
-# the only thing that releases (see release.yml), and that one runs the same Angular tests first.
+# Runs the tests on every branch except main, and on pull requests, on the computers the app is used on: Mac and
+# Windows (and Linux, for the pages alone). It builds and releases nothing: a push to main is the only thing that
+# releases (see release.yml), and that one runs the same Angular tests first.
 name: Tests
 
 on:
@@ -17,7 +18,12 @@ permissions:
 
 jobs:
   angular:
-    runs-on: ubuntu-latest
+    name: Pages (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,7 +34,12 @@ jobs:
       - run: npx ng test --watch=false
 
   rust:
-    runs-on: macos-latest
+    name: Database and Google (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

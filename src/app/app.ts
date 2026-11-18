@@ -247,6 +247,8 @@ export class App implements OnInit {
   readonly progress = signal<{ done: number; total: number } | null>(null);
   /** Whether Sync (all) is reading now (a table's own read counts too, so the button doesn't offer a second one). */
   readonly syncingAll = computed(() => this.progress() !== null || this.google.syncing().size > 0);
+  /** Something is being opened, read or saved: the bar along the top runs. */
+  readonly working = computed(() => !this.ready() || this.store.loading() || this.store.saving() > 0 || this.syncingAll());
 
   /**
    * Reads every table linked to a Google Sheet (each sheet downloaded once). A table open in Open in sheet is left out:

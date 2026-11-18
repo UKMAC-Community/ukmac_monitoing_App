@@ -94,7 +94,7 @@ export interface PlotCard {
   template: `
     <div class="m3-map" [class.m3-in]="shown()" #box role="img" aria-label="Satellite view of the plots"></div>
     @if (!shown()) {
-      <span class="m3-wait" aria-hidden="true"><span class="spinner-sm"></span></span>
+      <span class="m3-wait" role="status"><span class="m3-wait-pill"><span class="spinner-sm"></span> Loading the map…</span></span>
     }
     @if (groups().length) {
       @if (keyShown()) {
@@ -194,7 +194,8 @@ export interface PlotCard {
     .m3-map { position: absolute; inset: 0; background: #1c1c1e; opacity: 0; transition: opacity 0.45s ease; }
     .m3-map.m3-in { opacity: 1; }
     .m3-wait { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: none; }
-    .m3-wait .spinner-sm { width: 22px; height: 22px; border-color: rgba(255, 255, 255, 0.25); border-top-color: #fff; }
+    .m3-wait-pill { display: inline-flex; align-items: center; gap: 9px; padding: 8px 14px; border-radius: 999px; background: rgba(15, 23, 42, 0.62); color: #fff; font-size: 12.5px; font-weight: 500; backdrop-filter: blur(6px); }
+    .m3-wait .spinner-sm { width: 16px; height: 16px; border-color: rgba(255, 255, 255, 0.25); border-top-color: #fff; }
     .m3-map .maplibregl-ctrl-attrib { font-size: 10px; }
     /* A panel the page lays down the map's left side (cover): the credit, the zone key and the plots keep clear of it. */
     .m3-map .maplibregl-ctrl-top-left { left: var(--m3-cover, 0px); }
