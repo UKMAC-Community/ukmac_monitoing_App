@@ -60,10 +60,38 @@ describe('SheetTable: boxes and groups that fold', () => {
     const { el, heads } = show(true);
     expect(heads().length).toBe(6); // c1, c2, c3, c4 (Stage 1 open), c5, c7
     expect(el.querySelectorAll('tr.boxes:first-of-type th.box.is-folded').length).toBe(2);
-    // The hairline begins each stage (not the first column, which belongs to none).
+    // A line begins each stage after the first: the first starts right after the frozen Date, whose own line is there.
     const edges = [...el.querySelectorAll('thead tr:last-child th.edge')].map((th) => th.textContent?.trim());
-    expect(edges).toEqual(['Leaf', 'Leaf', 'Leaf']);
-    expect(el.querySelectorAll('tbody tr:first-child td.edge').length).toBe(3);
+    expect(edges).toEqual(['Leaf', 'Leaf']);
+    expect(el.querySelectorAll('tbody tr:first-child td.edge').length).toBe(2);
+    expect(el.querySelector('thead tr:last-child th.pin-last')?.textContent?.trim()).toBe('Date');
+  });
+
+  it('freezes the row\'s own columns on the left, closes each group with a line, and keeps the dates quiet', () => {
+    const { el } = show();
+    // Date belongs to no stage: frozen, with the blank header cells over it.
+    expect([...el.querySelectorAll('thead tr:last-child th.pin')].map((th) => th.textContent?.trim())).toEqual(['Date']);
+    expect(el.querySelectorAll('tbody tr:first-child td.pin').length).toBe(1);
+    expect(el.querySelectorAll('tr.boxes th.pin').length).toBe(2);
+    // Stage 1's Seedling group ends at its Vigor (a line after it); a group that runs into the next stage leaves that to the stage's line.
+    expect([...el.querySelectorAll('thead tr:last-child th.end')].map((th) => th.getAttribute('data-col'))).toEqual(['c3']);
+    expect([...el.querySelectorAll('tr.boxes:nth-of-type(2) th.group.end')].map((th) => th.textContent?.trim())).toEqual(['Seedling']);
+    // The readings centred under their stage.
+    expect(el.querySelectorAll('tbody tr:first-child td.mid').length).toBe(7);
+  });
+
+  it('stripes a wide table\'s rows (12 columns or more), not a narrow one', () => {
+    expect(show().el.querySelector('table.is-zebra')).toBeNull();
+    const wide = makeSheet(45, 'Wide', Array.from({ length: 12 }, (_, at) => col(`w${at}`, `W${at}`)), [{ w0: '1' }]);
+    const fixture = TestBed.createComponent(SheetTable);
+    fixture.componentRef.setInput('sheet', wide);
+    fixture.componentRef.setInput('rows', wide.rows);
+    fixture.componentRef.setInput('formulas', new WorkbookFormulas([wide], '2026-11-18'));
+    fixture.detectChanges();
+    const table = (fixture.nativeElement as HTMLElement).querySelector('table')!;
+    expect(table.classList).toContain('is-zebra');
+    // A table with no stages or groups freezes nothing.
+    expect(table.querySelectorAll('.pin').length).toBe(0);
   });
 
   it('keeps what a person opened, so it is not folded again', () => {

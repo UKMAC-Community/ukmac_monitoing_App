@@ -165,11 +165,14 @@ describe('connecting a MAC to one Google Sheet', () => {
       expect(defaultTab(makeSheet(1, 'Zones', [], [], 'zones'), tabs, null, 's')).toBeNull();
     });
 
-    it('pairs Fertilizer, Fungicide and Pruning with the farm sheet\'s tabs of those names; Fertigation and Pesticides find none', () => {
+    it("pairs Fertigation with the farm sheet's Fertilizer tab, Pesticides with its Fungicide tab, Pruning with Pruning", () => {
       const farm = ['Zone_Map', 'Pruning', 'Fertilizer', 'Fungicide', 'Zone_Map_Data', 'Plant Progress', 'Harvest'].map((name) => ({ name }));
-      const tab = (title: string, key: string) => defaultTab(makeSheet(7, title, [], [], key), farm, null, 's');
-      expect([tab('Fertilizer', 'fertilizer'), tab('Fungicide', 'fungicide'), tab('Pruning', 'pruning')]).toEqual(['Fertilizer', 'Fungicide', 'Pruning']);
-      expect([tab('Fertigation', 'fertigation'), tab('Pesticides', 'pesticides')]).toEqual([null, null]);
+      const tab = (title: string, key: string, tabs = farm) => defaultTab(makeSheet(7, title, [], [], key), tabs, null, 's');
+      expect([tab('Fertigation', 'fertigation'), tab('Pesticides', 'pesticides'), tab('Pruning', 'pruning')]).toEqual(['Fertilizer', 'Fungicide', 'Pruning']);
+      // A tab by the table's own name still comes first.
+      expect(tab('Pesticides', 'pesticides', [...farm, { name: 'Pesticides' }])).toBe('Pesticides');
+      // Only by the template: a table of another kind named so finds nothing.
+      expect(tab('Sprays', 'irrigation')).toBeNull();
     });
   });
 

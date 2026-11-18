@@ -113,6 +113,12 @@ export function parseLinkSource(source: string | undefined | null): { table: str
   return bare ? { table: bare[1], column: bare[2].trim() } : null;
 }
 
+/** Whether a column picks one of the Zones' plots ('Zones'[Plot]): its rows belong to plots, which have zone numbers. */
+export function isPlotColumn(column: Column) {
+  const source = column.type === 'link' ? parseLinkSource(column.source) : null;
+  return !!source && source.table.trim().toLowerCase() === 'zones' && source.column.trim().toLowerCase() === 'plot';
+}
+
 export function linkSourceText(table: string, column: string) {
   return `'${table.replace(/'/g, "''")}'[${column}]`;
 }

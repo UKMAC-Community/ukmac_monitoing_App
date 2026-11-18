@@ -43,7 +43,7 @@ fn a_chili_mac_gets_its_tables_with_keys() {
     }
     tx.commit().unwrap();
     let sheets = load_sheets(&conn, mac_id).unwrap();
-    assert_eq!(sheets.len(), 17);
+    assert_eq!(sheets.len(), 15);
     let qc = sheets
         .iter()
         .find(|s| s.title == "QA/QC Management")

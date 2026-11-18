@@ -36,10 +36,17 @@ export function looseName(name: string): string {
   return name.toLowerCase().replace(/[\s_\-/\\.,:;()[\]{}'"’]+/g, '');
 }
 
+/** The farm sheet's own names for the tabs some tables read: Fertigation is its Fertilizer tab, Pesticides its Fungicide tab. */
+const FARM_TABS: Readonly<Record<string, readonly string[]>> = {
+  fertigation: ['Fertilizer'],
+  pesticides: ['Fungicide'],
+};
+
 /**
  * The tab a table is connected to unless the person picks another: the tab it reads now, when it reads this sheet;
- * none when it reads another sheet (its link stays as it is); else the tab that goes by its name. Zones never gets
- * one by itself: it holds the map's plot outlines, and a read would replace them by the tab's rows.
+ * none when it reads another sheet (its link stays as it is); else the tab that goes by its name, or by the name the
+ * farm's sheet gives it (Fertigation's Fertilizer tab). Zones never gets one by itself: it holds the map's plot
+ * outlines, and a read would replace them by the tab's rows.
  */
 export function defaultTab(
   table: { title: string; templateKey?: string | null },
@@ -50,7 +57,8 @@ export function defaultTab(
   const find = (name: string) => tabs.find((tab) => tab.name === name) ?? tabs.find((tab) => looseName(tab.name) === looseName(name));
   if (link) return link.spreadsheetId === spreadsheetId ? (find(link.tabTitle)?.name ?? null) : null;
   if (table.templateKey === 'zones') return null;
-  return (find(tabNameOf(table)) ?? find(table.title))?.name ?? null;
+  const farm = (FARM_TABS[table.templateKey ?? ''] ?? []).map(find).find(Boolean);
+  return (find(tabNameOf(table)) ?? find(table.title) ?? farm)?.name ?? null;
 }
 
 /** Whether a link would change: another sheet or tab, other matches, or another layout. */

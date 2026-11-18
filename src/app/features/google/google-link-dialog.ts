@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { errorText } from '@core/api';
-import { Google, sheetUrl, type OpenedSheet } from '@core/google/google';
+import { Google, type OpenedSheet } from '@core/google/google';
 import type { SheetWithRows } from '@core/models';
 import { Toasts } from '@core/toast';
 import { headerMapOf, matchHeaders } from '@core/google/sheet-sync';
@@ -9,109 +10,80 @@ import { isEntryColumn } from '@shared/sheet/columns';
 import { GoogleSignIn } from '@core/layout/google-sign-in';
 import { Icon } from '@shared/ui/icon';
 import { Modal } from '@shared/ui/modal';
+import { spreadsheetOf, tabNamed } from './link-target';
 
 /**
- * Edits where a table is read from: paste another Google Sheet's link (or fix a broken one), then pick
- * its tab. A table that isn't read from Google yet gets its first link here (Zone Map's Zones). Saving only moves the link: the rows stay as they are until Sync (or "Save & sync") reads
- * the tab. The columns the link has matched keep filling from the same headers.
+ * Which tab of the MAC's Google Sheet a table reads: the person types the tab's name, and the tab with that name
+ * (capitals and spaces aside) is found in the Google Sheet the table, or else its MAC, already reads. No link
+ * to paste again. Saving only moves the link: the rows stay as they are until Sync (or "Save & sync") reads the
+ * tab. The columns the link has matched keep filling from the same headers.
  */
 @Component({
   selector: 'app-google-link-dialog',
-  imports: [Modal, Icon, GoogleSignIn],
+  imports: [Modal, Icon, GoogleSignIn, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-modal [open]="open()" title="Google Sheet link" [subtitle]="sheet().title" size="wide" (closed)="closed.emit()">
-      @if (link(); as current) {
-        <div class="now">
-          <span class="file-icon"><app-icon name="table" [size]="18" /></span>
-          <div class="now-text">
-            <small class="muted">Now reading from</small>
-            <strong>{{ current.spreadsheetTitle }} › {{ current.tabTitle }}</strong>
-            <small class="muted">{{ current.lastSyncedAt ? current.lastRowCount + ' rows · read ' + google.ago(current.lastSyncedAt) : 'Not read yet' }}</small>
-          </div>
+    <app-modal [open]="open()" title="Google Sheet tab" [subtitle]="sheet().title" (closed)="closed.emit()">
+      @if (!google.signedIn()) {
+        <div class="center">
+          <p class="muted">Sign in to Google to look at the sheet and change the tab. The app only reads: it never changes anything in Google.</p>
+          <app-google-sign-in />
         </div>
+      } @else if (!target()) {
+        <div class="center">
+          <p class="muted">This MAC isn't read from a Google Sheet yet. Connect it once; after that a table only needs its tab's name.</p>
+          <a class="btn btn-secondary btn-sm" [routerLink]="['/mac', sheet().macId, 'google']" (click)="closed.emit()"><app-icon name="table" /> Connect Google Sheet</a>
+        </div>
+      } @else {
+        <form (submit)="$event.preventDefault(); save(canSync())">
+          <label class="form-group">
+            <span class="form-label">Tab name</span>
+            <input
+              class="input-field"
+              type="text"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="The tab's name, as at the bottom of the Google Sheet"
+              [attr.list]="listId()"
+              [value]="typed()"
+              (input)="typed.set($any($event.target).value)"
+            />
+            <datalist [id]="listId()">
+              @for (tab of opened()?.tabs ?? []; track tab.name) {
+                <option [value]="tab.name"></option>
+              }
+            </datalist>
+            <small class="form-hint">A tab of <strong>{{ opened()?.file?.name ?? target()!.spreadsheetTitle }}</strong>, the Google Sheet this MAC reads.</small>
+          </label>
+        </form>
 
-        @if (google.signedIn()) {
-          <div class="redo">
-            <button type="button" class="btn btn-secondary btn-sm" [disabled]="saving()" (click)="redefine.emit()">
-              <app-icon name="refresh" /> Define the rows and columns again…
-            </button>
-            <small class="muted">A row of names showing up as data, or columns read from the wrong row? Say where the column names and the data start, check the matches, and read the tab again.</small>
-          </div>
-        }
-      }
-
-        @if (!google.signedIn()) {
-          <div class="center">
-            <p class="muted">Sign in to Google to look at the sheet and change the link. The app only reads: it never changes anything in Google.</p>
-            <app-google-sign-in />
-          </div>
-        } @else {
-          <form class="paste" (submit)="$event.preventDefault(); read()">
-            <label class="form-group">
-              <span class="form-label">Link of the Google Sheet</span>
-              <span class="paste-row">
-                <input
-                  class="input-field"
-                  type="text"
-                  spellcheck="false"
-                  placeholder="https://docs.google.com/spreadsheets/d/…"
-                  [value]="address()"
-                  (input)="address.set($any($event.target).value)"
-                />
-                <button type="submit" class="btn btn-secondary" [disabled]="!address().trim() || reading()">{{ reading() ? 'Reading…' : 'Read' }}</button>
-              </span>
-              <small class="form-hint">{{ link() ? "Paste another sheet's link to read that one instead, then press Read to see its tabs." : 'Paste the link of the Google Sheet, then press Read to see its tabs.' }}</small>
-            </label>
-          </form>
-
+        <div class="status" aria-live="polite">
           @if (readError()) {
             <div class="alert-box error"><app-icon name="alert" /> {{ readError() }}</div>
-          }
-          @if (reading() && !opened()) {
-            <p class="muted small">Reading the Google Sheet…</p>
-          }
-
-          @if (opened(); as file) {
-            <div class="file-head">
-              <strong>{{ file.file.name }}</strong>
-              <small class="muted">{{ file.tabs.length }} tab{{ file.tabs.length === 1 ? '' : 's' }} with data</small>
-            </div>
-            <ul class="tabs" role="radiogroup" aria-label="Tabs">
-              @for (tab of file.tabs; track tab.name) {
-                <li class="tab" [class.off]="pickedTab() !== tab.name" [class.disabled]="!tab.rows.length">
-                  <label class="check-label">
-                    <input type="radio" name="link-tab" [checked]="pickedTab() === tab.name" [disabled]="!tab.rows.length" (change)="pickedTab.set(tab.name)" />
-                    <span class="tab-name">{{ tab.name }}</span>
-                    @if (isCurrent(file, tab.name)) {
-                      <span class="badge info">Current</span>
-                    }
-                  </label>
-                  <span class="tab-meta muted">{{ tab.rows.length }}{{ tab.truncated ? '+' : '' }} row{{ tab.rows.length === 1 ? '' : 's' }} · {{ tab.headers.length }} column{{ tab.headers.length === 1 ? '' : 's' }}</span>
-                  @if (!tab.rows.length) {
-                    <span class="note muted">No rows under its headers</span>
-                  } @else {
-                    <span class="note" [class.bad]="!matches(tab)">
-                      <app-icon [name]="matches(tab) ? 'check' : 'alert'" [size]="13" />
-                      {{ matches(tab) }} of {{ entryCount() }} of this table's columns found in it
-                    </span>
-                  }
-                </li>
+          } @else if (!opened()) {
+            <p class="say muted"><span class="spinner-sm"></span> Looking at the Google Sheet's tabs…</p>
+          } @else if (typed().trim()) {
+            @if (found(); as tab) {
+              @if (!tab.rows.length) {
+                <p class="say bad"><app-icon name="alert" [size]="14" /> The tab {{ tab.name }} has no rows under its headers.</p>
+              } @else {
+                <p class="say" [class.ok]="matches(tab)" [class.warn]="!matches(tab)">
+                  <app-icon [name]="matches(tab) ? 'check' : 'alert'" [size]="14" />
+                  <span>
+                    <strong>{{ tab.name }}</strong> · {{ tab.rows.length }}{{ tab.truncated ? '+' : '' }} row{{ tab.rows.length === 1 ? '' : 's' }} ·
+                    {{ matches(tab) }} of {{ entryCount() }} of this table's columns in it{{ changed() ? '' : ' · the tab it reads now' }}
+                  </span>
+                </p>
               }
-            </ul>
-            @if (!changed()) {
-              <p class="small muted">This is the sheet and tab the table is reading now.</p>
-            } @else if (link()) {
-              <p class="small muted">
-                Saving only moves the link: the rows stay as they are until you press <strong>Sync</strong>. A header the table has no column for is added as a new column when it is read.
-              </p>
             } @else {
-              <p class="small muted">
-                Saving links the table to this tab. <strong>Save &amp; sync</strong> also reads it now: the table's rows are replaced by the tab's, and a header the table has no column for is added as a new column.
+              <p class="say bad">
+                <app-icon name="alert" [size]="14" />
+                <span>No tab called “{{ typed().trim() }}”. Its tabs: {{ tabNames() }}.</span>
               </p>
             }
           }
-        }
+        </div>
+      }
 
       <ng-container footer>
         @if (link()) {
@@ -119,44 +91,36 @@ import { Modal } from '@shared/ui/modal';
         }
         <span class="grow"></span>
         <button type="button" class="btn btn-secondary" (click)="closed.emit()">Cancel</button>
-        <button type="button" class="btn btn-secondary" [disabled]="!changed() || saving()" (click)="save(false)">Save link</button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          [disabled]="!changed() || saving() || !canSync()"
-          [title]="canSync() ? 'Save, then read the tab now: the table\\'s rows are replaced by the tab\\'s' : 'Go back to the table to sync'"
-          (click)="save(true)"
-        >
-          <app-icon name="refresh" /> Save &amp; sync
-        </button>
+        @if (target()) {
+          <button type="button" class="btn btn-secondary" [disabled]="!changed() || saving()" (click)="save(false)">Save link</button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="!changed() || saving() || !canSync()"
+            [title]="canSync() ? 'Save, then read the tab now: the table\\'s rows are replaced by the tab\\'s' : 'Go back to the table to sync'"
+            (click)="save(true)"
+          >
+            <app-icon name="refresh" /> Save &amp; sync
+          </button>
+        }
       </ng-container>
     </app-modal>
   `,
   styles: `
     .grow { flex: 1; }
     .danger-text { color: var(--danger); }
-    .now { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 10px 12px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid); }
-    .now-text { display: flex; flex-direction: column; min-width: 0; }
-    .now-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-    .file-icon { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; }
     small { font-size: 0.75rem; }
-    .redo { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: -4px 0 16px; }
     .center { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
     .center p { margin: 0; font-size: 0.8125rem; }
-    .paste .form-group { margin: 0 0 12px; }
-    .paste-row { display: flex; gap: 8px; }
-    .paste-row .input-field { flex: 1; }
-    .file-head { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 8px; }
-    .tabs { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow: auto; }
-    .tab { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 10px 12px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid); }
-    .tab:not(.off) { border-color: var(--accent); }
-    .tab.disabled { opacity: 0.75; }
-    .tab > :not(.check-label):not(.tab-meta) { grid-column: 1 / -1; }
-    .tab-name { font-weight: 600; }
-    .tab-meta { font-size: 0.75rem; white-space: nowrap; }
-    .note { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-muted); }
-    .note.bad { color: var(--danger); }
-    .small { font-size: 0.75rem; margin: 0; line-height: 1.5; }
+    form .form-group { margin: 0; }
+    .status { min-height: 1.5rem; margin-top: 12px; }
+    .status .alert-box { margin: 0; }
+    .say { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 0.8125rem; line-height: 1.45; }
+    .say app-icon { flex: none; margin-top: 2px; }
+    .say.ok { color: var(--success); }
+    .say.ok strong, .say.warn strong { color: var(--text); }
+    .say.warn { color: var(--warning); }
+    .say.bad { color: var(--danger); }
   `,
 })
 export class GoogleLinkDialog {
@@ -168,89 +132,67 @@ export class GoogleLinkDialog {
   /** False in the spreadsheet view, where a read would race the sheet's autosave. */
   readonly canSync = input(true);
   readonly closed = output<void>();
-  /** The person wants to say again where the tab's names and data are (the import's first step, on this table). */
-  readonly redefine = output<void>();
 
   readonly link = computed(() => this.google.linkOf(this.sheet().sheetId));
-  /** What is in the link field (a sheet's address, or just its id). */
-  readonly address = signal('');
+  /** The Google Sheet the tab is looked for in: the table's own, else its MAC's. */
+  readonly target = computed(() => spreadsheetOf(this.google.links(), this.sheet().sheetId, this.sheet().macId));
+  private readonly targetId = computed(() => this.target()?.spreadsheetId ?? null);
+  readonly listId = computed(() => `google-tabs-${this.sheet().sheetId}`);
+  /** The tab's name as typed. */
+  readonly typed = signal('');
   readonly reading = signal(false);
   readonly readError = signal('');
   readonly opened = signal<OpenedSheet | null>(null);
-  readonly pickedTab = signal('');
   readonly saving = signal(false);
   readonly entryCount = computed(() => this.sheet().columns.filter(isEntryColumn).length);
-  /** The sheet and tab picked are not what the table reads now. */
+  /** The tab the typed name means. */
+  readonly found = computed(() => tabNamed(this.opened()?.tabs ?? [], this.typed()));
+  readonly tabNames = computed(() => (this.opened()?.tabs ?? []).map((tab) => tab.name).join(', '));
+  /** A tab with rows is found, and it isn't what the table reads now. */
   readonly changed = computed(() => {
     const link = this.link();
     const opened = this.opened();
-    const tab = this.pickedTab();
-    return !!opened && !!tab && (!link || opened.file.id !== link.spreadsheetId || tab !== link.tabTitle);
+    const tab = this.found();
+    return !!opened && !!tab && tab.rows.length > 0 && (!link || opened.file.id !== link.spreadsheetId || tab.name !== link.tabTitle);
   });
 
-  /** Each read has a number, so an answer for an address typed over since is dropped. */
+  /** Each read has a number, so an answer for a sheet no longer asked about is dropped. */
   private reads = 0;
 
   constructor() {
-    // Each time it opens: back to the link in use (and make sure what's known of the sign-in is current).
+    // Each time it opens: the name of the tab in use (and make sure what's known of the sign-in is current).
     effect(() => {
       if (!this.open()) return;
       untracked(() => {
         this.reads += 1;
         this.opened.set(null);
-        this.pickedTab.set('');
         this.readError.set('');
         this.reading.set(false);
-        const link = this.link();
-        this.address.set(link ? sheetUrl(link.spreadsheetId) : '');
+        this.typed.set(this.link()?.tabTitle ?? '');
         void this.google.init().then(() => this.google.refreshStatus());
       });
     });
-    // Signed in (already, or right here): the sheet in use is read, so its tabs are there to choose from.
+    // Signed in (already, or right here): the Google Sheet is read, so a typed name can be found among its tabs.
     effect(() => {
-      if (this.open() && this.google.signedIn() && this.link()) untracked(() => void this.read());
+      const id = this.targetId();
+      if (this.open() && this.google.signedIn() && id) untracked(() => void this.read(id));
     });
   }
 
-  async read() {
-    const text = this.address().trim();
-    if (!text || this.reading()) return;
+  private async read(spreadsheetId: string) {
     const mine = ++this.reads;
     this.reading.set(true);
     this.readError.set('');
     try {
-      const opened = await this.google.open(text);
-      if (mine !== this.reads) return;
-      this.opened.set(opened);
-      this.pickedTab.set(this.firstTab(opened));
+      const opened = await this.google.open(spreadsheetId);
+      if (mine === this.reads) this.opened.set(opened);
     } catch (error) {
       if (mine !== this.reads) return;
       this.opened.set(null);
-      this.pickedTab.set('');
       this.readError.set(errorText(error));
     } finally {
       if (mine === this.reads) this.reading.set(false);
     }
-  }
-
-  /** The table's own tab when this is its sheet, else the tab that names most of the table's columns. */
-  private firstTab(opened: OpenedSheet): string {
-    const link = this.link();
-    if (link && opened.file.id === link.spreadsheetId) {
-      const mine = opened.tabs.find((tab) => tab.name === link.tabTitle && tab.rows.length);
-      if (mine) return mine.name;
-    }
-    let best = { name: '', found: -1 };
-    for (const tab of opened.tabs) {
-      const found = tab.rows.length ? this.matches(tab) : -1;
-      if (found > best.found) best = { name: tab.name, found };
-    }
-    return best.name;
-  }
-
-  isCurrent(opened: OpenedSheet, tab: string) {
-    const link = this.link();
-    return !!link && opened.file.id === link.spreadsheetId && tab === link.tabTitle;
   }
 
   /** How many of the table's columns a tab's headers name, as the link reads them (what it remembers, then names). */
@@ -260,7 +202,7 @@ export class GoogleLinkDialog {
 
   async save(syncAfter: boolean) {
     const opened = this.opened();
-    const tab = this.pickedTab();
+    const tab = this.found()?.name;
     if (!opened || !tab || !this.changed() || this.saving()) return;
     const sheetId = this.sheet().sheetId;
     this.saving.set(true);

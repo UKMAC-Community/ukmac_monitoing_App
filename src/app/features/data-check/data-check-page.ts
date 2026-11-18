@@ -4,11 +4,12 @@ import { RouterLink } from '@angular/router';
 import { Icon } from '@shared/ui/icon';
 import { WorkbookStore } from '@core/workbook-store';
 import { DataGaps } from '@features/dashboard/data-gaps-panel';
+import { QaQcCheck } from './qa-qc-check-panel';
 
-/** Data Check: for each table of the MAC, which columns have nothing entered (and which are only partly filled). */
+/** Data Check: for each table of the MAC, which columns have nothing entered (and which are only partly filled); under it, the QA/QC Check. */
 @Component({
   selector: 'app-data-check-page',
-  imports: [RouterLink, Icon, DataGaps],
+  imports: [RouterLink, Icon, DataGaps, QaQcCheck],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.mac(); as mac) {
@@ -21,6 +22,7 @@ import { DataGaps } from '@features/dashboard/data-gaps-panel';
           </div>
         </header>
         <app-data-gaps [sheets]="store.sheets()" />
+        <app-qa-qc-check [sheets]="store.sheets()" />
       </div>
     }
   `,

@@ -254,8 +254,11 @@ export interface GoogleLinkInput {
 /** How a KPI reduces its column, as Power BI's card does. `list`: a summary table's own — the distinct values, written out (A-01, A-02…). */
 export type KpiAggregate = 'count' | 'count_values' | 'distinct' | 'sum' | 'average' | 'min' | 'max' | 'list';
 export type KpiVisual = 'card' | 'column' | 'stacked' | 'bar' | 'line' | 'area' | 'waterfall' | 'pie' | 'donut' | 'treemap' | 'funnel' | 'radar' | 'gauge' | 'lollipop' | 'dot' | 'pareto' | 'polar';
-/** A chart's or summary's groups: the group column's values, or its dates' months or years. */
-export type GroupPart = 'value' | 'month' | 'year';
+/**
+ * A chart's or summary's groups: the group column's values, or its dates' months or years; `zone`: a plot column's
+ * plots by the zone number each has in the table they come from (Zones), for a table with no Zone number column of its own.
+ */
+export type GroupPart = 'value' | 'month' | 'year' | 'zone';
 
 export interface Kpi {
   id: string;

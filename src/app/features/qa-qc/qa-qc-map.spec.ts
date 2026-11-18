@@ -245,4 +245,64 @@ describe('QaQcMap: the analysis as layers stacked on each plot, in 3D', () => {
     expect(shortName('Seedling Leaf (%)')).toBe('Seedling Leaf');
     expect(shortName('Stage 3')).toBe('Stage 3');
   });
+
+  describe('seen by check', () => {
+    afterEach(() => localStorage.removeItem('ukmac.qa-qc-map.view'));
+
+    it('colours every plot of the farm for the one thing picked, grey with no reading, the zones named as on the MAC map', () => {
+      const map = make();
+      map.setView('checks');
+      expect(map.view()).toBe('checks');
+      map.choose(checkKey('Stage 1 (0 DAT)', LEAF_CHECK));
+      const shape = (plot: string) => map.checkShapes().find((item) => item.label === plot)!;
+      expect(shape('A1').fill).toBe(GREEN);
+      expect(shape('A2').fill).toBe(RED);
+      // B1 has no QC record: drawn, grey.
+      expect(shape('B1').fill).toBe(STATUS_COLOURS.NONE.fill);
+      // One colour each: no stacks, no badges; the zone's name and colour are kept for the pills.
+      expect(map.checkShapes().some((item) => item.stack || item.badge)).toBe(false);
+      expect(shape('A1').group).toBe('Zone A · 1');
+      expect(shape('A2').hint).toMatch(/^Seedling Leaf \(%\): Red/);
+      // Only the zones' plots, as the MAC's map shows them: the pond is left off.
+      expect(map.checkShapes().map((item) => item.label)).toEqual(['A1', 'A2', 'B1']);
+    });
+
+    it('lists the overall, each stage and its checks, counted from the same plots the map colours', () => {
+      const map = make();
+      const list = map.checkList();
+      expect(list.plots).toBe(3);
+      // A1's worst is yellow, A2's red, B1 has no reading.
+      expect(list.overall.tally).toEqual({ GREEN: 0, YELLOW: 1, RED: 1, NONE: 1, plots: 3 });
+      const stage1 = list.stages.find((stage) => stage.key === stageKey('Stage 1 (0 DAT)'))!;
+      expect(stage1).toMatchObject({ label: 'Transplant', sub: 'Stage 1 · 0 DAT' });
+      const leaf = stage1.checks.find((check) => check.key === checkKey('Stage 1 (0 DAT)', LEAF_CHECK))!;
+      expect(leaf.tally).toEqual({ GREEN: 1, YELLOW: 0, RED: 1, NONE: 1, plots: 3 });
+      expect(leaf.title).toContain('1 green, 1 red and 1 with no reading, of 3 plots');
+      // The list and the map agree: as many red plots on the map as the row says.
+      map.choose(leaf.key);
+      expect(map.checkShapes().filter((item) => item.fill === RED)).toHaveLength(leaf.tally.RED);
+    });
+
+    it('puts a card over the plot picked: what the pick says there and where it is', () => {
+      const map = make();
+      map.setView('checks');
+      map.choose(checkKey('Stage 1 (0 DAT)', LEAF_CHECK));
+      map.pickedPlot.set(idOf(map, 'A2'));
+      expect(map.checkCard()).toMatchObject({ title: 'A2', color: RED });
+      expect(map.checkCard()!.lines[0]).toBe('Seedling Leaf (%): Red');
+      expect(map.checkCard()!.lines).toContain('Zone A · 1');
+      // Back to towers: the plot is let go.
+      map.setView('towers');
+      expect(map.pickedPlot()).toBeNull();
+    });
+
+    it("folds a stage's checks away in the list and opens them again", () => {
+      const map = make();
+      const key = stageKey('Stage 1 (0 DAT)');
+      map.fold(key);
+      expect(map.folded().has(key)).toBe(true);
+      map.fold(key);
+      expect(map.folded().has(key)).toBe(false);
+    });
+  });
 });

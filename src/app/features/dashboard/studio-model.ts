@@ -187,10 +187,10 @@ export function boardOf(visuals: readonly StudioVisual[]): Dashboard {
           decimals: visual.decimals,
           ...(visual.type === 'stacked' && visual.values.length > 1 ? { more: visual.values.slice(1) } : {}),
           // The switch stays while the chart still groups as its first view does; grouped another way by hand, it goes.
-          // It stays a timeline while it is a column chart of the same dates.
+          // It stays a timeline while it is a column (or stacked column) chart of the same dates.
           ...(visual.wide ? { wide: true } : {}),
           ...(visual.total ? { total: visual.total } : {}),
-          ...(visual.timeline && visual.type === 'column' && visual.part === 'value' ? { timeline: true } : {}),
+          ...(visual.timeline && (visual.type === 'column' || visual.type === 'stacked') && visual.part === 'value' ? { timeline: true } : {}),
           ...(visual.views?.length && visual.views[0].groupBy === visual.axis && visual.views[0].groupPart === visual.part ? { views: visual.views } : {}),
         };
       }),
@@ -214,7 +214,7 @@ export function blankVisual(type: StudioType): StudioVisual {
 /** A title worked out from the fields, as Power BI names a visual: "Sum of Total number by Plant type". */
 export function autoTitle(visual: StudioVisual, fields: readonly StudioField[]): string {
   const axis = fields.find((field) => field.key === visual.axis)?.name ?? '';
-  const by = axis ? `${axis}${visual.part === 'month' ? ' (month)' : visual.part === 'year' ? ' (year)' : ''}` : '';
+  const by = !axis ? '' : visual.part === 'zone' ? 'Zone number' : `${axis}${visual.part === 'month' ? ' (month)' : visual.part === 'year' ? ' (year)' : ''}`;
   const value = visual.values[0] ? chipLabel(visual.values[0], fields) : '';
   if (visual.type === 'card' || visual.type === 'gauge') return value || (visual.type === 'gauge' ? 'Gauge' : 'Card');
   if (visual.type === 'table') return by ? `By ${by}` : 'Table';

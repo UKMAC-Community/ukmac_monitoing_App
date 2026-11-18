@@ -90,7 +90,7 @@ export interface PlotCard {
   imports: [Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  host: { '[class.m3-expanded]': 'expanded()', '(document:keydown.escape)': 'expanded.set(false)', '(document:keydown)': 'stopTour()' },
+  host: { '[class.m3-expanded]': 'expanded()', '[style.--m3-cover]': "cover() + 'px'", '[class.m3-covered]': 'cover() > 0', '(document:keydown.escape)': 'expanded.set(false)', '(document:keydown)': 'stopTour()' },
   template: `
     <div class="m3-map" [class.m3-in]="shown()" #box role="img" aria-label="Satellite view of the plots"></div>
     @if (!shown()) {
@@ -196,10 +196,16 @@ export interface PlotCard {
     .m3-wait { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: none; }
     .m3-wait .spinner-sm { width: 22px; height: 22px; border-color: rgba(255, 255, 255, 0.25); border-top-color: #fff; }
     .m3-map .maplibregl-ctrl-attrib { font-size: 10px; }
+    /* A panel the page lays down the map's left side (cover): the credit, the zone key and the plots keep clear of it. */
+    .m3-map .maplibregl-ctrl-top-left { left: var(--m3-cover, 0px); }
+    /* The credit's (i) sits level with the buttons along the top (a page's own button goes right of it); opened, it lies over them. */
+    .m3-map .maplibregl-ctrl-top-left .maplibregl-ctrl-attrib.maplibregl-compact { margin: 16px 0 0 12px; }
+    .m3-map .maplibregl-ctrl-top-left:has(.maplibregl-compact-show) { z-index: 6; }
     .m3-view, .m3-tools { position: absolute; z-index: 5; display: inline-flex; align-items: center; gap: 2px; padding: 3px; background: var(--surface-solid); border: var(--hairline) solid var(--border); border-radius: 999px; box-shadow: var(--shadow-card); }
     .m3-view { top: 12px; right: 12px; }
     /* The top's right: the plots switch (a white pill like the camera bar, the pick in the accent) and the camera bar next to it. */
-    .m3-top { position: absolute; top: 12px; right: 12px; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; max-width: calc(100% - 24px); }
+    /* Clear of a list over the map's left (cover): narrower than both, it wraps onto a second line instead of going under it. */
+    .m3-top { position: absolute; top: 12px; right: 12px; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; max-width: calc(100% - 24px - var(--m3-cover, 0px)); }
     .m3-top > .m3-view { position: static; }
     .m3-filter small { margin-left: 4px; font-size: 0.6875rem; font-weight: 500; opacity: 0.7; }
     /* Along the foot's right; the legend sits on the same line (same foot, same height) and keeps clear of it. */
@@ -209,7 +215,7 @@ export interface PlotCard {
     .m3-view button.on { background: var(--accent); color: #fff; }
     .m3-view button:disabled { opacity: 0.45; cursor: default; }
     .m3-view button.m3-icon, .m3-tools button.m3-icon { padding: 5px 8px; }
-    .m3-legend { position: absolute; left: 12px; bottom: 16px; z-index: 5; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px; overflow-x: auto; scrollbar-width: none; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; width: fit-content; max-width: calc(100% - 12px - 250px); }
+    .m3-legend { position: absolute; left: calc(12px + var(--m3-cover, 0px)); bottom: 16px; z-index: 5; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px; overflow-x: auto; scrollbar-width: none; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; width: fit-content; max-width: calc(100% - 12px - 250px - var(--m3-cover, 0px)); }
     .m3-legend-x { position: sticky; left: 0; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: -6px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: var(--text-muted, #6e6e73); cursor: pointer; }
     .m3-legend-x:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
     .m3-legend-show { gap: 6px; padding: 0 14px; border: 0; font-family: inherit; color: var(--text, #1d1d1f); cursor: pointer; }
@@ -225,6 +231,9 @@ export interface PlotCard {
     /* A section's name, as the web map's: white, its colour round the edge and in its dot and text, easy to read over the imagery. */
     .plot-tag.section-tag { display: inline-flex; align-items: center; gap: 7px; background: #fff; border: 2px solid var(--tag-edge, #ccc); border-radius: 999px; padding: 5px 13px 5px 11px; font-size: 14px; font-weight: 600; letter-spacing: 0; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
     .plot-tag.section-tag i { width: 9px; height: 9px; border-radius: 50%; }
+    /* Beside a panel (cover) the map has less room: the sections' names a little smaller, so all of them fit beside a farm tipped back. */
+    app-mac-map-3d.m3-covered .plot-tag.section-tag { gap: 6px; padding: 3px 10px 3px 9px; font-size: 12.5px; }
+    app-mac-map-3d.m3-covered .plot-tag.section-tag i { width: 8px; height: 8px; }
     .m3-pin { display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
     .m3-pin span { background: #fff; color: #111; font-size: 12px; padding: 4px 9px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
     .m3-pin i { width: 16px; height: 16px; border-radius: 50%; background: #0066d9; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
@@ -282,6 +291,8 @@ export class MacMap3d implements OnDestroy {
   readonly focus = input<readonly string[] | null>(null);
   /** What a fit keeps clear (px): room for what the page lays over the map (a key down the left, say). Default: room for the section names. */
   readonly fitPadding = input<{ top: number; bottom: number; left: number; right: number }>(FIT_PADDING);
+  /** How much of the map's left side (px) the page covers with a panel of its own: the plots, the section names, the zone key and the card keep clear of it. */
+  readonly cover = input(0);
   /** The stacked layer picked out, by its place from the bottom (0 the first): the other layers fade. None: every layer as it is. */
   readonly highlight = input<number | null>(null);
   /** A plot's corner or the plot itself was let go: its new outline (nothing is saved here). */
@@ -705,7 +716,7 @@ export class MacMap3d implements OnDestroy {
     el.style.visibility = onScreen ? 'visible' : 'hidden';
     el.style.opacity = onScreen ? '1' : '0';
     // Above the plot (raised, its top a little over its outline on the ground), kept inside the map's sides.
-    const x = Math.min(Math.max((left + right) / 2, el.offsetWidth / 2 + 8), width - el.offsetWidth / 2 - 8);
+    const x = Math.min(Math.max((left + right) / 2, untracked(() => this.cover()) + el.offsetWidth / 2 + 8), width - el.offsetWidth / 2 - 8);
     el.style.transform = `translate(${x}px, ${upper - 18}px) translate(-50%, -100%)`;
   }
 
@@ -719,7 +730,7 @@ export class MacMap3d implements OnDestroy {
     // bed under its layers, and is outlined alone: raised, it would swallow them.
     const farm = this.farm() && !editing;
     const heightOf = (shape: MapShape) =>
-      editing ? FLAT_HEIGHT : farm && !shape.stack?.length ? PLOT_HEIGHT : shape.stack?.length && shape.points.length >= 3 ? stackSizes(shape.points, shape.stack.length).bed : shape.id === selected ? PICKED_HEIGHT : PLOT_HEIGHT;
+      editing ? FLAT_HEIGHT : farm && !shape.stack?.length ? PLOT_HEIGHT : shape.stack?.length && shape.points.length >= 3 ? stackSizes(shape.points, shape.stack.length).bed : shape.id === selected || shape.lift ? PICKED_HEIGHT : PLOT_HEIGHT;
     const features = shapes.map((shape) => ({
       type: 'Feature' as const,
       properties: { id: shape.id, fill: shape.fill, stroke: shape.id === selected ? '#ffffff' : shape.stroke, sel: shape.id === selected, top: heightOf(shape) },
@@ -807,9 +818,10 @@ export class MacMap3d implements OnDestroy {
       const flat = { center: map.getCenter(), zoom: map.getZoom() };
       map.jumpTo(camera);
       // Tipped back, the near side grows: step out a little until every section's name is inside the map (and, on a map brought to chosen plots, each of them with its stack).
-      for (let step = 0; step < 12 && !this.fitsAll(map); step++) map.jumpTo({ zoom: map.getZoom() - 0.15 });
-      // A map of stacks: tipped back the farm is shorter than the flat fit reckoned, so come back in while every plot and its stack still fit.
-      if (untracked(() => this.focus())?.length) {
+      this.stepOut(map);
+      // A map of stacks, or beside a panel: tipped back the farm is shorter than the flat fit reckoned, so come back in while every plot
+      // (and its stack) and every section's name still fit.
+      if (untracked(() => this.focus())?.length || untracked(() => this.cover()) > 0) {
         for (let step = 0; step < 20 && map.getZoom() < 19; step++) {
           const zoom = map.getZoom();
           map.jumpTo({ zoom: zoom + 0.1 });
@@ -1110,9 +1122,10 @@ export class MacMap3d implements OnDestroy {
       .every((tag) => {
         const at = map.project(tag.getLngLat());
         const el = tag.getElement();
-        const left = el.classList.contains('maplibregl-marker-anchor-right') ? at.x - 10 - el.offsetWidth : at.x + 10;
-        const overTools = left + el.offsetWidth > width - TOOLS_ROOM;
-        return left >= 8 && left + el.offsetWidth <= width - 8 && at.y >= 60 && at.y <= height - (overTools ? 100 : 50);
+        const wide = el.offsetWidth || Number(el.dataset['width'] ?? 0);
+        const left = el.classList.contains('maplibregl-marker-anchor-right') ? at.x - 10 - wide : at.x + 10;
+        const overTools = left + wide > width - TOOLS_ROOM;
+        return left >= untracked(() => this.cover()) + 8 && left + wide <= width - 8 && at.y >= 60 && at.y <= height - (overTools ? 100 : 50);
       });
   }
 
@@ -1135,7 +1148,7 @@ export class MacMap3d implements OnDestroy {
       const el = tag.marker.getElement();
       el.classList.toggle('hide', wide < (quiet && !tag.stacked ? QUIET_WIDTH : LABEL_WIDTH) && !el.classList.contains('is-picked'));
     }
-    if (quiet) this.declutter();
+    if (quiet || untracked(() => this.cover()) > 0) this.declutter();
   }
 
   /**
@@ -1150,7 +1163,26 @@ export class MacMap3d implements OnDestroy {
       .filter(({ el }) => !el.classList.contains('hide'))
       .map((item) => ({ ...item, box: item.el.getBoundingClientRect(), rank: item.el.classList.contains('is-picked') ? 0 : item.tag.stacked ? 1 : 2 }));
     tags.sort((a, b) => a.rank - b.rank || b.box.bottom - a.box.bottom);
-    const keep: DOMRect[] = [];
+    const keep: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>[] = [];
+    // A panel the page lays over the map's left side (cover): nothing is named under it. The sections' names are placed first (they
+    // say which zone is which), then the plots' around them.
+    const cover = untracked(() => this.cover());
+    if (cover > 0) {
+      const map = this.box().nativeElement.getBoundingClientRect();
+      keep.push({ left: map.left, right: map.left + cover, top: map.top, bottom: map.bottom });
+      for (const tag of this.tags) {
+        const el = tag.getElement();
+        if (!el.classList.contains('section-tag')) continue;
+        el.classList.remove('hide');
+        const box = el.getBoundingClientRect();
+        // Its width kept for the fit, which measures the names (one given way has none while hidden).
+        el.dataset['width'] = String(box.width);
+        // One that would be cut off by the map's edge gives way too (the zone key still names it).
+        const cut = box.left < map.left || box.right > map.right - 4 || box.top < map.top || box.bottom > map.bottom;
+        if (cut || keep.some((other) => box.left < other.right + 3 && box.right > other.left - 3 && box.top < other.bottom + 3 && box.bottom > other.top - 3)) el.classList.add('hide');
+        else keep.push(box);
+      }
+    }
     for (const { el, box } of tags) {
       if (keep.some((other) => box.left < other.right + 3 && box.right > other.left - 3 && box.top < other.bottom + 3 && box.bottom > other.top - 3)) el.classList.add('hide');
       else keep.push(box);
@@ -1185,7 +1217,7 @@ export class MacMap3d implements OnDestroy {
     if (!map) return;
     this.stopTour();
     // On a map of stacks it comes in as close as everything still fits, as the first fit does.
-    const camera = this.cameraFor(map.getPitch(), map.getBearing(), undefined, !!this.focus()?.length);
+    const camera = this.cameraFor(map.getPitch(), map.getBearing(), undefined, !!this.focus()?.length || this.cover() > 0);
     if (camera) map.easeTo({ ...camera, duration: 700 });
   }
 
@@ -1205,7 +1237,7 @@ export class MacMap3d implements OnDestroy {
     let found: { center: maplibregl.LngLat; zoom: number; pitch: number; bearing: number } | null = null;
     if (fitted?.center && fitted.zoom !== undefined) {
       map.jumpTo({ center: fitted.center, zoom: fitted.zoom, pitch, bearing });
-      for (let step = 0; step < 12 && !fits(map); step++) map.jumpTo({ zoom: map.getZoom() - 0.15 });
+      this.stepOut(map, fits);
       // Tipped back the farm is shorter than the flat fit reckoned: come back in while it all still fits.
       for (let step = 0; grow && step < 20 && map.getZoom() < 19; step++) {
         const zoom = map.getZoom();
@@ -1227,17 +1259,31 @@ export class MacMap3d implements OnDestroy {
    */
   private padding() {
     const asked = untracked(() => this.fitPadding());
-    const { clientWidth: width, clientHeight: height } = this.map?.getContainer() ?? { clientWidth: 0, clientHeight: 0 };
+    // A panel over the left side is kept clear in full; the room asked for is shared out of what is left.
+    const cover = untracked(() => this.cover());
+    const { clientWidth: full, clientHeight: height } = this.map?.getContainer() ?? { clientWidth: 0, clientHeight: 0 };
+    const width = Math.max(0, full - cover);
     const across = asked.left + asked.right;
     const down = asked.top + asked.bottom;
     const x = width && across > width * 0.5 ? (width * 0.5) / across : 1;
     const y = height && down > height * 0.4 ? (height * 0.4) / down : 1;
-    return { top: asked.top * y, bottom: asked.bottom * y, left: asked.left * x, right: asked.right * x };
+    return { top: asked.top * y, bottom: asked.bottom * y, left: cover + asked.left * x, right: asked.right * x };
+  }
+
+  /**
+   * Out a little at a time until everything `fits`. Beside a panel (cover) there may be no zoom at which every section's name fits; then
+   * the farm keeps the size it had rather than shrinking to a speck, and the names that would lie under the panel give way (declutter).
+   */
+  private stepOut(map: maplibregl.Map, fits: (map: maplibregl.Map) => boolean = (map) => this.fitsAll(map)) {
+    const from = map.getZoom();
+    for (let step = 0; step < 12 && !fits(map); step++) map.jumpTo({ zoom: map.getZoom() - 0.15 });
+    if (untracked(() => this.cover()) > 0 && !fits(map)) map.jumpTo({ zoom: from });
   }
 
   /** Every section's name inside the map and, on a map brought to chosen plots, those plots with their stacks. */
   private fitsAll(map: maplibregl.Map) {
-    return this.sectionTagsFit(map) && (!untracked(() => this.focus())?.length || this.plotsFit(map));
+    const plotsToo = !!untracked(() => this.focus())?.length || untracked(() => this.cover()) > 0;
+    return this.sectionTagsFit(map) && (!plotsToo || this.plotsFit(map));
   }
 
   /** Every plot's corners (and the tops of their stacks) inside the map, clear of the buttons over and under it. */

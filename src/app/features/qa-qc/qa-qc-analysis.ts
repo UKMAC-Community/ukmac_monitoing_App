@@ -164,8 +164,7 @@ interface Cell {
     .scroller { background: transparent; overflow-x: auto; }
     .data-table { width: max-content; min-width: 100%; }
     .data-table thead tr:last-child th, .data-table thead tr.formulas th { min-width: 130px; }
-    .data-table th.num, .data-table td.num { text-align: right; }
-    .data-table th.group { text-align: center; color: var(--text); font-weight: 600; }
+    .data-table th.group { color: var(--text); font-weight: 600; }
     .data-table thead th { position: sticky; background: var(--surface-solid); z-index: 1; }
     .data-table tr.boxes:nth-child(1) th { top: 0; }
     .data-table td { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

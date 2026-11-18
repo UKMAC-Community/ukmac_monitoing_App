@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 
 import type { Row, SheetWithRows } from '@core/models';
 import { formatFormulaValue, isFormulaError } from '@shared/formula/evaluate-formula';
@@ -125,6 +125,11 @@ function factOf(formulas: WorkbookFormulas, sheet: SheetWithRows, row: Row, colu
   return displayCell(column, String(row.data[column.key] ?? ''));
 }
 
+/** Which part of a plot's story a table is (by its template): 'harvest' for the Harvest table; the Zone Map's Show list uses it. */
+export function journeyKindOf(templateKey: string | null | undefined): JourneyKind | null {
+  return JOURNEY_SOURCES.find((source) => source.template === templateKey)?.kind ?? null;
+}
+
 /**
  * A plot's whole story, from planting to harvest: the planting date, every plant record, soil, irrigation, fertigation,
  * pruning, pesticide and harvest row, each with its date, newest last. Shown on a full screen (the dashboard map's card
@@ -239,6 +244,9 @@ export class JourneyView {
   readonly sheets = input.required<readonly SheetWithRows[]>();
   /** For a side panel: smaller, its dates over their cards. */
   readonly compact = input(false);
+  /** Scroll to the first row of this part of the story (the table the map is showing), when a plot opens. */
+  readonly scrollTo = input<JourneyKind | null>(null);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** One table's rows only (from its chip), or all of them. */
   readonly kind = signal<JourneyKind | null>(null);
@@ -248,6 +256,16 @@ export class JourneyView {
     effect(() => {
       this.cell();
       untracked(() => this.kind.set(null));
+    });
+    // A plot opened while the map shows a table: its panel scrolls to that table's rows (once drawn).
+    effect(() => {
+      const kind = this.scrollTo();
+      this.cell();
+      if (!kind) return;
+      setTimeout(() => {
+        const row = this.host.nativeElement.querySelector(`li.event[data-kind="${kind}"]`);
+        row?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }, 60);
     });
   }
 

@@ -670,6 +670,59 @@ fn zone_log(extra: Vec<Column>) -> Vec<Column> {
     columns
 }
 
+/// The farm's Google Sheet names a row's plot `zone_plot` and its day `date_applied` (Fungicide), `applied` (Fertilizer) or
+/// `actual_date` (Pruning): the Zone and Date of a log read from it answer to those names too, so Sync fills them (the Zone a link to the plot) instead of adding them as new columns.
+fn sheet_zone() -> Column {
+    also_called(link("Zone", ZONE_SOURCE), &["Zone plot", "zone_plot"])
+}
+
+fn sheet_date() -> Column {
+    also_called(date("Date"), &["Date applied", "date_applied", "Applied", "Actual date", "actual_date"])
+}
+
+/// The Google Sheet's Pruning tab, a row per plot and round (all three planned up front, then done): id, plan_id, zone_plot,
+/// pruning_round_type_id, round_name, plants, applicable (TRUE/FALSE), planned_date, actual_date. Its id is the app's own ID
+/// to give, so the tab's is left out; the day it was done is the row's Date (as every log's), the day planned beside it.
+fn pruning_columns() -> Vec<Column> {
+    vec![
+        also_called(number("Plan"), &["Plan ID", "plan_id"]),
+        sheet_zone(),
+        also_called(number("Round"), &["Pruning round", "pruning_round", "pruning_round_type_id"]),
+        also_called(text("Round name"), &["round_name"]),
+        number("Plants"),
+        col("Applicable", "yesno"),
+        also_called(date("Planned date"), &["planned_date"]),
+        sheet_date(),
+    ]
+}
+
+/// Pesticides, read from the Google Sheet's Fungicide tab, a row per application (a skipped one is a row with only its plot
+/// and round): zone_plot, application_round, target_fungi, date_applied, active_ingredient, dosage, each column named as the
+/// farm says it and answering to the tab's own name. The dose keeps its unit (2 g/L, 1 ml/L), so it is text.
+fn pesticide_columns() -> Vec<Column> {
+    vec![
+        sheet_zone(),
+        also_called(text("Application"), &["Application round", "application_round"]),
+        also_called(text("Disease"), &["Target fungi", "target_fungi", "target_fungus", "target_disease"]),
+        sheet_date(),
+        also_called(text("Chemical"), &["Active ingredient", "active_ingredient", "Active ingredients", "active_ingredients"]),
+        also_called(text("Dose"), &["Dosage", "dosage"]),
+    ]
+}
+
+/// The Google Sheet's Fertilizer tab, a row per application (a skipped round has only its plot and round): zone_plot,
+/// application_round, applied, fertilizer_type, quantity. Fertigation is read from it, each column named as the farm
+/// says it and answering to the tab's own name, so Sync fills them instead of adding new ones.
+fn fertigation_columns() -> Vec<Column> {
+    vec![
+        sheet_date(),
+        sheet_zone(),
+        also_called(text("Application"), &["Application round", "application_round"]),
+        also_called(text("Fertilizer"), &["Fertilizer type", "fertilizer_type", "Mix"]),
+        also_called(between(number("Quantity"), Some(0.0), None), &["quantity", "Dose"]),
+    ]
+}
+
 /// A plot's measurement, as the farm's own design has it (zone → zone plot → zone measurement): the plot is the record
 /// that matters, and its zone name and zone number are only the group it belongs to, so they are read from Zones here
 /// and never typed twice. The area in the plan is typed, the width and length measured; the actual area, the error and
@@ -833,42 +886,24 @@ fn chili_sheets() -> Vec<TemplateSheet> {
             title: "Fertigation",
             heading: "Planting",
             icon: "flask",
-            about: "Log the fertilizer given through the irrigation water — mix, dose and date — for each zone.",
-            columns: zone_log(vec![]),
-        },
-        // The Google Sheet's own Fertilizer and Fungicide tabs, named as the sheet names them so the Connect page pairs
-        // each with its tab; Sync brings in the tab's other columns (Application, Disease, Chemical, Dose, …).
-        TemplateSheet {
-            key: "fertilizer",
-            title: "Fertilizer",
-            heading: "Planting",
-            icon: "leaf",
-            about: "Each fertilizer given to a zone plot: what, how much and when. Read from the Google Sheet's Fertilizer tab.",
-            columns: zone_log(vec![]),
+            about: "The fertilizer given to each zone plot through the irrigation water, round by round: what, how much and when. Read from the Google Sheet's Fertilizer tab.",
+            columns: fertigation_columns(),
         },
         TemplateSheet {
             key: "pruning",
             title: "Pruning",
             heading: "Planting",
             icon: "scissors",
-            about: "Track pruning rounds across the zones and who did them.",
-            columns: zone_log(vec![]),
+            about: "Each plot's pruning rounds: planned, done, and how many plants. Read from the Google Sheet's Pruning tab.",
+            columns: pruning_columns(),
         },
         TemplateSheet {
             key: "pesticides",
             title: "Pesticides",
             heading: "Planting",
             icon: "spray",
-            about: "Record every spray: the product, dose, target pest and the safe-to-harvest date.",
-            columns: zone_log(vec![]),
-        },
-        TemplateSheet {
-            key: "fungicide",
-            title: "Fungicide",
-            heading: "Planting",
-            icon: "spray",
-            about: "Each fungicide application on a zone plot (1st, 2nd, …): the disease, the chemical, its dose and the date. Read from the Google Sheet's Fungicide tab.",
-            columns: zone_log(vec![]),
+            about: "Each spray on a zone plot (1st, 2nd, …): the disease, the chemical, its dose and the date. Read from the Google Sheet's Fungicide tab.",
+            columns: pesticide_columns(),
         },
         TemplateSheet {
             key: "harvest",
@@ -943,6 +978,76 @@ fn chili_sheets() -> Vec<TemplateSheet> {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    /// The template table `key`'s column a header fills, by its name or another name (as the app matches them: case aside).
+    fn filled_by(key: &str, header: &str) -> Vec<String> {
+        let sheet = chili_template().into_iter().find(|sheet| sheet.key == key).unwrap();
+        sheet
+            .columns
+            .iter()
+            .filter(|column| {
+                std::iter::once(&column.name)
+                    .chain(column.aliases.iter())
+                    .any(|name| name.to_lowercase() == header.to_lowercase())
+            })
+            .map(|column| column.name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn pesticides_read_the_fungicide_tab_column_by_column() {
+        // The tab's own header row, a row per application.
+        let headers = ["zone_plot", "application_round", "target_fungi", "date_applied", "active_ingredients", "dosage"];
+        let filled: Vec<Vec<String>> = headers.iter().map(|header| filled_by("pesticides", header)).collect();
+        assert_eq!(
+            filled,
+            [["Zone"], ["Application"], ["Disease"], ["Date"], ["Chemical"], ["Dose"]]
+                .iter()
+                .map(|names| names.iter().map(|name| name.to_string()).collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        );
+        // The plot is a link to Zones, as every other log's.
+        let sheet = chili_template().into_iter().find(|sheet| sheet.key == "pesticides").unwrap();
+        let zone = sheet.columns.iter().find(|column| column.name == "Zone").unwrap();
+        assert_eq!((zone.col_type.as_str(), zone.source.as_deref()), ("link", Some(ZONE_SOURCE)));
+    }
+
+    #[test]
+    fn fertigation_reads_the_fertilizer_tab_column_by_column() {
+        let headers = ["zone_plot", "application_round", "applied", "fertilizer_type", "quantity"];
+        let filled: Vec<Vec<String>> = headers.iter().map(|header| filled_by("fertigation", header)).collect();
+        assert_eq!(
+            filled,
+            [["Zone"], ["Application"], ["Date"], ["Fertilizer"], ["Quantity"]]
+                .iter()
+                .map(|names| names.iter().map(|name| name.to_string()).collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn fertigation_and_pruning_take_the_sheet_plot_and_date() {
+        for key in ["fertigation", "pruning", "pesticides"] {
+            assert_eq!(filled_by(key, "zone_plot"), ["Zone"], "{key}");
+        }
+        // Each tab's own header for the day: Fertilizer's `applied` (Fertigation), Pruning's `actual_date` (its `planned_date` stays its own column).
+        assert_eq!(filled_by("fertigation", "applied"), ["Date"]);
+        assert_eq!(filled_by("pruning", "actual_date"), ["Date"]);
+        assert_eq!(filled_by("pruning", "planned_date"), ["Planned date"]);
+    }
+
+    #[test]
+    fn pruning_reads_the_farm_sheet_tab_column_by_column() {
+        let headers = ["plan_id", "zone_plot", "pruning_round_type_id", "round_name", "plants", "applicable", "planned_date", "actual_date"];
+        let filled: Vec<Vec<String>> = headers.iter().map(|header| filled_by("pruning", header)).collect();
+        let want = ["Plan", "Zone", "Round", "Round name", "Plants", "Applicable", "Planned date", "Date"];
+        assert_eq!(filled, want.iter().map(|name| vec![name.to_string()]).collect::<Vec<_>>());
+        // The tab's own id is the app's ID's to give: it fills the ID column, which the app numbers itself.
+        assert_eq!(filled_by("pruning", "id"), ["ID"]);
+        let sheet = chili_template().into_iter().find(|sheet| sheet.key == "pruning").unwrap();
+        let applicable = sheet.columns.iter().find(|column| column.name == "Applicable").unwrap();
+        assert_eq!(applicable.col_type, "yesno");
+    }
 
     #[test]
     fn qa_qc_follows_the_old_sheet() {
@@ -1489,5 +1594,18 @@ mod dump {
             serde_json::to_string_pretty(&sheets).unwrap(),
         )
         .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod merged_tables {
+    use super::chili_template;
+
+    #[test]
+    fn the_sheet_s_fertilizer_and_fungicide_tabs_are_fertigation_and_pesticides() {
+        // The Fertilizer tab is read into Fertigation, the Fungicide tab into Pesticides: no tables of their own.
+        let keys: Vec<&str> = chili_template().iter().map(|sheet| sheet.key).collect();
+        assert!(!keys.contains(&"fertilizer") && !keys.contains(&"fungicide"), "{keys:?}");
+        assert!(keys.contains(&"fertigation") && keys.contains(&"pesticides"));
     }
 }

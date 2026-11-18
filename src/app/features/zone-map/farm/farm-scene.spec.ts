@@ -86,9 +86,38 @@ describe('the drawn farm\'s layout, as the system lays it out', () => {
     expect(placeBlocks([block])['A:1']).toEqual(block.geo!.place);
   });
 
-  it('keeps a block laid by the sheet when one of its beds has no outline', () => {
+  it('keeps a block laid by the sheet when too few of its beds have an outline to place the rest', () => {
     const mixed = layoutOf([plot('A', 'a', 1, 1, 1, 'Active', square(12.1409, 104.0848)), plot('A', 'b', 1, 1, 2)]);
     expect(geoLaidBlocks(farmBlocksOf(mixed))[0].geo).toBeUndefined();
+    // Three drawn, all in one row: a bed of the next row can't be placed from them.
+    const oneRow = layoutOf([
+      ...[1, 2, 3].map((column) => plot('A', `a${column}`, 1, 1, column, 'Active', square(12.1409, 104.0848 + (column - 1) * 0.00009))),
+      plot('A', 'b1', 1, 2, 1),
+    ]);
+    expect(geoLaidBlocks(farmBlocksOf(oneRow))[0].geo).toBeUndefined();
+  });
+
+  it('lays a block out by the satellite with one bed not drawn, that bed where its row and column put it', () => {
+    // Two rows of three, about 10 m each, touching; the plot at row 2, column 1 has no outline (as A1 on the farm).
+    const lat = (row: number) => 12.1409 - (row - 1) * 0.00009;
+    const lng = (column: number) => 104.0848 + (column - 1) * 0.00009;
+    const zones = [1, 2].flatMap((row) =>
+      [1, 2, 3].map((column) => plot('A', `p${row}${column}`, 1, row, column, 'Active', row === 2 && column === 1 ? '' : square(lat(row), lng(column)))),
+    );
+    const geo = layoutOf(zones);
+    const [block] = geoLaidBlocks(farmBlocksOf(geo));
+    expect(block.geo).toBeTruthy();
+    const bed = (name: string) => block.geo!.beds[geo.cells.find((cell) => cell.plot === name)!.id];
+    const [missing, above, beside] = [bed('p21'), bed('p11'), bed('p22')];
+    // Under the bed of its column, level with the beds of its row, the size of the others.
+    expect(missing.x).toBeCloseTo(above.x, 3);
+    expect(missing.y).toBeCloseTo(beside.y, 3);
+    expect(missing.w).toBeCloseTo(above.w, 3);
+    expect(missing.h).toBeCloseTo(above.h, 3);
+    expect(missing.y).toBeGreaterThan(above.y + above.h);
+    expect(missing.x + missing.w).toBeLessThan(beside.x);
+    // The six touch: still one field.
+    expect(block.geo!.fields.length).toBe(1);
   });
 });
 

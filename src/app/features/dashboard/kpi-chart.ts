@@ -33,6 +33,18 @@ function inkOn(hex: string): string {
 /** A timeline's room for each day: enough to name it ("05/09/2026"). */
 const DAY_SLOT = 76;
 
+/** A timeline's days as named under them: "05/09", with the year too on the first and where it changes; a group not a day keeps its name. */
+function dayNames(points: readonly ChartPoint[]): string[] {
+  let year = '';
+  return points.map((point) => {
+    const iso = point.key && /^\d{4}-\d{2}-\d{2}$/.test(point.key) ? point.key : null;
+    if (!iso) return point.label;
+    const name = `${iso.slice(8, 10)}/${iso.slice(5, 7)}${iso.slice(0, 4) !== year ? `/${iso.slice(0, 4)}` : ''}`;
+    year = iso.slice(0, 4);
+    return name;
+  });
+}
+
 /** A nice round top for an axis: 1, 2, 2.5 or 5 × a power of ten. */
 function niceMax(value: number) {
   if (value <= 0) return 1;
@@ -293,7 +305,48 @@ export function pieLabelSpots(
     } @else {
       @switch (visual()) {
         @case ('stacked') {
-          @if (stack(); as s) {
+          @if (timeline()) {
+            <!-- Days as a timeline, each day's parts stacked in their colours, its total over them; a long stretch scrolls sideways. -->
+            @if (stackDays(); as d) {
+              <div class="timeline">
+                <svg class="day-axis" [attr.width]="left" [attr.height]="height" aria-hidden="true">
+                  @for (tick of d.ticks; track $index) {
+                    <text class="axis" [attr.x]="left - 6" [attr.y]="tick.y + 4" text-anchor="end">{{ tick.label }}</text>
+                  }
+                </svg>
+                <div class="day-scroll">
+                  <svg [attr.width]="d.width" [attr.height]="height" role="img" [attr.aria-label]="label()">
+                    @for (tick of d.ticks; track $index) {
+                      <line class="grid" x1="0" [attr.x2]="d.width" [attr.y1]="tick.y" [attr.y2]="tick.y" />
+                    }
+                    @for (column of d.columns; track column.label; let i = $index) {
+                      @if (!column.empty && column.total > 0) {
+                        <g class="pick" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)" (mousemove)="showStackTip($event, column)" (mouseleave)="hideTip()">
+                          <clipPath [attr.id]="uid + '-day-' + i"><path [attr.d]="topRound(column.x, column.top, column.w, column.foot - column.top)" /></clipPath>
+                          <g class="grow-y mark" [style.--i]="i">
+                            <g [attr.clip-path]="'url(#' + uid + '-day-' + i + ')'">
+                              @for (part of column.parts; track part.series) {
+                                @if (part.h > 0) {
+                                  <rect [attr.x]="column.x" [attr.y]="part.y" [attr.width]="column.w" [attr.height]="part.h" [attr.fill]="seriesColour(part.name, part.series)" />
+                                }
+                              }
+                            </g>
+                          </g>
+                          <text class="value after" [style.--i]="i" [attr.x]="column.mid" [attr.y]="column.top - 5" text-anchor="middle">{{ format(column.total) }}</text>
+                        </g>
+                      }
+                      <text class="axis" [attr.x]="column.mid" [attr.y]="height - 8" text-anchor="middle">{{ column.name }}</text>
+                    }
+                  </svg>
+                </div>
+              </div>
+              <ul class="series-legend">
+                @for (name of d.names; track $index; let i = $index) {
+                  <li><span class="dot" [style.background]="seriesColour(name, i)"></span>{{ name }}</li>
+                }
+              </ul>
+            } @else { <p class="none">Nothing to stack yet.</p> }
+          } @else if (stack(); as s) {
             <svg [attr.width]="width()" [attr.height]="height" role="img" [attr.aria-label]="label()">
               @for (tick of s.ticks; track $index) {
                 <line class="grid" [attr.x1]="left" [attr.x2]="width() - 8" [attr.y1]="tick.y" [attr.y2]="tick.y" />
@@ -945,19 +998,47 @@ export class KpiChart {
     const plot = HEIGHT - 28 - 16;
     const top = niceMax(Math.max(0, ...points.map((point) => point.value)));
     const w = Math.min(40, DAY_SLOT * 0.62);
-    let year = '';
+    const names = dayNames(points);
     const columns = points.map((point, index) => {
-      // "05/09" under each day; the year too on the first and where it changes.
-      const iso = point.key && /^\d{4}-\d{2}-\d{2}$/.test(point.key) ? point.key : null;
-      const name = iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}${iso.slice(0, 4) !== year ? `/${iso.slice(0, 4)}` : ''}` : point.label;
-      if (iso) year = iso.slice(0, 4);
       const h = point.empty ? 0 : (Math.max(0, point.value) / top) * plot;
-      return { ...point, name, h, y: 16 + plot - h, w, x: 8 + DAY_SLOT * index + (DAY_SLOT - w) / 2, mid: 8 + DAY_SLOT * index + DAY_SLOT / 2 };
+      return { ...point, name: names[index], h, y: 16 + plot - h, w, x: 8 + DAY_SLOT * index + (DAY_SLOT - w) / 2, mid: 8 + DAY_SLOT * index + DAY_SLOT / 2 };
     });
     return {
       columns,
       // Never narrower than the room there is, so a few days still fill the line.
       width: Math.max(this.width() - this.left, 16 + DAY_SLOT * points.length),
+      ticks: [0, 1, 2, 3, 4].map((step) => ({
+        y: 16 + plot - (plot * step) / 4,
+        label: formatNumber((top * step) / 4, top < 4 ? 2 : 0),
+      })),
+    };
+  });
+
+  /** A stacked timeline: a place for every day as `days` has it, each day's values on top of each other, the scale to the tallest day. */
+  readonly stackDays = computed(() => {
+    const series = this.series();
+    const first = series[0]?.points ?? [];
+    if (!first.length) return null;
+    const plot = HEIGHT - 28 - 16;
+    const totals = first.map((_, index) => series.reduce((sum, item) => sum + Math.max(0, item.points[index]?.value ?? 0), 0));
+    const top = niceMax(Math.max(0, ...totals));
+    const w = Math.min(40, DAY_SLOT * 0.62);
+    const names = dayNames(first);
+    const columns = first.map((point, index) => {
+      let base = 16 + plot;
+      const parts = series.map((item, seriesIndex) => {
+        const value = item.points[index]?.value ?? 0;
+        const h = point.empty ? 0 : (Math.max(0, value) / top) * plot;
+        base -= h;
+        return { series: seriesIndex, name: item.label, value, h, y: base };
+      });
+      const x = 8 + DAY_SLOT * index;
+      return { key: point.key, label: point.label, empty: !!point.empty, name: names[index], total: totals[index], top: base, foot: 16 + plot, w, x: x + (DAY_SLOT - w) / 2, mid: x + DAY_SLOT / 2, parts };
+    });
+    return {
+      columns,
+      names: series.map((item) => item.label),
+      width: Math.max(this.width() - this.left, 16 + DAY_SLOT * first.length),
       ticks: [0, 1, 2, 3, 4].map((step) => ({
         y: 16 + plot - (plot * step) / 4,
         label: formatNumber((top * step) / 4, top < 4 ? 2 : 0),

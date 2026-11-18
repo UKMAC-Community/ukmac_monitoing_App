@@ -6,6 +6,8 @@ import { Router, RouterLink } from '@angular/router';
 
 import { ColumnDialog } from './column-dialog';
 import { ColumnsPanel } from './columns-panel';
+import { ApplicationTable } from './application-table';
+import { applicationLayout, applicationPivot, withGaps, withoutColumns } from './application-view';
 import { emptyColumnKeys } from './empty-columns';
 import { gapsFirst, hasGap, missingData } from './missing-data';
 import { GapRing } from '@shared/ui/gap-ring';
@@ -17,6 +19,7 @@ import { Modal } from '@shared/ui/modal';
 import { SheetTable } from './sheet-table';
 import { QaQcAnalysis } from '@features/qa-qc/qa-qc-analysis';
 import { QaQcMap } from '@features/qa-qc/qa-qc-map';
+import { QaQcZoneStatus } from '@features/qa-qc/zone-status';
 import { TableDialog } from './table-dialog';
 import { Api, errorText } from '@core/api';
 import { Google } from '@core/google/google';
@@ -39,7 +42,7 @@ import { baseName } from '@core/paths';
 /** One table: the sheet, and everything done to it. */
 @Component({
   selector: 'app-sheet-page',
-  imports: [RouterLink, Icon, UniverSheet, SheetTable, GapRing, QaQcAnalysis, QaQcMap, SheetDashboard, DashboardStudio, ColumnDialog, ColumnsPanel, ImportDialog, GoogleImportDialog, GoogleLinkDialog, TableDialog, Modal],
+  imports: [RouterLink, Icon, UniverSheet, SheetTable, ApplicationTable, GapRing, QaQcAnalysis, QaQcMap, QaQcZoneStatus, SheetDashboard, DashboardStudio, ColumnDialog, ColumnsPanel, ImportDialog, GoogleImportDialog, GoogleLinkDialog, TableDialog, Modal],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sheet-page.html',
   styleUrl: './sheet-page.css',
@@ -71,7 +74,19 @@ export class SheetPage {
    */
   readonly leftOut = computed<ReadonlySet<string>>(() => (!this.showMissing() && !this.column() ? this.emptyKeys() : NO_KEYS));
 
-  /** The switch in the table's header: off, a clean table (the empty columns left out); on, the rows with a cell left empty, each empty cell marked, and the ring of how filled the table is. */
+  /** A table of applications (Fungicide: a row for each plot's 1st, 2nd… application) can be seen with the applications along the top. */
+  readonly canByApplication = computed(() => {
+    const sheet = this.sheet();
+    return !!sheet && !!applicationLayout(sheet);
+  });
+  readonly byApplication = signal(false);
+  /** Seen by application now: the switch is on, and this table has the columns for it. */
+  readonly applicationView = computed(() => this.byApplication() && this.canByApplication());
+  setByApplication(on: boolean) {
+    this.byApplication.set(on);
+  }
+
+  /** The Missing data button in the table's header: off, a clean table (the empty columns left out); on, the rows with a cell left empty, each empty cell marked, and the ring of how filled the table is. */
   readonly showMissing = signal(false);
   /** What the table is missing, counted as the Data Check counts it (a table with no rows has nothing to fill yet). */
   readonly missing = computed(() => {
@@ -275,6 +290,13 @@ export class SheetPage {
     const sheet = this.sheet();
     return !!sheet && dashboardOf(sheet).dashboard.summaries.length > 0;
   });
+  /** A table with nothing on its dashboard (the farm's raw-data logs) shows its rows alone: no Dashboard panel over them. */
+  readonly hasDashboard = computed(() => {
+    const sheet = this.sheet();
+    if (!sheet) return false;
+    const { dashboard } = dashboardOf(sheet);
+    return dashboard.kpis.length > 0 || dashboard.summaries.length > 0;
+  });
 
   togglePanel() {
     this.panelHidden.update((hidden) => !hidden);
@@ -313,23 +335,49 @@ export class SheetPage {
     return sheet ? filteredSheet(this.store.formulas(), sheet, this.activeFilter()).rows : [];
   });
 
-  /** The rows shown: those the dashboard's picked group keeps and the search finds, in the chosen order. */
-  readonly rows = computed<Row[]>(() => {
+  /** The rows the dashboard's picked group keeps and the search finds. */
+  private readonly searched = computed<Row[]>(() => {
     const sheet = this.sheet();
     if (!sheet) return [];
-    let rows = this.kept();
+    const rows = this.kept();
     const words = this.search().trim().toLowerCase().split(/\s+/).filter(Boolean);
-    if (words.length) {
-      rows = rows.filter((row) => {
-        const text = sheet.columns.map((column) => this.cellText(sheet, row, column)).join(' ').toLowerCase();
-        return words.every((word) => text.includes(word));
-      });
-    }
+    if (!words.length) return rows;
+    return rows.filter((row) => {
+      const text = sheet.columns.map((column) => this.cellText(sheet, row, column)).join(' ').toLowerCase();
+      return words.every((word) => text.includes(word));
+    });
+  });
+
+  /** The rows shown: those the dashboard's picked group keeps and the search finds (only those with a gap while Missing data is on), in the chosen order. */
+  readonly rows = computed<Row[]>(() => {
+    let rows = this.searched();
     const gaps = this.gapColumns();
     if (gaps) rows = rows.filter((row) => hasGap(row, gaps));
+    rows = this.inOrder(rows);
+    const first = this.gapFirst();
+    if (gaps && first && gaps.has(first)) rows = gapsFirst(rows, first);
+    return rows;
+  });
+
+  /**
+   * Seen by application: a line for each plot of the rows the search finds, under each application the columns the table seen row by
+   * row shows (the empty ones left out). While Missing data is on, only the plots missing something, each with all its applications (a
+   * whole plot is kept, not just its rows with a gap), and the empty columns shown, as row by row.
+   */
+  readonly pivot = computed(() => {
+    const sheet = this.sheet();
+    const all = sheet && this.applicationView() ? applicationPivot(sheet, this.inOrder(this.searched())) : null;
+    const pivot = all ? withoutColumns(all, this.leftOut()) : null;
+    const gaps = this.gapColumns();
+    return pivot && gaps ? withGaps(pivot, gaps) : pivot;
+  });
+
+  /** The rows in the order chosen from a column's heading (as they are when none is). */
+  private inOrder(rows: Row[]): Row[] {
+    const sheet = this.sheet();
     const sort = this.sort();
     const column = this.sortColumn();
-    if (sort && column) {
+    if (sheet && sort && column) {
       const value = (row: Row) => {
         const raw = this.store.formulas().cell(sheet, row, column);
         if (raw === null || raw === '' || isFormulaError(raw)) return null;
@@ -345,10 +393,8 @@ export class SheetPage {
         return String(x).localeCompare(String(y), 'en', { numeric: true, sensitivity: 'base' }) * sort.dir;
       });
     }
-    const first = this.gapFirst();
-    if (gaps && first && gaps.has(first)) rows = gapsFirst(rows, first);
     return rows;
-  });
+  }
 
   readonly filtered = computed(() => !!this.search().trim() || !!this.activeFilter());
   readonly formulaCount = computed(() => this.sheet()?.columns.filter((column) => column.type === 'formula').length ?? 0);

@@ -64,7 +64,7 @@
       @if (sheet.templateKey === 'qa-qc-management') {
         <!-- The QA/QC page shows its analysis as a map instead of the dashboard: each plot coloured by its status. -->
         <app-qa-qc-map [sheet]="sheet" [sheets]="store.sheets()" [mac]="store.mac()" />
-      } @else {
+      } @else if (hasDashboard()) {
         <section class="kpi-panel" [class.folded]="panelHidden()">
           <header class="panel-head">
             <span class="group-kicker"><app-icon name="chart" [size]="12" /> Dashboard</span>
@@ -93,6 +93,8 @@
       }
 
       @if (sheet.templateKey === 'qa-qc-management') {
+        <!-- How many checks are green, yellow and red in each zone number, with their shares: a graph and a table. -->
+        <app-qa-qc-zone-status [sheet]="sheet" [sheets]="store.sheets()" />
         <!-- The QA/QC Analysis, as the web's: each plot's latest record against the growth standard, by formula, over the raw data. -->
         <app-qa-qc-analysis [sheet]="sheet" [sheets]="store.sheets()" />
       }
@@ -120,13 +122,15 @@
             <h2>{{ sheet.title }}</h2>
             <p>
               {{ sheet.rows.length }} row{{ sheet.rows.length === 1 ? '' : 's' }} · {{ sheet.columns.length }} columns
-              @if (gapColumns()) {
+              @if (gapColumns() && pivot(); as view) {
+                · <span [class.gap-rows]="view.lines.length > 0">{{ view.lines.length }} plot{{ view.lines.length === 1 ? '' : 's' }} with missing data</span>
+              } @else if (gapColumns()) {
                 · <span [class.gap-rows]="rows().length > 0">{{ rows().length }} with missing data</span>
               } @else if (filtered()) {
                 · {{ rows().length }} found
               }
               @if (leftOut().size) {
-                · <span title="The columns with nothing entered in any row: switch Missing data on to see them">{{ leftOut().size }} empty column{{ leftOut().size === 1 ? '' : 's' }} left out</span>
+                · <span title="The columns with nothing entered in any row: press Missing data to see them">{{ leftOut().size }} empty column{{ leftOut().size === 1 ? '' : 's' }} left out</span>
               }
               @if (activeFilter(); as filter) {
                 · <button type="button" class="chip active" title="Show every row again" (click)="setFilter(null)">{{ filter.name }}: {{ filter.labels.join(', ') }} <app-icon name="x" [size]="12" /></button>
@@ -143,23 +147,44 @@
               }
             </span>
           }
-          @if (missing(); as gaps) {
-            <label
-              class="head-switch"
-              [title]="
-                showMissing()
-                  ? 'Showing the rows with a cell left empty, and the empty columns: switch off for every row'
-                  : gaps.missing.toLocaleString('en') + ' cells with nothing entered: switch on to see them (only the rows that have one, each empty cell marked, the empty columns shown)'
-              "
+          @if (canByApplication()) {
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm head-toggle"
+              [attr.aria-pressed]="applicationView()"
+              [title]="applicationView() ? 'Each plot is a line, the applications along the top: press again for a row for each application' : 'See each plot as one line, the applications (1st, 2nd…) along the top and what was done under each'"
+              (click)="setByApplication(!applicationView())"
             >
-              <input type="checkbox" class="switch" [checked]="showMissing()" (change)="setShowMissing($any($event.target).checked)" /> Missing data
+              <app-icon name="columns" /> By application
+            </button>
+          }
+          @if (missing(); as gaps) {
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm head-toggle"
+              [attr.aria-pressed]="showMissing()"
+              [title]="
+                applicationView()
+                  ? showMissing()
+                    ? 'Showing the plots with a cell left empty: press again for every plot'
+                    : gaps.missing.toLocaleString('en') + ' cells with nothing entered: press to see them (only the plots that have one, each empty cell marked)'
+                  : showMissing()
+                    ? 'Showing the rows with a cell left empty, and the empty columns: press again for every row'
+                    : gaps.missing.toLocaleString('en') + ' cells with nothing entered: press to see them (only the rows that have one, each empty cell marked, the empty columns shown)'
+              "
+              (click)="setShowMissing(!showMissing())"
+            >
+              <app-icon name="alert" /> Missing data
               @if (!showMissing() && gaps.missing) {
-                <small>{{ gaps.missing.toLocaleString('en') }}</small>
+                <span class="toggle-count">{{ gaps.missing.toLocaleString('en') }}</span>
               }
-            </label>
+            </button>
           }
           <button type="button" class="btn btn-secondary btn-sm" (click)="setMode('sheet')"><app-icon name="grid" /> Open in sheet</button>
         </header>
+        @if (applicationView()) {
+          <app-application-table [sheet]="sheet" [pivot]="pivot()" [searching]="filtered()" [missing]="gapColumns()" />
+        } @else {
         <app-sheet-table
           [sheet]="sheet"
           [rows]="rows()"
@@ -174,6 +199,7 @@
           [focusColumn]="column() ?? null"
           (sortBy)="sortBy($event)"
         />
+        }
       </section>
     </div>
     }
@@ -236,7 +262,7 @@
 
   <app-import-dialog [file]="importFile()" [sheet]="sheet" (closed)="importFile.set(null)" (imported)="imported($event)" />
   <app-google-import-dialog [open]="googleIntoOpen()" [into]="sheet" (closed)="closeGooglePicker()" (picked)="googlePicked($event)" />
-  <app-google-link-dialog [open]="linkOpen()" [sheet]="sheet" [canSync]="mode() !== 'sheet'" (closed)="linkOpen.set(false)" (redefine)="redefineGoogle()" />
+  <app-google-link-dialog [open]="linkOpen()" [sheet]="sheet" [canSync]="mode() !== 'sheet'" (closed)="linkOpen.set(false)" />
 
   <app-modal [open]="importsOpen()" title="Imports" [subtitle]="sheet.title" (closed)="importsOpen.set(false)">
     @for (record of imports(); track record.importId) {

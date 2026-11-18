@@ -12,7 +12,7 @@ import type {
 } from '@core/models';
 import { isFormulaError, type FormulaScalar } from '@shared/formula/evaluate-formula';
 import type { WorkbookFormulas } from '@shared/formula/sheet-formulas';
-import { columnLabel, formatDate, isIsoDate, PATH_SEPARATOR } from '@shared/sheet/columns';
+import { columnLabel, formatDate, isIsoDate, isPlotColumn, parseLinkSource, PATH_SEPARATOR } from '@shared/sheet/columns';
 
 /**
  * A table's dashboard, as the system's KPI board has it: Power BI-style
@@ -194,14 +194,16 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function groupOf(value: FormulaScalar, part: GroupPart): { key: string; label: string } | null {
   if (blank(value)) return null;
   const text = String(value).trim();
-  if (part !== 'value' || isIsoDate(text.slice(0, 10))) {
+  // A plot's zone number (already read from Zones) is grouped as the value it is.
+  const byValue = part === 'value' || part === 'zone';
+  if (!byValue || isIsoDate(text.slice(0, 10))) {
     const iso = text.slice(0, 10);
     if (isIsoDate(iso)) {
       if (part === 'year') return { key: iso.slice(0, 4), label: iso.slice(0, 4) };
       if (part === 'month') return { key: iso.slice(0, 7), label: `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}` };
       return { key: iso, label: formatDate(iso) };
     }
-    if (part !== 'value') return null;
+    if (!byValue) return null;
   }
   return { key: text.toLowerCase(), label: typeof value === 'boolean' ? (value ? 'Yes' : 'No') : text };
 }
@@ -212,9 +214,34 @@ export interface Group {
   rows: number[];
 }
 
-/** The rows' indexes grouped by a column (or its dates' months / years), in order: dates by date, numbers by number, text A → Z. */
-export function groupRows(formulas: WorkbookFormulas, sheet: SheetWithRows, key: string, part: GroupPart): Group[] | null {
+/** Each plot (lower-cased) and its zone number, from the table a plot column picks from: that table's Zone number column. */
+export function plotZoneNumbers(formulas: WorkbookFormulas, column: Column | undefined): Map<string, FormulaScalar> {
+  const numbers = new Map<string, FormulaScalar>();
+  const source = column?.type === 'link' ? parseLinkSource(column.source) : null;
+  const table = source ? formulas.table(source.table) : undefined;
+  const plot = source && table ? formulas.resolve(table.columns, source.column) : null;
+  const zone = table ? formulas.resolve(table.columns, 'Zone number') : null;
+  if (!table || !plot || !zone) return numbers;
+  for (const row of table.rows) {
+    const name = formulas.cell(table, row, plot);
+    if (blank(name)) continue;
+    const key = String(name).trim().toLowerCase();
+    if (!numbers.has(key)) numbers.set(key, formulas.cell(table, row, zone));
+  }
+  return numbers;
+}
+
+/** A column's values as `part` groups them: for `zone`, each plot's zone number (a plot Zones doesn't have: blank). */
+function groupValues(formulas: WorkbookFormulas, sheet: SheetWithRows, key: string, part: GroupPart): FormulaScalar[] | null {
   const values = columnValues(formulas, sheet, key);
+  if (!values || part !== 'zone') return values;
+  const numbers = plotZoneNumbers(formulas, sheet.columns.find((column) => column.key === key));
+  return values.map((value) => (blank(value) ? null : (numbers.get(String(value).trim().toLowerCase()) ?? null)));
+}
+
+/** The rows' indexes grouped by a column (or its dates' months / years, or its plots' zone numbers), in order: dates by date, numbers by number, text A → Z. */
+export function groupRows(formulas: WorkbookFormulas, sheet: SheetWithRows, key: string, part: GroupPart): Group[] | null {
+  const values = groupValues(formulas, sheet, key, part);
   if (!values) return null;
   return groupIndexes(values, values.map((_, index) => index), part);
 }
@@ -264,14 +291,23 @@ export function chartSeries(formulas: WorkbookFormulas, sheet: SheetWithRows, kp
     return [
       {
         label: measureLabel(sheet, measure),
-        points: groups.map((group) => ({
-          key: group.key,
-          label: group.label,
-          value: reduceValues(group.rows.map((index) => values[index]), measure.aggregate) ?? 0,
-        })),
+        points: onTimeline(
+          kpi,
+          groups.map((group) => ({
+            key: group.key,
+            label: group.label,
+            value: reduceValues(group.rows.map((index) => values[index]), measure.aggregate) ?? 0,
+          })),
+        ),
       },
     ];
   });
+}
+
+/** A column (or stacked column) chart of days drawn as a timeline: every day on the way (or only the days there are, `daysOnly`). */
+function onTimeline(kpi: Kpi, points: ChartPoint[]): ChartPoint[] {
+  const days = kpi.timeline && (kpi.visual === 'column' || kpi.visual === 'stacked') && kpi.groupPart === 'value';
+  return days ? (kpi.daysOnly ? inDateOrder(points) : everyDay(points)) : points;
 }
 
 /** A chart's points: its column worked out per group. */
@@ -287,7 +323,7 @@ export function chartPoints(formulas: WorkbookFormulas, sheet: SheetWithRows, kp
       kpi.aggregate,
     ) ?? 0,
   }));
-  return kpi.timeline && kpi.visual === 'column' && kpi.groupPart === 'value' ? (kpi.daysOnly ? inDateOrder(points) : everyDay(points)) : points;
+  return onTimeline(kpi, points);
 }
 
 /** The days of a chart in date order with no gap days: groups are already in order, the blank group last. */
@@ -332,13 +368,15 @@ export function summaryResult(formulas: WorkbookFormulas, sheet: SheetWithRows, 
   const groups = groupRows(formulas, sheet, summary.groupBy, summary.groupPart);
   if (!groupColumn || !groups) return null;
   const thenColumn = summary.thenBy ? sheet.columns.find((column) => column.key === summary.thenBy) : undefined;
-  const thenValues = thenColumn ? columnValues(formulas, sheet, thenColumn.key) : null;
   const thenPart = summary.thenPart ?? 'value';
+  const thenValues = thenColumn ? groupValues(formulas, sheet, thenColumn.key, thenPart) : null;
   const measures = summary.measures.map((measure) => ({
     measure,
     values: columnValues(formulas, sheet, measure.column),
   }));
   const partOf = (part: GroupPart) => (part === 'month' ? ' (month)' : part === 'year' ? ' (year)' : '');
+  // Plots grouped by their zone numbers are headed by what they are: Zone number.
+  const headerOf = (column: Column, part: GroupPart) => (part === 'zone' ? 'Zone number' : dashboardColumnName(sheet.columns, column) + partOf(part));
   const valuesOf = (indexes: readonly number[]) =>
     measures.map(({ measure, values }) =>
       !values ? null : measure.aggregate === 'list' ? listValues(indexes.map((index) => values[index])) : reduceValues(indexes.map((index) => values[index]), measure.aggregate),
@@ -367,8 +405,8 @@ export function summaryResult(formulas: WorkbookFormulas, sheet: SheetWithRows, 
     return sparks ? { sparks } : {};
   };
   return {
-    header: dashboardColumnName(sheet.columns, groupColumn) + partOf(summary.groupPart),
-    ...(thenColumn && thenValues ? { header2: dashboardColumnName(sheet.columns, thenColumn) + partOf(thenPart) } : {}),
+    header: headerOf(groupColumn, summary.groupPart),
+    ...(thenColumn && thenValues ? { header2: headerOf(thenColumn, thenPart) } : {}),
     columns: measures.map(({ measure }) => measureLabel(sheet, measure)),
     rows: groups.flatMap((group) =>
       thenColumn && thenValues
@@ -511,8 +549,12 @@ function measure(column: Column | undefined | '', aggregate: KpiAggregate, label
   return { column: column === '' ? '' : column.key, aggregate, label };
 }
 
+/** The farm's logs that show their rows only, no cards, charts or summaries over them (the farm asked for the raw data alone). */
+export const RAW_DATA_TEMPLATES: ReadonlySet<string> = new Set(['fertigation', 'pruning', 'pesticides']);
+
 /** The dashboard a table starts with: the chili template's own for its tables, else one from its columns. */
 export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
+  if (sheet.templateKey && RAW_DATA_TEMPLATES.has(sheet.templateKey)) return { kpis: [], summaries: [] };
   const pick = picker(sheet);
   let kpis: (Kpi | null)[] = [];
   let summaries: (SummaryTable | null)[] = [];
@@ -696,9 +738,12 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
         card('Harvest yield (kg)', total, 'sum', { decimals: 1 }),
         card('Ripe (kg)', ripe, 'sum', { decimals: 1 }),
         card('Unripe (kg)', unripe, 'sum', { decimals: 1 }),
-        // Every day on the way, the days nothing was harvested left empty: a line of its own that scrolls sideways.
+        // Every day on the way, the days nothing was harvested left empty: a line of its own that scrolls sideways. Each day's yield
+        // in the chili's colours, as the chart by zone number: the unripe kilos (green) at the bottom, the ripe (red) on top, the day's
+        // total written over them (a table without the two columns keeps one colour).
         (() => {
-          const byDay = chart('Harvest yield by day', 'column', total, 'sum', harvestDate);
+          const coloured = ripe && unripe ? { visual: 'stacked' as const, more: [{ column: ripe.key, aggregate: 'sum' as const }], decimals: 1 } : {};
+          const byDay = chart('Harvest yield by day', 'column', ripe && unripe ? unripe : total, 'sum', harvestDate, 'value', coloured);
           // It opens on every day and switches to only the days with a harvest, as it was: Every day | Harvest days.
           const views: KpiView[] | undefined = harvestDate
             ? [
@@ -720,12 +765,8 @@ export function suggestedDashboard(sheet: SheetWithRows): Dashboard {
       ];
       // What the farm asks of them: on a day, how much and from which plots; in a zone number, how much and from which plots.
       const measures = [measure(plot, 'list', 'Zone plots'), measure(total, 'sum', 'Total yield (kg)'), measure(ripe, 'sum', 'Ripe (kg)'), measure(unripe, 'sum', 'Unripe (kg)')];
-      // A zone number also lists every day it was harvested (all its dates, once each, oldest first).
-      const harvestDays = measure(harvestDate, 'list', 'Yield by harvest day');
-      // ... drawn as a mini graph of the yield on each of those days (the list is still the cell's text for a file).
-      if (harvestDays && total) harvestDays.spark = total.key;
-      const zoneMeasures = [measure(plot, 'list', 'Zone plots'), harvestDays, ...measures.slice(1)];
-      summaries = [summary('By date', harvestDate, 'value', measures), summary('By zone number', zoneNumber, 'value', zoneMeasures)];
+      // The same for each zone number (no column of its harvest days: the farm asked for it to go; the chart by day has them).
+      summaries = [summary('By date', harvestDate, 'value', measures), summary('By zone number', zoneNumber, 'value', measures)];
       break;
     }
     case 'zones': {
@@ -796,6 +837,10 @@ function genericDashboard(sheet: SheetWithRows): Dashboard {
   const numbers = sheet.columns.filter((column) => !column.auto && (column.type === 'number' || column.type === 'percentage'));
   const date = sheet.columns.find((column) => column.type === 'date');
   const category = sheet.columns.find((column) => column.type === 'link' || column.type === 'choice' || column.type === 'yesno');
+  // A log of plots (its Zone picks one of the Zones' plots) is added up by zone number, as the farm reads it, not plot by plot:
+  // by the table's own Zone number column, else by each plot's zone number read from Zones.
+  const zoneNumber = sheet.columns.find((column) => column.name.trim().toLowerCase() === 'zone number');
+  const byZone = category && isPlotColumn(category) ? (zoneNumber ? { column: zoneNumber, part: 'value' as const } : { column: category, part: 'zone' as const }) : null;
   const first = numbers[0];
   const what = first ? columnLabel(first) : 'Rows';
   const kpis: (Kpi | null)[] = [
@@ -804,17 +849,19 @@ function genericDashboard(sheet: SheetWithRows): Dashboard {
       card(columnLabel(column), column, column.type === 'percentage' ? 'average' : 'sum', { decimals: column.type === 'percentage' ? 1 : null }),
     ),
     date ? chart(`${what} by month`, 'column', first ?? '', first ? 'sum' : 'count', date, 'month') : null,
-    category ? chart(`${what} by ${category.name}`, 'bar', first ?? '', first ? 'sum' : 'count', category) : null,
+    byZone
+      ? chart(`${what} by zone number`, 'bar', first ?? '', first ? 'sum' : 'count', byZone.column, byZone.part, { zoneColours: true })
+      : category
+        ? chart(`${what} by ${category.name}`, 'bar', first ?? '', first ? 'sum' : 'count', category)
+        : null,
   ];
+  const measures = [measure('', 'count', 'Rows'), ...numbers.slice(0, 4).map((column) => measure(column, column.type === 'percentage' ? 'average' : 'sum'))];
   const groupBy = category ?? date;
-  const summaries: (SummaryTable | null)[] = groupBy
-    ? [
-        summary(`By ${groupBy.name}${groupBy === date ? ' (month)' : ''}`, groupBy, groupBy === date ? 'month' : 'value', [
-          measure('', 'count', 'Rows'),
-          ...numbers.slice(0, 4).map((column) => measure(column, column.type === 'percentage' ? 'average' : 'sum')),
-        ]),
-      ]
-    : [];
+  const summaries: (SummaryTable | null)[] = byZone
+    ? [summary('By zone number', byZone.column, byZone.part, measures)]
+    : groupBy
+      ? [summary(`By ${groupBy.name}${groupBy === date ? ' (month)' : ''}`, groupBy, groupBy === date ? 'month' : 'value', measures)]
+      : [];
   return { kpis: kpis.filter((k): k is Kpi => !!k), summaries: summaries.filter((s): s is SummaryTable => !!s) };
 }
 

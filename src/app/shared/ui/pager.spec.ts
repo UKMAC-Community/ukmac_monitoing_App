@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
-import { Pager } from './pager';
+import { Pager, savedPageSize } from './pager';
 
 function render(total: number, always: boolean) {
   const fixture = TestBed.createComponent(Pager);
@@ -30,5 +30,24 @@ describe('Pager', () => {
     const el = render(0, true);
     expect(el.querySelector('.range')?.textContent?.trim()).toBe('0–0 of 0');
     expect([...el.querySelectorAll('button.pg')].map((b) => b.textContent?.trim())).toEqual(['1']);
+  });
+
+  it('starts every table at 10 rows a page, and keeps the size picked from then on', () => {
+    localStorage.removeItem('ukmac.page-size');
+    try {
+      expect(savedPageSize()).toBe(10);
+      const fixture = TestBed.createComponent(Pager);
+      fixture.componentRef.setInput('total', 139);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.range')?.textContent?.trim()).toBe('1–10 of 139');
+      // 50 picked: the next table opened (or the app reopened) starts at 50.
+      fixture.componentInstance.setSize(50);
+      expect(savedPageSize()).toBe(50);
+      fixture.componentInstance.setSize(0);
+      expect(savedPageSize()).toBe(0);
+    } finally {
+      localStorage.removeItem('ukmac.page-size');
+    }
   });
 });

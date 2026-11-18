@@ -6,8 +6,8 @@ import { Icon } from './icon';
 export const PAGE_SIZES = [10, 20, 30, 50, 100, 0];
 const SIZE_KEY = 'ukmac.page-size';
 
-/** The rows per page last picked on this Mac (any table), or the fallback. */
-export function savedPageSize(fallback = 50): number {
+/** The rows per page last picked on this Mac (in any table, kept from then on), else 10. */
+export function savedPageSize(fallback = 10): number {
   try {
     const saved = localStorage.getItem(SIZE_KEY);
     const size = Number(saved);
@@ -79,7 +79,7 @@ export function pageSlice<T>(rows: readonly T[], page: number, size: number): T[
 export class Pager {
   readonly total = input.required<number>();
   readonly page = model(0);
-  readonly size = model(50);
+  readonly size = model(10);
   /** Smaller, for a table inside a card. */
   readonly compact = input(false);
   /** Shown even when everything fits on one page (then it reads "1–7 of 7" and page 1). */

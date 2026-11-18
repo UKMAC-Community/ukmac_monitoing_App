@@ -15,6 +15,8 @@ export interface StackPane {
 /** A plot (or any area) drawn on the map. */
 export interface MapShape {
   id: string;
+  /** Stands up higher than the other plots on the 3D map (some plots picked out of the rest). */
+  lift?: boolean;
   points: [number, number][];
   fill: string;
   stroke: string;

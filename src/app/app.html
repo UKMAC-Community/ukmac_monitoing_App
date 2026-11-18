@@ -130,6 +130,9 @@
                 }
                 <app-icon [name]="sheet.icon || 'map'" [size]="17" />
                 <span class="nav-label">{{ sheet.title }}</span>
+                @if (!sheet.rows.length) {
+                  <span class="badge warning nav-empty-mark" title="No records yet" aria-label="No records yet">!</span>
+                }
               </a>
               }
             }
@@ -157,6 +160,24 @@
                         <app-icon [name]="sheet.icon || headingIcon(group.heading)" [size]="15" />
                       }
                       <span class="nav-label">{{ sheet.title }}</span>
+                      @if (stageOf(sheet.sheetId); as stage) {
+                        <span
+                          class="badge stage-pill"
+                          [class.is-ring]="!stageShort(stage)"
+                          [class.neutral]="stage.state === 'not-started'"
+                          [class.info]="stage.state === 'in-progress' && !stage.late"
+                          [class.warning]="stage.state === 'in-progress' && stage.late > 0"
+                          [class.success]="stage.state === 'done'"
+                          [style.--p]="stage.state === 'done' ? 100 : stage.percent ?? (stage.state === 'in-progress' ? 50 : 0)"
+                          [title]="stageText(stage) + ': ' + stage.detail"
+                          [attr.aria-label]="stageText(stage) + ': ' + stage.detail"
+                        >
+                          <span class="stage-ring" aria-hidden="true"></span>
+                          @if (stageShort(stage); as short) {
+                            <span class="stage-text">{{ short }}</span>
+                          }
+                        </span>
+                      }
                     </a>
                   }
                 </div>
@@ -210,7 +231,7 @@
         <button
           type="button"
           class="google-chip"
-          [title]="'Reads the Google Sheet ' + link.spreadsheetTitle + ' › ' + link.tabTitle + '. Click to change the link; Sync reads it again'"
+          [title]="'Reads the Google Sheet ' + link.spreadsheetTitle + ' › ' + link.tabTitle + '. Click to change which tab it reads; Sync reads it again'"
           [attr.aria-label]="'Google Sheet link: ' + link.spreadsheetTitle + ' › ' + link.tabTitle"
           (click)="google.editLinkRequest.update(n => n + 1)"
         >

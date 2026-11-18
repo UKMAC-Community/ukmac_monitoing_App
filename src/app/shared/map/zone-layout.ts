@@ -307,11 +307,13 @@ export function usageWord(cell: ZoneCell) {
 export function plotCard(cell: ZoneCell): PlotCard {
   // Only a plot with a zone number is in a zone: another (an old chili plot, a pond…) is named by its area alone.
   const place = cell.section !== null ? `Zone ${cell.zone} · ${cell.section}` : cell.zone;
-  const lines = [[place, usageWord(cell), cell.capacity ? `${cell.capacity} plants max` : ''].filter(Boolean).join(' · ')];
+  // A plot in use: the day it was planted (its first dated record), and its latest record; the zone is on the map already.
+  const planted = cell.usage === 'normal' ? cell.records.map((record) => record.date).filter(Boolean).sort()[0] : undefined;
+  const lines = [planted ? `Planted ${formatDate(planted)}` : [place, usageWord(cell), cell.capacity ? `${cell.capacity} plants max` : ''].filter(Boolean).join(' · ')];
   const last = cell.records[0];
   if (last) {
     const date = last.date ? formatDate(last.date) : '';
-    lines.push([date ? `Latest ${date}` : 'Latest record', last.count ? `${last.count} plants` : '', last.status].filter(Boolean).join(' · '));
+    lines.push([date ? `Latest ${date}` : 'Latest record', last.count ? `${last.count} plants` : ''].filter(Boolean).join(' · '));
     if (cell.records.length > 1) lines.push(`${cell.records.length} records`);
   } else if (cell.usage === 'normal') {
     lines.push('No records yet');

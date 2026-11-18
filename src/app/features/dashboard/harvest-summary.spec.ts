@@ -81,11 +81,11 @@ describe('Harvest: its tables by date, and by zone number', () => {
     expect(result.header).toBe('Zone number');
     expect(result.header2).toBeUndefined();
     expect(result.rows.map((row) => [row.label, ...row.values])).toEqual([
-      ['1', 'A-01, A-02', '2026-07-01, 2026-07-02', 13.5, 10, 3.5],
-      ['2', 'B-01', '2026-07-02', 4, 4, 0],
-      ['(blank)', 'Z-99', '2026-07-01', 3, 3, 0],
+      ['1', 'A-01, A-02', 13.5, 10, 3.5],
+      ['2', 'B-01', 4, 4, 0],
+      ['(blank)', 'Z-99', 3, 3, 0],
     ]);
-    expect(result.totals).toEqual(['', '', 20.5, 17, 3.5]);
+    expect(result.totals).toEqual(['', 20.5, 17, 3.5]);
   });
 
   it('shows the plots in the page, one table at a time', () => {
@@ -109,37 +109,57 @@ describe('Harvest: its tables by date, and by zone number', () => {
     expect(root.querySelector('article.summary tbody tr td:nth-child(2)')?.textContent?.trim()).toBe('A-01, Z-99');
     buttons[1].click();
     fixture.detectChanges();
-    expect(heads()).toEqual(['Zone number', 'Zone plots', 'Yield by harvest day', 'Total yield (kg)', 'Ripe (kg)', 'Unripe (kg)']);
+    // No Yield by harvest day column (the farm asked for it to go): the plots and the kilos only.
+    expect(heads()).toEqual(['Zone number', 'Zone plots', 'Total yield (kg)', 'Ripe (kg)', 'Unripe (kg)']);
     expect(root.querySelectorAll('article.summary tbody tr').length).toBe(3);
-    // The days are a mini graph (a bar for each day harvested), no longer a long line of dates.
-    const graph = root.querySelector('article.summary tbody tr app-spark');
-    expect(graph).not.toBeNull();
-    expect(graph!.querySelectorAll('rect.mark').length).toBeGreaterThan(0);
-    expect(graph!.querySelector('title')?.textContent).toMatch(/^\d{4}-\d{2}-\d{2}: /);
-    expect(root.querySelector('article.summary tbody tr .list-text')?.textContent ?? '').not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(root.querySelector('article.summary app-spark')).toBeNull();
   });
 
   it('draws the harvest yield by day as a timeline: every day on the way, the days with none empty', () => {
     const chart = dashboard.kpis.find((kpi) => kpi.title === 'Harvest yield by day')!;
     expect(chart.timeline).toBe(true);
     expect(chart.wide).toBe(true);
-    const points = chartPoints(book, sheet, chart);
-    expect(points.map((point) => [point.key, point.value, !!point.empty])).toEqual([
-      ['2026-07-01', 4, false],
-      ['2026-07-02', 16.5, false],
+    // Each day in the chili's colours, as the chart by zone number: the unripe kilos at the bottom, the ripe on top.
+    expect(chart.visual).toBe('stacked');
+    const series = chartSeries(book, sheet, chart);
+    expect(series.map((one) => [one.label, one.points.map((point) => [point.key, point.value])])).toEqual([
+      ['Unripe yield (kg)', [['2026-07-01', 1], ['2026-07-02', 2.5]]],
+      ['Ripe yield (kg)', [['2026-07-01', 3], ['2026-07-02', 14]]],
     ]);
-    // Days 1, 2 and 5 only: the days between are there, empty.
+    // Together they are the day's harvest yield.
+    expect(series[0].points.map((point, i) => point.value + series[1].points[i].value)).toEqual([4, 16.5]);
+    // Days 1, 2 and 5 only: the days between are there, empty, in every part.
     const gap = makeSheet(3, 'Harvest', harvest, [pick('A-01', 'ripe', '2026-07-01', 5), pick('A-01', 'ripe', '2026-07-02', 6), pick('A-01', 'ripe', '2026-07-05', 7)], 'harvest');
-    const days = chartPoints(new WorkbookFormulas([zoneSheet, gap], '2026-11-10'), gap, chart);
-    expect(days.map((point) => [point.key, point.value, !!point.empty])).toEqual([
-      ['2026-07-01', 5, false],
-      ['2026-07-02', 6, false],
-      ['2026-07-03', 0, true],
-      ['2026-07-04', 0, true],
-      ['2026-07-05', 7, false],
+    const gapBook = new WorkbookFormulas([zoneSheet, gap], '2026-11-10');
+    const days = chartSeries(gapBook, gap, chart);
+    expect(days.map((one) => one.points.map((point) => [point.key, point.value, !!point.empty]))).toEqual([
+      [['2026-07-01', 0, false], ['2026-07-02', 0, false], ['2026-07-03', 0, true], ['2026-07-04', 0, true], ['2026-07-05', 0, false]],
+      [['2026-07-01', 5, false], ['2026-07-02', 6, false], ['2026-07-03', 0, true], ['2026-07-04', 0, true], ['2026-07-05', 7, false]],
+    ]);
+    expect(chartPoints(gapBook, gap, chart).map((point) => [point.key, !!point.empty])).toEqual([
+      ['2026-07-01', false],
+      ['2026-07-02', false],
+      ['2026-07-03', true],
+      ['2026-07-04', true],
+      ['2026-07-05', false],
     ]);
     // Only a timeline fills the days (the same chart without it shows the days it has).
-    expect(chartPoints(new WorkbookFormulas([zoneSheet, gap], '2026-11-10'), gap, { ...chart, timeline: false }).length).toBe(3);
+    expect(chartSeries(gapBook, gap, { ...chart, timeline: false })[1].points.length).toBe(3);
+  });
+
+  it('colours the day chart as the zone chart: unripe green, ripe red, the total over each day', () => {
+    const fixture = TestBed.createComponent(SheetDashboard);
+    fixture.componentRef.setInput('sheet', sheet);
+    fixture.componentRef.setInput('formulas', book);
+    fixture.componentRef.setInput('part', 'top');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const tile = [...el.querySelectorAll('article.tile')].find((t) => t.querySelector('h3')?.textContent?.trim() === 'Harvest yield by day')!;
+    const fills = [...tile.querySelectorAll('.timeline rect')].map((rect) => rect.getAttribute('fill')?.toUpperCase());
+    expect(fills).toEqual([UNRIPE_COLOR, RIPE_COLOR, UNRIPE_COLOR, RIPE_COLOR]);
+    // The day's total over its stack, and the key under the chart.
+    expect([...tile.querySelectorAll('.timeline text.value')].map((text) => text.textContent?.trim())).toEqual(['4.0', '16.5']);
+    expect([...tile.querySelectorAll('.series-legend li')].map((li) => li.textContent?.trim())).toEqual(['Unripe yield (kg)', 'Ripe yield (kg)']);
   });
 
   it('gives the day chart a switch: every day (the timeline), or only the days with a harvest', () => {

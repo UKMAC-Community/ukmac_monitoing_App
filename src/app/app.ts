@@ -19,6 +19,8 @@ import { Toasts } from '@core/toast';
 import { AppUpdater } from '@core/updater';
 import { WorkbookStore } from '@core/workbook-store';
 import { tableGaps } from '@features/dashboard/data-gaps';
+import { todayIso } from '@shared/sheet/columns';
+import { stageStatuses, type StageStatus } from '@shared/sheet/stage-status';
 
 interface Crumb {
   label: string;
@@ -128,6 +130,26 @@ export class App implements OnInit {
       return sum + gaps.none + gaps.partly;
     }, 0),
   );
+
+  /** Each Farm Progress table's status, from what has been entered in it: Not started, how far (%), Done. */
+  private readonly stages = computed(() => stageStatuses(this.store.sheets(), todayIso()));
+
+  stageOf(sheetId: number): StageStatus | null {
+    return this.stages().get(sheetId) ?? null;
+  }
+
+  /** What the pill itself says, kept short so no table's name is cut: its % or Done; nothing else (the ring and the tooltip say it). */
+  stageShort(status: StageStatus) {
+    if (status.state === 'done') return 'Done';
+    return status.percent === null ? '' : `${status.percent}%`;
+  }
+
+  /** A stage's status in words, for the tooltip. */
+  stageText(status: StageStatus) {
+    if (status.state === 'not-started') return 'Not started';
+    if (status.state === 'done') return 'Done';
+    return status.percent === null ? 'In progress' : `${status.percent}%`;
+  }
 
   /** Everything else, as the system's "Farm Progress" groups. */
   readonly progressGroups = computed(() => this.shownHeadings().filter((group) => group.heading !== 'Setup'));

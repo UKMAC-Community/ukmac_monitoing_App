@@ -179,7 +179,7 @@ interface CardView {
                       <th>{{ result.header2 }}</th>
                     }
                     @for (column of result.columns; track $index) {
-                      <th class="cell-num" [class.cell-text]="isText(result.rows[0]?.values?.[$index])">{{ column }}</th>
+                      <th class="cell-num">{{ column }}</th>
                     }
                   </tr>
                 </thead>
@@ -323,11 +323,9 @@ interface CardView {
     /* The pager keeps a page short, so the table shows all of its page's rows (no scrolling inside it). */
     .summary .table-wrap { overflow-x: auto; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    /* A quiet, ruled table: small muted capitals over the columns, words on the left and numbers on the right, a hairline between rows. */
-    .data-table th { height: 38px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.045em; color: var(--text-muted); padding: 9px 14px; border-bottom: 1px solid var(--border-strong); position: sticky; top: 0; background: var(--surface-flat); }
-    .data-table td { height: 40px; text-align: left; line-height: 1.35; padding: 6px 14px; border-bottom: var(--hairline) solid var(--border); color: var(--text); }
-    .data-table th.cell-num, .data-table td.cell-num { text-align: right; font-variant-numeric: tabular-nums; }
-    .data-table th.cell-text, .data-table td.cell-num:has(.list-text) { text-align: left; }
+    /* A quiet, ruled table: small muted capitals over the columns, each name centred over its values as every table is, a hairline between rows. */
+    .data-table th { height: 38px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.045em; color: var(--text-muted); padding: 9px 14px; border-bottom: 1px solid var(--border-strong); position: sticky; top: 0; background: var(--surface-flat); }
+    .data-table td { height: 40px; line-height: 1.35; padding: 6px 14px; border-bottom: var(--hairline) solid var(--border); color: var(--text); }
     .data-table tbody tr:last-child td { border-bottom: none; }
     /* A list of dates (a zone's harvest days) is shown whole, wrapping onto as many lines as it needs. */
     .data-table .list-text.dates { max-width: 340px; overflow: visible; text-overflow: clip; white-space: normal; text-align: left; line-height: 1.5; }
@@ -360,7 +358,7 @@ export class SheetDashboard {
 
   /** Each summary table's page and rows per page. */
   private readonly summaryPaging = signal<Readonly<Record<string, { page: number; size: number }>>>({});
-  private readonly summarySize = savedPageSize(10);
+  private readonly summarySize = savedPageSize();
 
   readonly dashboard = computed(() => this.board() ?? dashboardOf(this.sheet()).dashboard);
 
@@ -403,7 +401,8 @@ export class SheetDashboard {
       labels = [group.label];
     }
     const field = sheet.columns.find((item) => item.key === column);
-    this.filterChange.emit({ sheetId: sheet.sheetId, source, column, part, keys, labels, name: field ? dashboardColumnName(sheet.columns, field) : '' });
+    const name = part === 'zone' ? 'Zone number' : field ? dashboardColumnName(sheet.columns, field) : '';
+    this.filterChange.emit({ sheetId: sheet.sheetId, source, column, part, keys, labels, name });
   }
 
   /** How many of 60 columns each card spans when there are more than five (two rows as even as can be); none: the cards flow as they fit. */

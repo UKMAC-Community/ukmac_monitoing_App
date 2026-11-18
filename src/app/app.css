@@ -45,6 +45,67 @@
   font-size: 0.6875rem;
 }
 
+/* A table with no records yet: a small "!" at the row's end; on the folded rail, a dot on the icon's corner. */
+.nav-link .nav-empty-mark {
+  flex: none;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 5px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sidebar.is-collapsed .nav-empty-mark {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  font-size: 0.5625rem;
+}
+
+/* A Farm Progress table's status: a ring filled as far as the stage has come, and a word or a %. */
+.nav-link .stage-pill {
+  flex: none;
+  gap: 4px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 6px 0 5px;
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+/* Not started (a hollow ring) and In progress (half filled) say it in their tooltip: a ring alone, so long names stay whole. */
+.nav-link .stage-pill.is-ring {
+  padding: 0 4.5px;
+}
+
+.stage-ring {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background: conic-gradient(currentColor calc(var(--p, 0) * 1%), transparent 0);
+}
+
+.sidebar.is-collapsed .stage-pill {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  height: auto;
+  padding: 2px;
+}
+
+.sidebar.is-collapsed .stage-text {
+  display: none;
+}
+
 .live {
   margin-left: auto;
   padding: 0 7px;

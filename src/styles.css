@@ -277,6 +277,21 @@ label.form-group {
   }
 }
 
+/* ------------------------------------------------------------- tables */
+
+/* Every table in the app reads the same way: each column's name centred over its values (numbers too, in even
+   figures), the names in the middle of the header row. The system's .data-table gives the rest (heights, lines,
+   hover); a table only says where it differs (the QA/QC stage names kept at the left while its columns scroll). */
+.data-table th,
+.data-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+.data-table td.num,
+.data-table td.cell-num {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------------- the sheet */
 
 /* Univer's toolbar (the full sheet, src/app/univer): the system's

@@ -280,6 +280,7 @@
 
 .data-card,
 app-qa-qc-analysis,
+app-qa-qc-zone-status,
 app-qa-qc-map {
   flex: none;
   margin: 16px 20px 0;
@@ -287,12 +288,14 @@ app-qa-qc-map {
 }
 
 .data-card,
-app-qa-qc-analysis {
+app-qa-qc-analysis,
+app-qa-qc-zone-status {
   overflow: hidden;
 }
 
 /* The analysis card sits in the page's column like the other cards (its own margins, as the data card's). */
 app-qa-qc-analysis,
+app-qa-qc-zone-status,
 app-qa-qc-map {
   display: block;
   min-width: 0;
@@ -305,9 +308,12 @@ app-qa-qc-map {
   padding: 16px 20px;
 }
 
-/* The header's switches (the system's own .switch), and the ring of how filled the table is when missing data is shown. */
-.head-switch { display: inline-flex; align-items: center; gap: 8px; padding: 0 6px; font-size: 0.8125rem; font-weight: 500; color: var(--text); cursor: pointer; white-space: nowrap; }
-.head-switch small { color: var(--text-muted); font-size: 0.6875rem; font-variant-numeric: tabular-nums; }
+/* The header's on/off buttons (By application, Missing data): the system's secondary button, taking the accent when
+   pressed as its Chip does; the missing count a small amber badge. Then the ring of how filled the table is. */
+.head-toggle { white-space: nowrap; }
+.head-toggle[aria-pressed='true'] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); box-shadow: none; }
+.head-toggle[aria-pressed='true']:hover:not(:disabled) { background: var(--accent-soft-hover); }
+.toggle-count { margin-left: 2px; padding: 1px 7px; border-radius: 999px; background: var(--warning-soft); color: var(--warning); font-size: 0.6875rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .gap-sum { display: inline-flex; align-items: center; gap: 8px; padding-right: 4px; font-size: 0.8125rem; color: var(--text-muted); white-space: nowrap; }
 .gap-sum b { color: var(--warning); font-weight: 600; font-variant-numeric: tabular-nums; }
 .gap-sum .all { color: var(--success); font-weight: 600; }

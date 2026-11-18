@@ -2,18 +2,35 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, signal, viewChild } from '@angular/core';
 
 import { Icon } from '@shared/ui/icon';
+import { SegmentedThumb } from '@shared/ui/segmented-thumb';
 import type { MapShape } from '@shared/map/mac-map';
 import { MacMap3d, type PlotCard } from '@shared/map/mac-map-3d';
 import type { SheetWithRows } from '@core/models';
 import { WorkbookFormulas } from '@shared/formula/sheet-formulas';
 import { todayIso } from '@shared/sheet/columns';
-import { buildZoneLayout, mapCentre, plotShapes } from '@shared/map/zone-layout';
+import { buildZoneLayout, filterLayout, mapCentre, plotShapes } from '@shared/map/zone-layout';
 import { plotReadings, type Reading, type Status, STATUS_ORDER, worst } from './analysis-readings';
 import { batchSourceOf, buildAnalysis } from './analysis-sheet';
+import { type CheckTally, checkCells, latestStageCounts, latestStageOf, plotStatuses, type ReadingMatch, readingsUnder, tallyOf, tallyRing, tallyWords } from './check-view';
 
 /** What the map keeps clear when it brings the plots into view: big, the key and details down its right; small, only a little. */
 const ROOM_BIG = { top: 70, bottom: 80, left: 110, right: 330 };
 const ROOM_SMALL = { top: 56, bottom: 52, left: 70, right: 70 };
+/** Seen by check: the list down the map's left (its width and the gaps round it), and the room the farm keeps from it and the edges. */
+const LIST_WIDTH = 300;
+const LIST_COVER = 12 + LIST_WIDTH + 12;
+const CHECK_ROOM = { top: 64, bottom: 76, left: 150, right: 150 };
+/** The view the map was last left in. */
+const VIEW_KEY = 'ukmac.qa-qc-map.view';
+export type MapView = 'towers' | 'checks';
+
+function savedView(): MapView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'checks' ? 'checks' : 'towers';
+  } catch {
+    return 'towers';
+  }
+}
 
 /** The status colours, on the stacked layers, the key and the picker's counts. */
 export const STATUS_COLOURS: Record<Status | 'NONE', { fill: string; stroke: string; label: string }> = {
@@ -49,19 +66,21 @@ export interface Stage {
 
 /** What can be stacked on a plot, and how a plot's readings make up one layer of it. */
 export const OVERALL = 'overall';
+/** Each plot's newest stage with readings: where it is now (seen by check, the pick it opens on). */
+export const LATEST = 'latest';
 export const stageKey = (stage: string) => `stage:${stage}`;
 export const checkKey = (stage: string, check: string) => `check:${stage}|${check}`;
 
-/** What one layer of every plot's stack stands for: the overall, a whole stage (the worst of its checks) or a single check. */
+/** What one layer of every plot's stack stands for: the overall, each plot's latest stage, a whole stage (the worst of its checks) or a single check. */
 export interface Pane {
   key: string;
-  kind: 'overall' | 'stage' | 'check';
+  kind: 'overall' | 'latest' | 'stage' | 'check';
   label: string;
   /** A check's stage, said under its name. */
   where: string;
   /** In full, for a hover. */
   title: string;
-  match: (reading: Reading) => boolean;
+  match: ReadingMatch;
 }
 
 /** A plot in use with a QC record: what each layer of its stack says (null: no reading in it yet). */
@@ -87,7 +106,7 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
  */
 @Component({
   selector: 'app-qa-qc-map',
-  imports: [MacMap3d, Icon, NgTemplateOutlet],
+  imports: [MacMap3d, Icon, NgTemplateOutlet, SegmentedThumb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card map-card" aria-label="The QA/QC analysis on the plots in 3D">
@@ -107,11 +126,40 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
               </footer>
             </aside>
       </ng-template>
+      <!-- One line of the list seen by check: a ring of how the plots divide, its name, how many are OK (and to watch), a red badge for the problems. -->
+      <ng-template #rowTpl let-row let-kind="kind">
+        <button type="button" class="cl-row" [class.is-check]="kind === 'check'" [class.on]="chosen() === row.key" [attr.aria-pressed]="chosen() === row.key" [title]="row.title" (click)="choose(row.key)">
+          <span class="cl-ring" [style.background]="row.ring"><span></span></span>
+          <span class="cl-text">
+            <span class="cl-name">{{ row.label }}@if (row.note) { <small>{{ row.note }}</small> }</span>
+            <span class="cl-sub"><i [style.background]="fill('GREEN')"></i>{{ row.tally.GREEN }} plot{{ row.tally.GREEN === 1 ? '' : 's' }} OK@if (row.tally.YELLOW) { <span class="cl-watch">· {{ row.tally.YELLOW }} to watch</span> }</span>
+            @if (row.at?.length) {
+              <span class="cl-at">
+                @for (item of row.at; track item.label) {
+                  <span><b>{{ item.label }}</b> · {{ item.plots }} plot{{ item.plots === 1 ? '' : 's' }}</span>
+                }
+              </span>
+            }
+          </span>
+          @if (row.tally.RED) {
+            <span class="cl-badge" [attr.aria-label]="row.tally.RED + ' red'">{{ row.tally.RED }}</span>
+          }
+        </button>
+      </ng-template>
       <header class="head">
         <div class="title">
           <h2>QA/QC map</h2>
-          <p>Each plot is a tower of layers, first at the bottom. Colour shows how it is doing.</p>
+          @if (view() === 'checks') {
+            <p>Pick a check on the left: every plot takes its colour for it. Green is fine, yellow to watch, red a problem.</p>
+          } @else {
+            <p>Each plot is a tower of layers, first at the bottom. Colour shows how it is doing.</p>
+          }
         </div>
+        <div class="segmented is-sm" role="group" aria-label="How the map shows the analysis">
+          <button type="button" class="segment" [attr.aria-pressed]="view() === 'towers'" title="Each plot a tower of layers, one for each stage" (click)="setView('towers')"><app-icon name="layers" [size]="14" /> Towers</button>
+          <button type="button" class="segment" [attr.aria-pressed]="view() === 'checks'" title="Each check in a list, and the plots coloured for the one picked" (click)="setView('checks')"><app-icon name="grid" [size]="14" /> By check</button>
+        </div>
+        @if (view() === 'towers') {
         <div class="by">
           <button type="button" class="btn btn-secondary btn-sm picker-btn" [attr.aria-expanded]="open()" (click)="open.set(!open())">
             <app-icon name="layers" [size]="14" />
@@ -171,9 +219,10 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
             </div>
           }
         </div>
+        }
       </header>
 
-      @if (picks().length) {
+      @if (view() === 'towers' && picks().length) {
         <div class="chips">
           <p>The layers on each plot, from the bottom up:</p>
           @for (pane of panes(); track pane.key; let index = $index) {
@@ -188,6 +237,56 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
       }
 
       @if (place(); as at) {
+        @if (view() === 'checks') {
+        <div class="map-box is-checks">
+          <app-mac-map-3d
+            [latitude]="at.lat"
+            [longitude]="at.lng"
+            [name]="name()"
+            [shapes]="checkShapes()"
+            [farm]="false"
+            [selected]="pickedPlot()"
+            [card]="checkCard()"
+            [fitPadding]="checkRoom"
+            [cover]="listCover"
+            [fitOnOpen]="true"
+            (picked)="pickedPlot.set($event)"
+            (cleared)="pickedPlot.set(null)"
+          >
+            <!-- Down the map's left, also when it is opened big: each check, how the plots are on it; a click colours the map by it. -->
+            @if (checkList(); as list) {
+            <aside class="check-list" aria-label="Each check, and how the plots are on it">
+              <header class="cl-head">
+                <strong>Status by check</strong>
+                <span>{{ list.plots }} plots · {{ list.checks }} checks</span>
+              </header>
+              <div class="cl-body">
+                <ng-container [ngTemplateOutlet]="rowTpl" [ngTemplateOutletContext]="{ $implicit: list.latest, kind: 'latest' }" />
+                <ng-container [ngTemplateOutlet]="rowTpl" [ngTemplateOutletContext]="{ $implicit: list.overall, kind: 'overall' }" />
+                @for (stage of list.stages; track stage.key) {
+                  <div class="cl-stage">
+                    <button type="button" class="fold" [attr.aria-expanded]="!folded().has(stage.key)" [attr.aria-label]="(folded().has(stage.key) ? 'Open the checks of ' : 'Fold the checks of ') + stage.label" (click)="fold(stage.key)"><app-icon name="chevron-down" [size]="14" /></button>
+                    <span class="cl-cap">{{ stage.sub }}</span>
+                  </div>
+                  <ng-container [ngTemplateOutlet]="rowTpl" [ngTemplateOutletContext]="{ $implicit: stage, kind: 'stage' }" />
+                  @if (!folded().has(stage.key)) {
+                    @for (check of stage.checks; track check.key) {
+                      <ng-container [ngTemplateOutlet]="rowTpl" [ngTemplateOutletContext]="{ $implicit: check, kind: 'check' }" />
+                    }
+                  }
+                }
+              </div>
+              <footer class="cl-key">
+                <span><i [style.background]="fill('GREEN')"></i>Fine</span>
+                <span><i [style.background]="fill('YELLOW')"></i>To watch</span>
+                <span><i [style.background]="fill('RED')"></i>A problem</span>
+                <span><i [style.background]="fill(null)"></i>No reading</span>
+              </footer>
+            </aside>
+            }
+          </app-mac-map-3d>
+        </div>
+        } @else {
         <div class="map-box">
           <app-mac-map-3d
             [latitude]="at.lat"
@@ -299,6 +398,7 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
             </div>
           </app-mac-map-3d>
         </div>
+        }
       } @else {
         <p class="none-yet">The 3D map needs the plots' outlines: add them in the Zones table (the Zone Map draws them).</p>
       }
@@ -339,6 +439,8 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
     .chip-x:hover { background: var(--surface-hover); color: var(--text); }
 
     .map-box { position: relative; height: clamp(380px, 60vh, 560px); overflow: hidden; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+    /* Seen by check the farm has room round it: a taller map. */
+    .map-box.is-checks { height: clamp(500px, 74vh, 780px); }
     .map-box app-mac-map-3d { container-type: size; }
     .map-box app-mac-map-3d:not(.m3-expanded) { position: absolute; inset: 0; }
     /* Small: just the map (the layers and the key are over it only when it is opened big, with Open). */
@@ -406,6 +508,38 @@ const wordOf = (status: Status | null) => (status ? STATUS_COLOURS[status].label
     .layers ul li i { width: 9px; height: 9px; border-radius: 2px; flex: none; align-self: center; }
     .layers .check { flex: none; font-weight: 500; }
     .layers .result { color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Seen by check: the list down the map's left (as wide as the room the map keeps for it). */
+    .check-list { position: absolute; z-index: 5; left: 12px; top: 12px; bottom: 16px; width: 300px; display: flex; flex-direction: column; background: var(--surface-solid); border: var(--hairline) solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); overflow: hidden; font-size: 0.8125rem; color: var(--text); }
+    .cl-head { display: flex; flex-direction: column; gap: 1px; padding: 12px 14px 10px; border-bottom: var(--hairline) solid var(--border); }
+    .cl-head strong { font-size: 0.875rem; }
+    .cl-head span { color: var(--text-muted); font-size: 0.75rem; }
+    .cl-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 4px 0 8px; }
+    .cl-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 12px 7px 14px; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; box-shadow: inset 3px 0 0 transparent; }
+    .cl-row:hover { background: var(--surface-hover); }
+    .cl-row.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+    .cl-row.is-check { padding: 5px 12px 5px 34px; }
+    .cl-ring { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; }
+    .cl-ring span { width: 18px; height: 18px; border-radius: 50%; background: var(--surface-solid); }
+    .cl-row.on .cl-ring span { background: color-mix(in srgb, var(--accent-soft) 60%, var(--surface-solid)); }
+    .cl-row.is-check .cl-ring { width: 22px; height: 22px; }
+    .cl-row.is-check .cl-ring span { width: 13px; height: 13px; }
+    .cl-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+    .cl-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    .cl-row.is-check .cl-name { font-weight: 500; }
+    .cl-name small { margin-left: 5px; color: var(--text-muted); font-size: 0.6875rem; font-weight: 400; }
+    .cl-sub { display: flex; align-items: center; gap: 5px; color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .cl-sub i { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+    .cl-watch { color: var(--warning); font-weight: 500; }
+    .cl-at { display: flex; flex-direction: column; margin-top: 3px; color: var(--text-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+    .cl-at span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cl-at b { font-weight: 600; color: var(--text); }
+    .cl-badge { flex: none; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: #ea4335; color: #fff; font-size: 0.6875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .cl-stage { display: flex; align-items: center; gap: 2px; margin-top: 8px; padding: 0 12px 0 6px; }
+    .cl-cap { color: var(--text-muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+    .cl-key { display: flex; flex-wrap: wrap; gap: 3px 12px; padding: 8px 14px; border-top: var(--hairline) solid var(--border); color: var(--text-muted); font-size: 0.6875rem; }
+    .cl-key span { display: inline-flex; align-items: center; gap: 5px; }
+    .cl-key i { width: 10px; height: 10px; border-radius: 3px; }
   `,
 })
 export class QaQcMap {
@@ -419,6 +553,19 @@ export class QaQcMap {
   readonly open = signal(false);
   readonly keyOpen = signal(true);
   readonly pickedPlot = signal<string | null>(null);
+
+  /** Towers (a stack of layers on each plot) or by check (a list down the left, the plots coloured for the one picked). */
+  readonly view = signal<MapView>(savedView());
+  setView(view: MapView) {
+    if (view === this.view()) return;
+    this.view.set(view);
+    this.pickedPlot.set(null);
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      /* kept for this run only */
+    }
+  }
   /** The layer the pointer is over on the key (its place from the bottom): it is lit up on the map. */
   readonly hover = signal<number | null>(null);
   /** The layer the pointer is over on the map: its row on the key is marked. */
@@ -485,6 +632,21 @@ export class QaQcMap {
   private readonly catalogue = computed(() => {
     const catalogue = new Map<string, Pane>();
     catalogue.set(OVERALL, { key: OVERALL, kind: 'overall', label: 'Overall', where: '', title: 'Overall: the worst of every check', match: () => true });
+    // A plot's newest stage, found once for its readings.
+    const order = this.stages().map((stage) => stage.name);
+    const latest = new WeakMap<readonly Reading[], string | null>();
+    const latestOf = (all: readonly Reading[]) => {
+      if (!latest.has(all)) latest.set(all, latestStageOf(all, order));
+      return latest.get(all) ?? null;
+    };
+    catalogue.set(LATEST, {
+      key: LATEST,
+      kind: 'latest',
+      label: 'Latest stage',
+      where: '',
+      title: 'Latest stage: each plot by the worst of the checks of the newest stage it has data in',
+      match: (reading, all) => reading.stage === latestOf(all),
+    });
     for (const stage of this.stages()) {
       const checks = stage.checks.length;
       catalogue.set(stageKey(stage.name), {
@@ -551,7 +713,7 @@ export class QaQcMap {
       const list = this.readings().get(cell.plot);
       if (!list?.length) continue;
       entries.set(cell.id, {
-        statuses: panes.map((pane) => worst(list.filter(pane.match).map((reading) => reading.status))),
+        statuses: panes.map((pane) => worst(readingsUnder(list, pane.match).map((reading) => reading.status))),
         overall: worst(list.map((reading) => reading.status)),
         checks: list.length,
       });
@@ -652,7 +814,7 @@ export class QaQcMap {
     const layers = this.panes()
       .map((pane, level) => {
         const status = entry.statuses[level];
-        const inside = list.filter(pane.match);
+        const inside = readingsUnder(list, pane.match);
         return {
           level,
           label: pane.label,
@@ -686,6 +848,100 @@ export class QaQcMap {
       lines: [`${entry.overall ? STATUS_COLOURS[entry.overall].label : 'No reading'} overall`, `${counts.map((item) => `${item.count} ${item.word}`).join(' · ')} checks`],
       color: fillOf(entry.overall),
     };
+  });
+
+  // ------------------------------------------------------------ seen by check
+
+  readonly checkRoom = CHECK_ROOM;
+  readonly listCover = LIST_COVER;
+  /** What the plots are coloured for: the overall, a stage or a check (by its key, as the layers name them). */
+  readonly chosen = signal<string>(LATEST);
+  /** The stages whose checks are folded away in the list. */
+  readonly folded = signal<ReadonlySet<string>>(new Set());
+
+  choose(key: string) {
+    this.chosen.set(key);
+  }
+
+  fold(key: string) {
+    this.folded.update((set) => {
+      const next = new Set(set);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  }
+
+  private readonly chosenPane = computed(() => this.catalogue().get(this.chosen()) ?? this.catalogue().get(LATEST)!);
+  /** The plots the map colours: in use, with an outline. */
+  private readonly checkedCells = computed(() => checkCells(this.layout().cells));
+  /** What the pick says of each of those plots: one place for the map's colours and the list's counts. */
+  private readonly chosenStatuses = computed(() => plotStatuses(this.checkedCells(), this.readings(), this.chosenPane().match));
+
+  /** The list down the map's left: the overall, then each stage and its checks, each with how its plots divide. */
+  readonly checkList = computed(() => {
+    const cells = this.checkedCells();
+    const readings = this.readings();
+    const catalogue = this.catalogue();
+    const fills = { GREEN: fillOf('GREEN'), YELLOW: fillOf('YELLOW'), RED: fillOf('RED'), NONE: fillOf(null) };
+    const row = (key: string, label: string, note: string) => {
+      const pane = catalogue.get(key)!;
+      const tally: CheckTally = tallyOf(plotStatuses(cells, readings, pane.match));
+      return { key, label, note, tally, ring: tallyRing(tally, fills), title: `${pane.title}: ${tallyWords(tally)}` };
+    };
+    const stages = this.stages().map((stage) => ({
+      ...row(stageKey(stage.name), stage.title, 'whole stage'),
+      sub: stage.sub,
+      checks: stage.checks.map((check) => row(checkKey(stage.name, check.key), check.label, check.target)),
+    }));
+    return {
+      plots: cells.length,
+      checks: stages.reduce((sum, stage) => sum + stage.checks.length, 0),
+      latest: {
+        ...row(LATEST, 'Latest stage', "each plot's newest"),
+        // Which stages the plots are at: "Stage 9 · 75–150 DAT · 90 plots".
+        at: latestStageCounts(cells, readings, this.stages().map((stage) => stage.name)).map((item) => ({
+          label: this.stages().find((stage) => stage.name === item.stage)?.sub ?? item.stage,
+          plots: item.plots,
+        })),
+      },
+      overall: row(OVERALL, 'Overall', 'every check'),
+      stages,
+    };
+  });
+
+  /** What a plot's readings under the pick say: a check its result; a stage or the overall how its checks divide (the latest stage also which stage). */
+  private saying(pane: Pane, plot: string): string {
+    const inside = readingsUnder(this.readings().get(plot) ?? [], pane.match);
+    if (!inside.length) return '';
+    if (pane.kind === 'check') return inside[0].result;
+    const counts = `${this.tally(inside).map((item) => `${item.count} ${item.word}`).join(' · ')} of ${inside.length} check${inside.length === 1 ? '' : 's'}`;
+    if (pane.kind !== 'latest') return counts;
+    const stage = this.stages().find((item) => item.name === inside[0].stage);
+    return `${stage?.sub ?? inside[0].stage}: ${counts}`;
+  }
+
+  /**
+   * The zones' plots as the MAC's map draws them (their outlines, each zone's colour round its plots and its name beside them), each in
+   * one colour: what the pick says there, grey where it has no reading.
+   */
+  readonly checkShapes = computed<MapShape[]>(() => {
+    const pane = this.chosenPane();
+    const statuses = this.chosenStatuses();
+    return plotShapes(filterLayout(this.layout(), 'zones')).map((shape) => {
+      const cell = this.cells().get(shape.id)!;
+      const status = statuses.get(shape.id) ?? null;
+      const said = this.saying(pane, cell.plot);
+      return { ...shape, fill: fillOf(status), hint: `${pane.label}: ${wordOf(status)}${said ? ` · ${said}` : ''}` };
+    });
+  });
+
+  /** The plot picked, seen by check: what the pick says there, and where it is. */
+  readonly checkCard = computed<PlotCard | null>(() => {
+    const cell = this.cells().get(this.pickedPlot() ?? '');
+    if (!cell) return null;
+    const pane = this.chosenPane();
+    const status = this.chosenStatuses().get(cell.id) ?? null;
+    return { title: cell.plot, lines: [`${pane.label}: ${wordOf(status)}`, this.saying(pane, cell.plot), this.where(cell)].filter(Boolean), color: fillOf(status) };
   });
 
   // ------------------------------------------------------------ the counts in the picker

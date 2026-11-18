@@ -72,19 +72,19 @@ interface Span {
       </button>
     }
     <div class="table-card scroller" #scroller (scroll)="measure()">
-      <table class="data-table">
+      <table class="data-table" [class.is-grouped]="showBoxes() || showGroups()" [class.is-zebra]="zebra()" [style.--pin-w.px]="pinWidth()">
         <thead>
           @if (showBoxes()) {
             <tr class="boxes">
               @for (box of boxSpans(); track box.id) {
-                <th [attr.colspan]="box.span" [attr.data-start]="box.start" class="box" [class.edge]="startsBox(box.start)" [class.is-folded]="box.folded">
+                <th [attr.colspan]="box.span" [attr.data-start]="box.start" class="box" [class.edge]="edgeAt(box.start)" [class.is-folded]="box.folded" [class.pin]="overPins(box)" [class.pin-last]="overPins(box)" [style.left.px]="overPins(box) ? 0 : null">
                   @if (box.foldable) {
                     <button type="button" class="fold" [attr.aria-expanded]="!box.folded" [title]="box.folded ? 'Open the group' : 'Fold the group to its first column'" (click)="toggle(box.id)">
                       <app-icon [name]="box.folded ? 'circle-plus' : 'circle-minus'" [size]="14" />
                       <span class="fold-label">{{ stageName(box.label) }}</span>
                     </button>
-                  } @else {
-                    {{ stageName(box.label) }}
+                  } @else if (box.label) {
+                    <span class="span-label">{{ stageName(box.label) }}</span>
                   }
                 </th>
               }
@@ -93,14 +93,14 @@ interface Span {
           @if (showGroups()) {
             <tr class="boxes">
               @for (group of groupSpans(); track group.id) {
-                <th [attr.colspan]="group.span" class="group" [class.edge]="startsBox(group.start)" [class.is-folded]="group.folded">
+                <th [attr.colspan]="group.span" class="group" [class.edge]="edgeAt(group.start)" [class.end]="spanEnds(group)" [class.is-folded]="group.folded" [class.pin]="overPins(group)" [class.pin-last]="overPins(group)" [style.left.px]="overPins(group) ? 0 : null">
                   @if (group.foldable) {
                     <button type="button" class="fold" [attr.aria-expanded]="!group.folded" [title]="group.folded ? 'Open the group' : 'Fold the group to its first column'" (click)="toggle(group.id)">
                       <app-icon [name]="group.folded ? 'circle-plus' : 'circle-minus'" [size]="14" />
                       <span class="fold-label">{{ group.label }}</span>
                     </button>
-                  } @else {
-                    {{ group.label }}
+                  } @else if (group.label) {
+                    <span class="span-label">{{ group.label }}</span>
                   }
                 </th>
               }
@@ -108,7 +108,18 @@ interface Span {
           }
           <tr>
             @for (item of visible(); track item.column.key) {
-              <th [class.num]="right(item.column)" [class.edge]="startsBox(item.index)" [class.is-lit]="lit() === item.column.key" [attr.data-col]="item.column.key">
+              @let look = looks().get(item.index)!;
+              <th
+                [class.num]="right(item.column)"
+                [class.edge]="look.edge"
+                [class.end]="look.end"
+                [class.pin]="look.pin"
+                [class.pin-last]="look.pinLast"
+                [class.mid]="look.mid"
+                [style.left.px]="look.left"
+                [class.is-lit]="lit() === item.column.key"
+                [attr.data-col]="item.column.key"
+              >
                 <button type="button" class="sort-btn" [class.is-active]="sort()?.key === item.column.key" (click)="sortBy.emit(item.column.key)">
                   {{ label(item.column) }}
                   @if (sort()?.key === item.column.key) {
@@ -128,6 +139,9 @@ interface Span {
                       {{ gaps.toLocaleString('en') }} missing
                     </button>
                   </span>
+                } @else if (missing()) {
+                  <!-- Nothing missing here: an empty line all the same, so this name sits level with the ones that have a count. -->
+                  <span class="gap-line" aria-hidden="true"><span class="gap-blank">&nbsp;</span></span>
                 }
               </th>
             }
@@ -137,10 +151,22 @@ interface Span {
           @for (row of shown(); track row.rowId) {
             <tr>
               @for (item of visible(); track item.column.key) {
+                @let look = looks().get(item.index)!;
                 @if (isGap(row, item.column)) {
-                  <td class="is-gap" [class.num]="right(item.column)" [class.edge]="startsBox(item.index)" [class.is-lit]="lit() === item.column.key" title="Nothing entered"><span class="gap">Missing</span></td>
+                  <td class="is-gap" [class.num]="right(item.column)" [class.edge]="look.edge" [class.end]="look.end" [class.pin]="look.pin" [class.pin-last]="look.pinLast" [class.mid]="look.mid" [style.left.px]="look.left" [class.is-lit]="lit() === item.column.key" title="Nothing entered"><span class="gap">Missing</span></td>
                 } @else {
-                  <td [class.num]="right(item.column)" [class.edge]="startsBox(item.index)" [class.is-lit]="lit() === item.column.key" [title]="text(row, item.column)">{{ text(row, item.column) }}</td>
+                  <td
+                    [class.num]="right(item.column)"
+                    [class.edge]="look.edge"
+                    [class.end]="look.end"
+                    [class.pin]="look.pin"
+                    [class.pin-last]="look.pinLast"
+                    [class.mid]="look.mid"
+                    [class.soft]="look.soft"
+                    [style.left.px]="look.left"
+                    [class.is-lit]="lit() === item.column.key"
+                    [title]="text(row, item.column)"
+                  >{{ text(row, item.column) }}</td>
                 }
               }
             </tr>
@@ -180,25 +206,53 @@ interface Span {
     .gap-aside.is-right { right: 10px; }
     .data-table { width: max-content; min-width: 100%; }
     .data-table thead tr:last-child th { min-width: 130px; }
-    .data-table th.num, .data-table td.num { text-align: right; }
     /* A column asked for (from the Data Check): lit for a few seconds, then it fades back. */
     .data-table th, .data-table td { transition: background-color 600ms ease, box-shadow 600ms ease; }
     .data-table th.is-lit { background: color-mix(in srgb, var(--accent) 16%, var(--surface-solid)); box-shadow: inset 0 -3px 0 var(--accent); color: var(--accent); }
     .data-table td.is-lit { background: color-mix(in srgb, var(--accent) 9%, transparent); }
-    .data-table th.box, .data-table th.group { text-align: center; color: var(--text); font-weight: 600; background: var(--surface-solid); }
+    .data-table th.box, .data-table th.group { color: var(--text); font-weight: 600; background: var(--surface-solid); }
     .data-table thead th { position: sticky; background: var(--surface-solid); z-index: 1; }
     .data-table tr.boxes:nth-child(1) th { top: 0; }
     .data-table td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .data-table td.num { font-variant-numeric: tabular-nums; }
-    /* Missing data, when the page's switch shows it: each column's count under its name, each empty cell tinted. */
-    .data-table thead tr:last-child th { vertical-align: top; }
+    /* Missing data, when the page's button shows it: each column's count under its name, each empty cell tinted. */
     .gap-line { display: block; margin-top: 2px; }
+    .data-table thead th:has(.gap-line) { padding-top: 6px; padding-bottom: 6px; }
     /* A click puts the rows missing it on top; lit while they are. */
     .gap-count { margin: 0 -6px; padding: 1px 6px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 0.6875rem; font-weight: 600; color: var(--warning); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
     .gap-count:hover { background: var(--warning-soft); }
     .gap-count.on { background: var(--warning); color: #fff; }
+    .gap-blank { display: inline-block; padding: 1px 0; font-size: 0.6875rem; }
     .data-table td.is-gap { background: var(--warning-soft); }
     .gap { font-size: 0.75rem; font-weight: 600; color: var(--warning); }
+
+    /* A table of stages and groups (QA/QC), read as the system's QC Records table reads: the row's own columns frozen on the
+       left, each stage and group name kept in view while its columns scroll past, a line closing each group, the readings
+       centred under small capitals, the dates quiet so the numbers stand out. */
+    .data-table.is-grouped th,
+    .data-table.is-grouped td { padding: 0 12px; }
+    .data-table.is-grouped thead tr:last-child th { min-width: 88px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+    .data-table.is-grouped thead tr:last-child th.pin { min-width: 0; }
+    .data-table.is-grouped td.soft { color: var(--text-muted); }
+    .data-table.is-grouped th.box,
+    .data-table.is-grouped th.group { text-align: left; }
+    .data-table.is-grouped th.group { font-size: 0.75rem; }
+    /* The name stays at the left of what is in view, just past the frozen columns. */
+    .data-table.is-grouped th .fold,
+    .data-table.is-grouped th .span-label { position: sticky; left: calc(var(--pin-w, 0px) + 4px); }
+    .span-label { display: inline-block; padding: 2px 8px; white-space: nowrap; }
+    /* A stage starts behind a firm line; a group inside it ends with a lighter one. */
+    .data-table.is-grouped .edge { border-left: 2px solid var(--border-strong); }
+    .data-table.is-grouped .end { border-right: 1px solid var(--border-strong); }
+    /* Frozen: opaque, so what scrolls under never shows through (the row's stripe and hover drawn over it), a line on the last. */
+    .data-table thead th.pin { z-index: 3; }
+    .data-table td.pin { position: sticky; z-index: 1; background-color: var(--surface-solid); background-image: var(--row-bg, none); }
+    .data-table tbody tr:hover td.pin { background-image: linear-gradient(var(--row-hover), var(--row-hover)), var(--row-bg, none); }
+    .data-table td.pin.is-gap { background-image: linear-gradient(var(--warning-soft), var(--warning-soft)); }
+    .data-table .pin-last { border-right: 1px solid var(--border-strong); }
+    /* A wide table's rows striped, every other one faintly tinted, so a row is easy to follow across (the system's Table, 12+ columns). */
+    .data-table.is-zebra tbody tr:nth-child(odd) { --row-bg: linear-gradient(var(--zebra), var(--zebra)); }
+    .data-table.is-zebra td { background-image: var(--row-bg, none); }
+    .data-table.is-zebra { --zebra: color-mix(in srgb, var(--text) 3.5%, transparent); }
     .none { position: sticky; left: 0; padding: 28px 20px; text-align: center; color: var(--text-muted); font-size: 0.875rem; }
     .data-table td.none { text-align: center; color: var(--text-muted); height: 96px; max-width: none; }
   `,
@@ -256,6 +310,88 @@ export class SheetTable {
     const columns = this.columns();
     const box = columns[index]?.box;
     return !!box && index > 0 && columns[index - 1].box !== box;
+  }
+
+  /** A stage's line, but not right after the frozen columns: their own line is there. */
+  edgeAt(index: number): boolean {
+    return this.startsBox(index) && !(this.pinCount() > 0 && index === this.pinCount());
+  }
+
+  /**
+   * The row's own columns frozen on the left of a table of stages or groups (QA/QC's ID, Date and Zone), as the system's QC
+   * Records table pins its plot: the columns before the first stage or group (four at most; none, if nothing comes after).
+   */
+  readonly pinCount = computed(() => {
+    if (!this.showBoxes() && !this.showGroups()) return 0;
+    const columns = this.columns();
+    let count = 0;
+    while (count < columns.length && !columns[count].box && !columns[count].group) count += 1;
+    return count < columns.length && count <= 4 ? count : 0;
+  });
+  /** Where each frozen column sits (px from the left) and how wide they are together, measured once drawn. */
+  readonly pinLefts = signal<number[]>([]);
+  readonly pinWidth = signal(0);
+  /** A wide table's rows striped, as the system's Table does from 12 columns. */
+  readonly zebra = computed(() => this.visible().length >= 12);
+
+  /** The columns in view that close a group (a line after them): its last shown column, unless a new stage starts next. */
+  private readonly groupEnds = computed(() => {
+    const items = this.visible();
+    const key = (column: Column) => `${column.box ?? ''}\u0000${column.group ?? ''}`;
+    const ends = new Set<number>();
+    items.forEach((item, at) => {
+      const next = items[at + 1];
+      if (!next || at < this.pinCount() || (!item.column.box && !item.column.group)) return;
+      if (key(next.column) !== key(item.column) && !this.startsBox(next.index)) ends.add(item.index);
+    });
+    return ends;
+  });
+
+  /** How each column in view is drawn, by its place: frozen (and where), its stage's or group's line, centred, quiet. */
+  readonly looks = computed(() => {
+    const pins = this.pinCount();
+    const lefts = this.pinLefts();
+    const grouped = this.showBoxes() || this.showGroups();
+    const looks = new Map<number, { edge: boolean; end: boolean; pin: boolean; pinLast: boolean; left: number | null; mid: boolean; soft: boolean }>();
+    for (const { column, index } of this.visible()) {
+      const pin = index < pins;
+      const staged = grouped && !pin && !!(column.box || column.group);
+      looks.set(index, {
+        edge: this.edgeAt(index),
+        end: this.groupEnds().has(index),
+        pin,
+        pinLast: pin && index === pins - 1,
+        left: pin ? (lefts[index] ?? null) : null,
+        mid: staged,
+        soft: staged && column.type === 'date',
+      });
+    }
+    return looks;
+  });
+
+  /** The header cell over the frozen columns (the blank one over ID, Date and Zone): frozen with them. */
+  overPins(span: Span): boolean {
+    return this.pinCount() > 0 && span.start === 0 && !span.label && span.total === this.pinCount();
+  }
+
+  /** A group's header closes with the line its last shown column does. */
+  spanEnds(span: Span): boolean {
+    for (let at = span.start + span.total - 1; at >= span.start; at -= 1) if (!this.hidden().has(at)) return this.groupEnds().has(at);
+    return false;
+  }
+
+  /** The frozen columns' places, from their header cells as drawn. */
+  private measurePins() {
+    const count = this.pinCount();
+    const cells = count ? this.scroller()?.nativeElement.querySelectorAll<HTMLElement>('thead tr:last-child th') : null;
+    const lefts: number[] = [];
+    let width = 0;
+    for (let at = 0; cells && at < count && at < cells.length; at += 1) {
+      lefts.push(width);
+      width += cells[at].getBoundingClientRect().width;
+    }
+    if (lefts.join() !== this.pinLefts().join()) this.pinLefts.set(lefts);
+    if (width !== this.pinWidth()) this.pinWidth.set(width);
   }
 
   /**
@@ -363,6 +499,7 @@ export class SheetTable {
 
   /** Which columns with gaps are out of sight to the left and to the right of what is on the screen. */
   measure() {
+    this.measurePins();
     const scroller = this.scroller()?.nativeElement;
     const gaps = this.missing();
     const none = this.aside().left.length === 0 && this.aside().right.length === 0;
