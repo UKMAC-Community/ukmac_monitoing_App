@@ -14,7 +14,7 @@ import { Google } from '@core/google/google';
 import { WorkbookStore } from '@core/workbook-store';
 import { formatDate } from '@shared/sheet/columns';
 import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, newShapeForm, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, startOutline, statusNameOf, type NewKind, type PlotForm } from './zone-edit';
-import { amountOf, formatAmount, missingPlots, NO_DATA, plotViews, sayOf } from './plot-views';
+import { missingPlots, NO_DATA, plotViews, sayOf } from './plot-views';
 import { buildZoneLayout, filterLayout, isGreenhouseZone, mapCentre, notInUseKinds, plotCard, plotShapes, plotShowOptions, showsPlot, usageWord, type PlotShow, type Usage, type ZoneCell } from '@shared/map/zone-layout';
 
 export type ZoneMapView = 'farm' | 'satellite';
@@ -209,15 +209,6 @@ interface PaletteItem {
                                       @if (item.missing) {
                                         <li class="pick" role="button" tabindex="0" [class.on]="focus()?.colour === noData" title="Pick out these plots on the map" (click)="focusColour(noData)" (keydown.enter)="focusColour(noData)"><i class="none"></i><span>No data</span><b>{{ item.missing }}</b></li>
                                       }
-                                    </ul>
-                                  }
-                                  @if (amounts(); as sums) {
-                                    <p class="sl-cap">{{ sums.label }} by zone</p>
-                                    <ul class="sl-legend sl-sums">
-                                      @for (zone of sums.zones; track zone.section) {
-                                        <li class="pick" role="button" tabindex="0" [class.on]="focus()?.zone === zone.section" title="Pick out this zone on the map" (click)="focusZone(zone.section)" (keydown.enter)="focusZone(zone.section)"><i [style.background]="zone.colour"></i><span>Zone {{ zone.section }}</span><b>{{ zone.text }}</b></li>
-                                      }
-                                      <li class="sl-total"><span>Total</span><b>{{ sums.total }}</b></li>
                                     </ul>
                                   }
                                   @if (focus()) {
@@ -443,7 +434,6 @@ interface PaletteItem {
     .sl-legend li.pick:hover { background: var(--surface-hover); }
     .sl-legend li.pick.on { background: var(--accent-soft, rgb(0 102 217 / 0.12)); box-shadow: inset 0 0 0 var(--hairline) var(--accent, #0066d9); }
     .sl-clear { margin-top: 10px; }
-    .sl-sums .sl-total { margin-top: 3px; padding-top: 5px; border-top: var(--hairline) solid var(--border); font-weight: 600; }
     .sl-cap { margin: 10px 0 5px; color: var(--text-muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
     .sl-missing { display: flex; flex-wrap: wrap; gap: 4px; }
     .sl-plot { padding: 2px 7px; border: var(--hairline) solid var(--border-strong); border-radius: 6px; background: var(--surface-solid); font: inherit; font-size: 0.6875rem; font-weight: 600; color: var(--text); cursor: pointer; }
@@ -644,26 +634,6 @@ export class ZoneMapPage {
   readonly missingNow = computed(() => {
     const view = this.plotView();
     return view ? this.inUse().filter((cell) => !sayOf(view, cell.plot)) : [];
-  });
-  /** The picked view's amount (Harvest's yield) added up by zone number, in the zones' colours, and in all. */
-  readonly amounts = computed(() => {
-    const view = this.plotView();
-    const amount = view?.amount;
-    if (!view || !amount) return null;
-    const unit = amount.unit ? ` ${amount.unit}` : '';
-    const sums = new Map<number, { total: number; colour: string }>();
-    let all = 0;
-    for (const cell of this.layout().cells) {
-      const value = amountOf(view, cell.plot);
-      if (!value || cell.section == null) continue;
-      const entry = sums.get(cell.section) ?? { total: 0, colour: cell.palette.border };
-      entry.total += value;
-      sums.set(cell.section, entry);
-      all += value;
-    }
-    if (!sums.size) return null;
-    const zones = [...sums].sort((a, b) => a[0] - b[0]).map(([section, { total, colour }]) => ({ section, colour, text: `${formatAmount(total)}${unit}` }));
-    return { label: amount.label, zones, total: `${formatAmount(all)}${unit}` };
   });
   /** The map keeps its left clear for the list. */
   readonly viewCover = computed(() => (this.listOpen() ? LIST_WIDTH + 12 : 0));
