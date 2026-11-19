@@ -6,7 +6,6 @@ import { WorkbookFormulas } from '@shared/formula/sheet-formulas';
 import { type ZoneCell, usageWord } from '@shared/map/zone-layout';
 import { displayCell, formatDate, isIsoDate, todayIso } from '@shared/sheet/columns';
 import { Icon } from '@shared/ui/icon';
-import { Modal } from '@shared/ui/modal';
 
 export type JourneyKind = 'planting' | 'progress' | 'soil' | 'irrigation' | 'fertigation' | 'pruning' | 'pesticides' | 'harvest';
 
@@ -286,17 +285,39 @@ export class JourneyView {
   }
 }
 
-/** The plot's whole story in a panel down the right side: opened from its card on the dashboard map. */
+/** The plot's whole story in a panel down the right side of the map it was picked on (its card opens it); the page stays beside it. */
 @Component({
   selector: 'app-plot-journey',
-  imports: [Modal, JourneyView],
+  imports: [JourneyView, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'open() && closed.emit()' },
   template: `
-    <app-modal [open]="open()" [title]="cell()?.plot || cell()?.label || ''" [subtitle]="subtitle()" size="side" (closed)="closed.emit()">
-      @if (cell()) {
-        <app-journey-view [cell]="cell()" [sheets]="sheets()" [compact]="true" />
-      }
-    </app-modal>
+    @if (open() && cell()) {
+      <aside class="panel" role="dialog" aria-label="From planting to harvest">
+        <header class="head">
+          <div>
+            <h2>{{ cell()?.plot || cell()?.label }}</h2>
+            <p>{{ subtitle() }}</p>
+          </div>
+          <button type="button" class="close" aria-label="Close" title="Close" (click)="closed.emit()"><app-icon name="x" [size]="14" /></button>
+        </header>
+        <div class="body">
+          <app-journey-view [cell]="cell()" [sheets]="sheets()" [compact]="true" />
+        </div>
+      </aside>
+    }
+  `,
+  styles: `
+    :host { position: absolute; top: 0; right: 0; bottom: 0; z-index: 8; display: block; width: min(440px, 100%); pointer-events: none; }
+    .panel { height: 100%; display: flex; flex-direction: column; pointer-events: auto; background: var(--surface-solid, #fff); border-left: var(--hairline, 1px) solid var(--border, #e5e5ea); box-shadow: -12px 0 28px rgba(15, 23, 42, 0.18); animation: journey-in 0.26s cubic-bezier(0.32, 0.72, 0, 1); }
+    .head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 12px 20px; border-bottom: var(--hairline, 1px) solid var(--border, #e5e5ea); }
+    h2 { margin: 0; font-size: 1.125rem; font-weight: 650; }
+    p { margin: 2px 0 0; font-size: 0.8125rem; color: var(--text-muted); }
+    .close { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: var(--surface-hover, #f2f2f4); color: var(--text-muted); cursor: pointer; }
+    .close:hover { color: var(--text); }
+    .body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 20px; }
+    @keyframes journey-in { from { opacity: 0.4; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
   `,
 })
 export class PlotJourney {

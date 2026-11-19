@@ -103,9 +103,6 @@ const PROGRESS_KEY = 'ukmac.map-progress';
                   }
                 </span>
               </span>
-              @if (farm().total) {
-                <span class="fc-bar" aria-hidden="true"><i class="h" [style.width.%]="farm().harvestPercent"></i><i class="p" [style.width.%]="farm().plantingPercent"></i></span>
-              }
             </button>
             @if (progressOpen()) {
             <div mapTop class="progress-key" role="group" aria-label="Progress on the plots">
@@ -129,9 +126,9 @@ const PROGRESS_KEY = 'ukmac.map-progress';
             </div>
             }
             </app-mac-map-3d>
+            <!-- The picked plot's whole story, from planting to harvest, down the map's right side (its card opens it). -->
+            <app-plot-journey [open]="journeyOpen() && !!pickedCell()" [cell]="pickedCell()" [sheets]="store.sheets()" (closed)="journeyOpen.set(false)" />
           </section>
-          <!-- The picked plot's whole story, from planting to harvest, on a full screen (its card opens it). -->
-          <app-plot-journey [open]="journeyOpen() && !!pickedCell()" [cell]="pickedCell()" [sheets]="store.sheets()" (closed)="journeyOpen.set(false)" />
         }
 
         <section class="card shortcuts" aria-labelledby="shortcuts-title">
@@ -207,10 +204,6 @@ const PROGRESS_KEY = 'ukmac.map-progress';
     .fc-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.2; }
     .fc-text strong { font-size: 13px; font-weight: 650; white-space: nowrap; }
     .fc-sub { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
-    /* How far the plots have come: harvesting (red), planting (green), the rest not planted yet (earth). */
-    .fc-bar { flex: none; display: flex; width: 72px; height: 6px; overflow: hidden; border-radius: 999px; background: #d9c3a8; }
-    .fc-bar .h { background: #e5432f; }
-    .fc-bar .p { background: #7cc35f; }
     .progress-key .pk-legend { display: inline-flex; align-items: center; gap: 14px; transition: opacity 0.15s; }
     .progress-key .pk-legend.is-off { opacity: 0.4; }
     .progress-key .pk-close { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; }
@@ -312,7 +305,7 @@ export class MacPage {
     }
     const total = plots.length;
     const share = (n: number) => (total ? (n / total) * 100 : 0);
-    return { total, harvest, planting, planted: harvest + planting, rest: total - harvest - planting, percent: Math.round(share(harvest + planting)), harvestPercent: share(harvest), plantingPercent: share(planting) };
+    return { total, harvest, planting, planted: harvest + planting, rest: total - harvest - planting, percent: Math.round(share(harvest + planting)) };
   });
   readonly progress = signal(localStorage.getItem(PROGRESS_KEY) !== 'off');
   setProgress(on: boolean) {
