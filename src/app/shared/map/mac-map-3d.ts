@@ -39,6 +39,8 @@ const NOTHING = { type: 'FeatureCollection' as const, features: [] };
 /** A plot's name shows once the plot is this wide on the screen (px); in a map of stacks the names of the plots without one wait for this. */
 const LABEL_WIDTH = 26;
 const QUIET_WIDTH = 64;
+/** On a map without stacks the plots' names wait until it is zoomed in this far (zoom levels) past the view of the whole farm. */
+const NAMES_IN = 0.5;
 /** The numbers beside a stack's layers are kept at least this far apart on the screen (px): closer, only some are numbered. */
 const RUNG_ROOM = 15;
 
@@ -370,6 +372,8 @@ export class MacMap3d implements OnDestroy {
   private wantTilt = true;
   /** Where the first fit settled (3D as it should be seen): the camera the opening glides to from the flat start. */
   private goal: { center: maplibregl.LngLat; zoom: number; pitch: number; bearing: number } | null = null;
+  /** The zoom of the view of the whole farm (the first fit, then each Fit): at it, or further out, only the zones are named. */
+  private wholeZoom: number | null = null;
 
   constructor() {
     effect(() => {
@@ -833,6 +837,7 @@ export class MacMap3d implements OnDestroy {
         }
       }
       this.goal = { center: map.getCenter(), zoom: map.getZoom(), ...camera };
+      this.wholeZoom = this.goal.zoom;
       this.fitted = true;
       // Not shown yet: back to the flat view of the whole farm, to tip back from once its imagery's in.
       if (!this.revealed) map.jumpTo({ ...flat, ...ON_TOP });
@@ -1131,9 +1136,10 @@ export class MacMap3d implements OnDestroy {
   }
 
   /**
-   * Plot names show once a plot is wide enough on screen to hold one (whatever the zoom, tilt or window size). In a map of stacks the
-   * stacks are what is looked at: the names of the plots without one wait until the plots are bigger, and give way to a name that lies
-   * over them.
+   * Plot names show once a plot is wide enough on screen to hold one (whatever the zoom, tilt or window size). With the whole farm in
+   * view the zones' names say enough (a hundred plot names, small at the back, only pile up): the plots are named once it is zoomed in
+   * past that (the user, 2026-11-19: "show not, when i zoom then it show"), and never one over another. In a map of stacks the stacks
+   * are what is looked at: the names of the plots without one wait until the plots are bigger, and give way to a name that lies over them.
    */
   private tagVisibility() {
     const map = this.map;
@@ -1145,11 +1151,13 @@ export class MacMap3d implements OnDestroy {
       wide = Math.max(...xs) - Math.min(...xs);
     }
     const quiet = shapes.some((shape) => shape.stack?.length);
+    // While shapes are edited every plot keeps its name: it says which one is being drawn.
+    const whole = !quiet && !untracked(() => this.editable()) && !!map && this.wholeZoom !== null && map.getZoom() < this.wholeZoom + NAMES_IN;
     for (const tag of this.plotTags) {
       const el = tag.marker.getElement();
-      el.classList.toggle('hide', wide < (quiet && !tag.stacked ? QUIET_WIDTH : LABEL_WIDTH) && !el.classList.contains('is-picked'));
+      el.classList.toggle('hide', (whole || wide < (quiet && !tag.stacked ? QUIET_WIDTH : LABEL_WIDTH)) && !el.classList.contains('is-picked'));
     }
-    if (quiet || untracked(() => this.cover()) > 0) this.declutter();
+    this.declutter();
   }
 
   /**
@@ -1219,7 +1227,9 @@ export class MacMap3d implements OnDestroy {
     this.stopTour();
     // On a map of stacks it comes in as close as everything still fits, as the first fit does.
     const camera = this.cameraFor(map.getPitch(), map.getBearing(), undefined, !!this.focus()?.length || this.cover() > 0);
-    if (camera) map.easeTo({ ...camera, duration: 700 });
+    if (!camera) return;
+    this.wholeZoom = camera.zoom;
+    map.easeTo({ ...camera, duration: 700 });
   }
 
   /**
