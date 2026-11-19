@@ -1,6 +1,6 @@
 import type { Column, Cells } from '@core/models';
 import { makeSheet } from '@shared/testing/test-helpers';
-import { qaqcChecks, type CheckLine, type TableCheck } from './qa-qc-checks';
+import { qaqcChecks, zoneRows, type CheckLine, type TableCheck } from './qa-qc-checks';
 
 const col = (key: string, name: string, type: Column['type'] = 'text', extra: Partial<Column> = {}) => ({ key, name, type, ...extra }) as Column;
 
@@ -63,12 +63,12 @@ describe('qaqcChecks', () => {
         fertigation([]),
         pruning([]),
         harvest([]),
-        qaqc([]),
+        qaqc([{ c2: 'A1' }]),
       ],
       TODAY,
     );
     expect(boxes.map((box) => [box.title, box.lines.map((item) => `${item.against}: ${item.id}`)])).toEqual([
-      ['Plant Progress', ['QA/QC Management: plants', 'QA/QC Management: dead', "today's date: future"]],
+      ['Plant Progress', ['QA/QC Management: zones', 'QA/QC Management: plants', 'QA/QC Management: dead', "today's date: future"]],
       ['Fertigation', ['Plant Progress: before-planting', 'its own rounds: skipped', "today's date: future"]],
       ['Pruning', ['Plant Progress: before-planting', 'its own rounds: skipped', 'its planned dates: late', "today's date: future"]],
       ['Harvest', ['Plant Progress: no-planting', 'Plant Progress: too-soon', 'QA/QC Management: harvest', "today's date: future"]],
@@ -151,6 +151,20 @@ describe('qaqcChecks', () => {
     expect(said(late)).toBe('1 round is past the planned date and not done');
   });
 
+  it('lists the plots only one of Plant Progress and QA/QC Management has', () => {
+    const boxes = qaqcChecks(
+      [plants([{ c1: 'A1', c2: '2026-06-08' }, { c1: 'A2', c2: '2026-06-08' }]), qaqc([{ c2: 'a1' }, { c2: 'A3' }])],
+      TODAY,
+    );
+    const zones = line(boxes, 'Plant Progress', 'zones');
+    expect(zones.bad).toBe('2 plots are not in both Plant Progress and QA/QC Management');
+    expect(zones.findings.map((finding) => `${finding.plot}: ${finding.text}`)).toEqual([
+      'A2: In Plant Progress, but not in QA/QC Management',
+      'A3: In QA/QC Management, but not in Plant Progress',
+    ]);
+    expect(zones.checked).toBe(3);
+  });
+
   it('compares the plants left with QA/QC’s Total plant, and says when a value can’t be read', () => {
     const boxes = qaqcChecks(
       [
@@ -218,5 +232,27 @@ describe('qaqcChecks', () => {
     const dead = line(boxes, 'Plant Progress', 'dead');
     expect(dead.checked).toBe(2);
     expect(texts(dead)).toEqual(["A2: 1% dead here (10 of 1,000), but 30% in QA/QC Management's sample (6 of 20)"]);
+  });
+});
+
+describe('zoneRows', () => {
+  it('puts the plan’s plants beside QA/QC’s for every zone either table has, and says how they stand', () => {
+    const rows = zoneRows([
+      plants([
+        { c1: 'A1', c2: '2026-06-08', c4: '100', c10: '10', c9: '5' },
+        { c1: 'A2', c2: '2026-06-08', c4: '100' },
+        { c1: 'A3', c2: '2026-06-08', c4: '100', c9: '2026-06-19' },
+        { c1: 'A4', c2: '2026-06-08', c4: '100' },
+      ]),
+      qaqc([{ c2: 'A1', c62: '95' }, { c2: 'A2', c62: '90' }, { c2: 'A3', c62: '100' }, { c2: 'B9', c62: '5' }]),
+    ]);
+    expect(rows.map((row) => [row.plot, row.status, row.note, row.left, row.total])).toEqual([
+      ['A1', 'match', '', 95, 95],
+      ['A2', 'differs', '10 fewer in QA/QC', 100, 90],
+      ['A3', 'unreadable', 'Replant count is "2026-06-19", not a number', null, 100],
+      ['A4', 'only-plan', 'Not in QA/QC Management', 100, null],
+      ['B9', 'only-qaqc', 'Not in Plant Progress', null, 5],
+    ]);
+    expect(rows[0].plantedOn).toBe('2026-06-08');
   });
 });

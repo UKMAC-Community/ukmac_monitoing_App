@@ -110,6 +110,8 @@ interface Done {
   row: Row;
   plot: string;
   day: string | null;
+  /** Done: a day entered, or (a tab that gives none, as Fertilizer's TRUE / FALSE) its Applied ticked. */
+  done: boolean;
   what: string;
   round: number | null;
   applicable: boolean;
@@ -120,7 +122,8 @@ function workDone(sheet: SheetWithRows): Done[] {
   const plot = plotColumn(sheet);
   const day =
     sheet.templateKey === 'harvest' ? find(sheet, 'Date harvest', 'Date') : sheet.templateKey === 'zone-records' ? find(sheet, 'Record date') : find(sheet, 'Date', 'Date applied', 'Actual date');
-  if (!plot || !day) return [];
+  const applied = sheet.columns.find((column) => column.type === 'yesno' && column.name.trim().toLowerCase() === 'applied');
+  if (!plot || (!day && !applied)) return [];
   const round = find(sheet, 'Application', 'Application round', 'Round name');
   const applicable = find(sheet, 'Applicable');
   const planned = find(sheet, 'Planned date');
@@ -132,6 +135,7 @@ function workDone(sheet: SheetWithRows): Done[] {
         row,
         plot: text(row, plot),
         day: dateOf(row, day),
+        done: !!dateOf(row, day) || (!!applied && text(row, applied) === 'true'),
         what: name || sheet.title,
         round: name ? ordinalNumber(name) : null,
         applicable: !applicable || text(row, applicable) !== 'false',
@@ -182,11 +186,11 @@ function skippedRounds(rounds: Done[]): CheckLine {
   let checked = 0;
   for (const list of by.values()) {
     checked += list.length;
-    const last = Math.max(...list.filter((done) => done.day).map((done) => done.round!), -1);
-    const skipped = list.filter((done) => !done.day && done.round! < last).sort((a, b) => a.round! - b.round!);
+    const last = Math.max(...list.filter((done) => done.done).map((done) => done.round!), -1);
+    const skipped = list.filter((done) => !done.done && done.round! < last).sort((a, b) => a.round! - b.round!);
     if (!skipped.length) continue;
     const later = list.find((done) => done.round === last)!;
-    findings.push({ plot: list[0].plot, text: `${skipped.map((done) => done.what).join(', ')} not done, but the ${later.what} is (${formatDate(later.day!)})` });
+    findings.push({ plot: list[0].plot, text: `${skipped.map((done) => done.what).join(', ')} not done, but the ${later.what} is${later.day ? ` (${formatDate(later.day)})` : ''}` });
   }
   return {
     id: 'skipped',
@@ -294,6 +298,22 @@ function harvestWithPlanting(harvest: Done[], plants: SheetWithRows, planted: Ma
 }
 
 // ----------------------------------------------------------------------------- with QA/QC
+
+/** The plots Plant Progress and QA/QC Management each have: one that only one of them knows is a zone that doesn't match. */
+function zonesWithQaqc(plants: SheetWithRows, qaqc: SheetWithRows): CheckLine {
+  const base = { id: 'zones', against: qaqc.title, good: `Every plot is in both ${plants.title} and ${qaqc.title}`, unit: 'plots' };
+  const plot = plotColumn(plants);
+  const qaPlot = plotColumn(qaqc);
+  if (!plot || !qaPlot) return { ...base, bad: '', checked: 0, findings: [], cannot: `Needs a Zone plot here and a Zone in ${qaqc.title}` };
+  const names = (sheet: SheetWithRows, column: Column) => new Map(sheet.rows.map((row) => [plotKey(text(row, column)), text(row, column)] as const).filter(([key]) => key));
+  const here = names(plants, plot);
+  const there = names(qaqc, qaPlot);
+  const findings: Finding[] = [
+    ...[...here].filter(([key]) => !there.has(key)).map(([, name]) => ({ plot: name, text: `In ${plants.title}, but not in ${qaqc.title}` })),
+    ...[...there].filter(([key]) => !here.has(key)).map(([, name]) => ({ plot: name, text: `In ${qaqc.title}, but not in ${plants.title}` })),
+  ].sort(byPlot);
+  return { ...base, bad: findings.length ? `${plural(findings.length, 'plot is', 'plots are')} not in both ${plants.title} and ${qaqc.title}` : '', checked: new Set([...here.keys(), ...there.keys()]).size, findings };
+}
 
 /** Plant Progress's plants left (planted − dead + replanted) against QA/QC's Total plant on the same plot. */
 function plantsWithQaqc(plants: SheetWithRows, qaqc: SheetWithRows): CheckLine {
@@ -425,7 +445,7 @@ export function qaqcChecks(sheets: readonly SheetWithRows[], today: string): Tab
     const work = workDone(sheet);
     const lines: CheckLine[] = [];
     if (key === 'zone-records') {
-      if (qaqc) lines.push(plantsWithQaqc(sheet, qaqc), deadWithQaqc(sheet, qaqc));
+      if (qaqc) lines.push(zonesWithQaqc(sheet, qaqc), plantsWithQaqc(sheet, qaqc), deadWithQaqc(sheet, qaqc));
       lines.push(futureDates(work, today));
     } else if (['fertigation', 'fertilizer', 'pesticides', 'fungicide', 'pruning'].includes(key)) {
       if (plants) lines.push(beforePlanting(work, planted, plants.title));
@@ -451,4 +471,85 @@ export function qaqcChecks(sheets: readonly SheetWithRows[], today: string): Tab
     });
   }
   return out;
+}
+
+// ----------------------------------------------------------------------------- each zone
+
+/** How a zone stands between Plant Progress (the plan) and QA/QC Management. */
+export type ZoneStatus = 'match' | 'differs' | 'only-plan' | 'only-qaqc' | 'unreadable' | 'no-count';
+
+/** What each of the two tables says of one zone (a plot): the plan's plants and QA/QC's, and how they stand. */
+export interface ZoneRow {
+  plot: string;
+  status: ZoneStatus;
+  /** Said in a few words ("5 more in QA/QC", "Replant count isn't a number"); blank when they match. */
+  note: string;
+  /** From Plant Progress. */
+  plantedOn: string | null;
+  planted: number | null;
+  dead: number | null;
+  replanted: number | null;
+  /** Planted − dead + replanted: the plants the plan says are left. */
+  left: number | null;
+  /** From QA/QC Management. */
+  total: number | null;
+  live: number | null;
+  qaDead: number | null;
+}
+
+/** Every zone either table has, with the plants each says: the plan's (planted − dead + replanted) beside QA/QC's Total plant. */
+export function zoneRows(sheets: readonly SheetWithRows[]): ZoneRow[] {
+  const plants = sheets.find((sheet) => sheet.templateKey === 'zone-records');
+  const qaqc = sheets.find((sheet) => sheet.templateKey === 'qa-qc-management');
+  const plot = plotColumn(plants);
+  const qaPlot = plotColumn(qaqc);
+  const planted = find(plants, 'Plant count');
+  const dead = find(plants, 'Dead plant');
+  const replanted = find(plants, 'Replant count');
+  const on = find(plants, 'Record date', 'Planting date');
+  const total = find(qaqc, 'Total plant');
+  const live = find(qaqc, 'Live plant');
+  const qaDead = find(qaqc, 'Dead plant');
+  const here = new Map<string, Row>();
+  const there = new Map<string, Row>();
+  if (plants && plot) for (const row of plants.rows) if (text(row, plot) && !here.has(plotKey(text(row, plot)))) here.set(plotKey(text(row, plot)), row);
+  if (qaqc && qaPlot) for (const row of qaqc.rows) if (text(row, qaPlot) && !there.has(plotKey(text(row, qaPlot)))) there.set(plotKey(text(row, qaPlot)), row);
+
+  const out: ZoneRow[] = [];
+  for (const key of new Set([...here.keys(), ...there.keys()])) {
+    const mine = here.get(key);
+    const theirs = there.get(key);
+    const name = (mine && text(mine, plot)) || (theirs && text(theirs, qaPlot)) || key;
+    const n = mine ? numberOf(mine, planted) : null;
+    const d = mine ? (text(mine, dead) ? numberOf(mine, dead) : 0) : null;
+    const r = mine ? (text(mine, replanted) ? numberOf(mine, replanted) : 0) : null;
+    const left = n !== null && d !== null && r !== null ? n - d + r : null;
+    const seen = theirs ? numberOf(theirs, total) : null;
+    let status: ZoneStatus = 'match';
+    let note = '';
+    if (!theirs) [status, note] = ['only-plan', `Not in ${qaqc?.title ?? 'QA/QC'}`];
+    else if (!mine) [status, note] = ['only-qaqc', `Not in ${plants?.title ?? 'Plant Progress'}`];
+    else if (left === null) {
+      const bad = n === null ? planted : d === null ? dead : replanted;
+      [status, note] = ['unreadable', bad ? `${bad.name} is "${text(mine, bad)}", not a number` : 'Plant count is missing'];
+    } else if (seen === null) [status, note] = ['no-count', 'QA/QC has no Total plant'];
+    else if (Math.abs(left - seen) >= 0.5) {
+      status = 'differs';
+      note = `${count(Math.abs(seen - left))} ${seen > left ? 'more' : 'fewer'} in QA/QC`;
+    }
+    out.push({
+      plot: name,
+      status,
+      note,
+      plantedOn: mine ? dateOf(mine, on) : null,
+      planted: n,
+      dead: d,
+      replanted: r,
+      left,
+      total: seen,
+      live: theirs ? numberOf(theirs, live) : null,
+      qaDead: theirs ? numberOf(theirs, qaDead) : null,
+    });
+  }
+  return out.sort((a, b) => a.plot.localeCompare(b.plot, 'en', { numeric: true }));
 }
