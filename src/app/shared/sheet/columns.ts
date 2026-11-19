@@ -3,6 +3,17 @@ import type { Column, ColumnType } from '@core/models';
 /** Between a box's, a group's and a column's names in a formula: `[2 · Establishment (7 DAT) › Date]`. */
 export const PATH_SEPARATOR = ' › ';
 
+/**
+ * A file's header as a new column's name, and the header itself as another name the column answers to when the two
+ * differ. A name can't hold `[ ]` (formulas name columns in them) or `›` (it parts a box, group and name), but a tab's
+ * header over several rows is written "Planting Block › Subply Date › Code": that column is named
+ * "Planting Block / Subply Date / Code" and still found by its header, now and at every read after.
+ */
+export function columnFromHeader(header: string): Pick<Column, 'name' | 'aliases'> {
+  const name = header.replace(/\s*›\s*/g, ' / ').replace(/\[/g, '(').replace(/\]/g, ')').replace(/\s+/g, ' ').trim() || 'Column';
+  return name === header.trim() ? { name } : { name, aliases: [header.trim()] };
+}
+
 export const COLUMN_TYPES: { value: ColumnType; label: string; hint: string }[] = [
   { value: 'text', label: 'Text', hint: 'Any words or codes' },
   { value: 'number', label: 'Number', hint: 'A count, a weight, a size…' },

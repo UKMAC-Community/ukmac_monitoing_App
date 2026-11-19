@@ -134,3 +134,35 @@ describe('the matches a linked table has, for doing the import again', () => {
     expect(mappingFromLink(columns, ['Something'], [1], {})).toEqual({});
   });
 });
+
+describe('a header over several rows the table has no column for', () => {
+  // The farm's Nursery Progress tab names its columns over three rows: Sync joins them with ›, which no column's name may hold.
+  const data: ExcelSheetData = {
+    name: 'Nursery Progress',
+    headerRow: 1,
+    layout: { headerFrom: 1, headerTo: 3, dataFrom: 4 },
+    auto: { headerFrom: 1, headerTo: 1, dataFrom: 2 },
+    headers: ['Batch #', 'Planting Block › Subply Date › Code', 'Notes [old]'],
+    rows: [['B1', 'PB-01', 'ok']],
+    dateLike: [false, false, false],
+  };
+  const columns: Column[] = [{ key: 'c1', name: 'Batch #', type: 'text' }];
+
+  it('becomes a column with a name it may have, found by its header in the same read and every read after', () => {
+    const { fresh } = matchHeaders(columns, data.headers, {});
+    const added = newColumns(data, fresh);
+    expect(added.map((column) => [column.name, column.aliases])).toEqual([
+      ['Planting Block / Subply Date / Code', ['Planting Block › Subply Date › Code']],
+      ['Notes (old)', ['Notes [old]']],
+    ]);
+    const table = [...columns, ...added.map((column, index) => ({ ...column, key: `c${index + 2}` }))];
+    const again = matchHeaders(table, data.headers, {});
+    expect(again.fresh).toEqual([]);
+    expect([...again.matched].map(([index, column]) => [index, column.key])).toEqual([[0, 'c1'], [1, 'c2'], [2, 'c3']]);
+  });
+
+  it('keeps a plain header as it is, with no other name', () => {
+    expect(newColumns({ ...data, headers: ['Batch #', 'Watering'] }, [1])[0]).toMatchObject({ name: 'Watering' });
+    expect(newColumns({ ...data, headers: ['Batch #', 'Watering'] }, [1])[0].aliases).toBeUndefined();
+  });
+});

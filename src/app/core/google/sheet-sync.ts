@@ -1,6 +1,6 @@
 import type { Cells, Column } from '../models';
 import { guessType, type ExcelSheetData } from '@shared/excel/sheet-from-excel';
-import { checkCell, columnLabel, excelHeaders, headerAliases, isEntryColumn, normalizeHeader } from '@shared/sheet/columns';
+import { checkCell, columnFromHeader, columnLabel, excelHeaders, headerAliases, isEntryColumn, normalizeHeader } from '@shared/sheet/columns';
 
 /**
  * Reading a Google Sheet's tab into a table that was made from it before.
@@ -81,11 +81,11 @@ export function mappingFromLink(
   return mapping;
 }
 
-/** The columns for the tab's headers a table doesn't have yet (no key: the table gives one). */
+/** The columns for the tab's headers a table doesn't have yet (no key: the table gives one), each found by its header. */
 export function newColumns(data: ExcelSheetData, indexes: number[]): Column[] {
   return indexes.map((index) => ({
     key: '',
-    name: data.headers[index],
+    ...columnFromHeader(data.headers[index]),
     type: guessType(
       data.rows.map((row) => row[index] ?? ''),
       data.dateLike[index],

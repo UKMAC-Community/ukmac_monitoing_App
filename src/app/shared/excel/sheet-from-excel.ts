@@ -1,5 +1,5 @@
 import type { Cells, Column, ColumnType } from '@core/models';
-import { excelSerialToIso, parseDateText } from '@shared/sheet/columns';
+import { columnFromHeader, excelSerialToIso, parseDateText } from '@shared/sheet/columns';
 import { loadExcel, type ExcelJS } from './exceljs';
 import { MAX_FILE_BYTES, MAX_IMPORT_ROWS } from './excel-template';
 import { fixLayout, plainLayout, plainText, syncHeaders, type FileLayout } from './file-layout';
@@ -96,7 +96,7 @@ export function guessType(values: string[], dateLike: boolean): ColumnType {
 export function tableFromSheet(data: ExcelSheetData): { columns: Column[]; rows: Cells[] } {
   const columns: Column[] = data.headers.map((header, index) => ({
     key: `n${index + 1}`,
-    name: header,
+    ...columnFromHeader(header),
     type: guessType(
       data.rows.map((row) => row[index] ?? ''),
       data.dateLike[index],
