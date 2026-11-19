@@ -22,6 +22,7 @@ import { Icon } from './icon';
       [class.is-wide]="size() === 'wide'"
       [class.is-xwide]="size() === 'xwide'"
       [class.is-full]="size() === 'full'"
+      [class.is-side]="size() === 'side'"
       (cancel)="$event.preventDefault(); closed.emit()"
       (mousedown)="backdrop($event)"
     >
@@ -52,7 +53,7 @@ export class Modal {
   readonly open = input(false);
   readonly title = input('');
   readonly subtitle = input('');
-  readonly size = input<'normal' | 'wide' | 'xwide' | 'full'>('normal');
+  readonly size = input<'normal' | 'wide' | 'xwide' | 'full' | 'side'>('normal');
   readonly closed = output<void>();
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 

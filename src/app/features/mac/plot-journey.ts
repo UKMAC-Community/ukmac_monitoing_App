@@ -215,6 +215,7 @@ export function journeyKindOf(templateKey: string | null | undefined): JourneyKi
     .chip[data-kind].active app-icon { color: inherit; }
     /* In a side panel: the dates over their cards, the line close to the left. */
     .compact .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+    .compact .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
     .compact .stat { padding: 8px 10px; gap: 2px; }
     .compact .stat span { font-size: 0.6875rem; }
     .compact .stat strong { font-size: 0.9375rem; }
@@ -285,15 +286,15 @@ export class JourneyView {
   }
 }
 
-/** The plot's whole story on a full screen: opened from its card on the dashboard map. */
+/** The plot's whole story in a panel down the right side: opened from its card on the dashboard map. */
 @Component({
   selector: 'app-plot-journey',
   imports: [Modal, JourneyView],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-modal [open]="open()" [title]="cell()?.plot || cell()?.label || ''" [subtitle]="subtitle()" size="full" (closed)="closed.emit()">
+    <app-modal [open]="open()" [title]="cell()?.plot || cell()?.label || ''" [subtitle]="subtitle()" size="side" (closed)="closed.emit()">
       @if (cell()) {
-        <app-journey-view [cell]="cell()" [sheets]="sheets()" />
+        <app-journey-view [cell]="cell()" [sheets]="sheets()" [compact]="true" />
       }
     </app-modal>
   `,

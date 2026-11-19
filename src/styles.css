@@ -210,6 +210,37 @@ dialog.modal-dialog.is-full {
   height: calc(100vh - 64px);
 }
 
+/* A panel down the window's right side (size="side"): the page stays beside it, dimmed. */
+dialog.modal-dialog.is-side {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(640px, 100vw);
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  max-height: none;
+  border-width: 0 0 0 var(--hairline);
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  dialog.modal-dialog.is-side[open] {
+    animation: side-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+@keyframes side-in {
+  from {
+    opacity: 0.4;
+    transform: translateX(48px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* A menu opened at the pointer (a column's ▾, a right-click). */
 .menu-panel.floating {
   position: fixed;
