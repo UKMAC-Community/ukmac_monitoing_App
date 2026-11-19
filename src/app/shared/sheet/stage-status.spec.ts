@@ -92,6 +92,30 @@ describe('A stage’s status, from what has been entered', () => {
     expect(stageStatus(pruning, active, TODAY)).toEqual({ state: 'in-progress', percent: 33, late: 1, detail: '1 of 3 rounds done · 2 to do · 1 late' });
   });
 
+  it('counts a round as done by its Applied where the tab gives no day (Fertilizer: TRUE / FALSE)', () => {
+    const fertigation = makeSheet(7, 'Fertigation', [
+      { key: 'c1', name: 'Date', type: 'date' },
+      zone,
+      round,
+      { key: 'c8', name: 'Applied', type: 'yesno' },
+    ], [
+      { c2: 'A1', c5: '1', c8: 'true' },
+      { c2: 'A1', c5: '2', c8: 'false' }, // skipped: the 3rd was given
+      { c2: 'A1', c5: '3', c8: 'true' },
+      { c2: 'B1', c5: '1', c8: 'true' },
+      { c2: 'B1', c5: '2', c8: 'false' }, // still to do
+    ]);
+    expect(stageStatus(fertigation, active, TODAY)).toEqual({ state: 'in-progress', percent: 80, late: 0, detail: '3 of 5 rounds done · 1 skipped · 1 to do' });
+  });
+
+  it('is Done once every round of a table of rounds is done', () => {
+    const pesticides = makeSheet(9, 'Pesticides', [zone, round, { key: 'c1', name: 'Date', type: 'date' }], [
+      { c2: 'A1', c5: '1', c1: '2026-07-12' },
+      { c2: 'A1', c5: '2', c1: '2026-08-12' },
+    ]);
+    expect(stageStatus(pesticides, active, TODAY)).toEqual({ state: 'done', percent: null, late: 0, detail: '2 of 2 rounds done' });
+  });
+
   it('measures a once-per-plot stage by the active plots with a record', () => {
     const progress = makeSheet(4, 'Plant Progress', [zone, { key: 'c3', name: 'Record date', type: 'date' }], [
       { c2: 'A1', c3: '2026-06-01' },

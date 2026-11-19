@@ -6,7 +6,8 @@ import { formatDate, isEntryColumn, isIsoDate, isPlotColumn } from './columns';
  * How far a stage of the farm has come, read from what people have entered in its table (the sidebar shows it):
  *
  * - nothing entered: **Not started**;
- * - a table of planned rounds (each plot's rounds listed up front, a round's day filled in once it is done):
+ * - a table of planned rounds (each plot's rounds listed up front, a round's day filled in once it is done, or its Applied
+ *   ticked where the farm's tab says only whether it was given, as Fertilizer's TRUE / FALSE):
  *   the share of the rounds that are done, a blank round counting as skipped when a later round of its plot was done,
  *   a round marked not applicable left out; **Done** once no round is left to do. 0 done is still Not started;
  * - a stage each plot goes through once (Plant Progress, Planting Date): the share of the active plots
@@ -30,6 +31,9 @@ const ONCE_PER_PLOT = new Set(['zone-records', 'planting-date']);
 
 /** A date column that holds a plan, not the day the work was done. */
 const PLAN = /\b(plan|planned|due)\b/i;
+
+/** The names a table of rounds gives each round (1st Application, 2nd Pruning…). */
+const ROUND = new Set(['application', 'application round', 'round name']);
 
 const clean = (text: string | null | undefined) => (text ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 const filled = (value: string | undefined) => value !== undefined && value.trim() !== '';
@@ -75,12 +79,16 @@ export function stageStatus(sheet: SheetWithRows, active: ReadonlySet<string>, t
   if (!rows.length) return { state: 'not-started', percent: null, late: 0, detail: 'Nothing entered yet' };
 
   const date = doneDateColumn(sheet);
+  // A round the tab says was given (Fertilizer's applied: TRUE / FALSE, no day) is done too.
+  const given = sheet.columns.find((column) => column.type === 'yesno' && clean(column.name) === 'applied');
   const plot = sheet.columns.find(isPlotColumn);
   const plotOf = (row: Row) => (plot ? clean(row.data[plot.key]) : '');
-  const done = (row: Row) => !!date && filled(row.data[date.key]);
+  const done = (row: Row) => (!!date && filled(row.data[date.key])) || (!!given && row.data[given.key] === 'true');
+  // A table that names its rounds is a plan of rounds even with every one done: it is then Done.
+  const ofRounds = sheet.columns.some((column) => isEntryColumn(column) && ROUND.has(clean(column.name)));
 
   if (plot && ONCE_PER_PLOT.has(sheet.templateKey ?? '') && active.size) return coverage(rows, plotOf, active);
-  if (plot && date && rows.some((row) => !done(row))) return rounds(sheet, rows, plotOf, done, today);
+  if (plot && (date || given) && (ofRounds || rows.some((row) => !done(row)))) return rounds(sheet, rows, plotOf, done, today);
 
   // The last day so far; a record dated after today is said apart (a plan, or a day typed wrong).
   const days = date ? rows.map((row) => row.data[date.key]?.trim() ?? '').filter(isIsoDate).sort() : [];

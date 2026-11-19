@@ -670,26 +670,29 @@ fn zone_log(extra: Vec<Column>) -> Vec<Column> {
     columns
 }
 
-/// The farm's Google Sheet names a row's plot `zone_plot` and its day `date_applied` (Fungicide), `applied` (Fertilizer) or
-/// `actual_date` (Pruning): the Zone and Date of a log read from it answer to those names too, so Sync fills them (the Zone a link to the plot) instead of adding them as new columns.
+/// The farm's Google Sheet names a row's plot `zone_plot` (or Zone Plot) and its day `date_applied` (Fungicide) or `actual_date`
+/// (Pruning, or Actual Date): the Zone and Date of a log read from it answer to those names too, so Sync fills them (the Zone a
+/// link to the plot) instead of adding them as new columns. (Fertilizer's `applied` is a TRUE/FALSE, not a day: Fertigation's Applied.)
 fn sheet_zone() -> Column {
     also_called(link("Zone", ZONE_SOURCE), &["Zone plot", "zone_plot"])
 }
 
 fn sheet_date() -> Column {
-    also_called(date("Date"), &["Date applied", "date_applied", "Applied", "Actual date", "actual_date"])
+    also_called(date("Date"), &["Date applied", "date_applied", "Actual date", "actual_date"])
 }
 
 /// The Google Sheet's Pruning tab, a row per plot and round (all three planned up front, then done): id, plan_id, zone_plot,
-/// pruning_round_type_id, round_name, plants, applicable (TRUE/FALSE), planned_date, actual_date. Its id is the app's own ID
-/// to give, so the tab's is left out; the day it was done is the row's Date (as every log's), the day planned beside it.
+/// pruning_round_type_id, round_name, plants, applicable (TRUE/FALSE), planned_date, actual_date; since 2026-11-19 the tab
+/// names them Zone Plot, Pruning Round, Round Name, Plants Eligible for Pruning, Applicable, Planned Date, Actual Date (no id
+/// or plan), and either way fills the same columns. Its id is the app's own ID to give, so the tab's is left out; the day it
+/// was done is the row's Date (as every log's), the day planned beside it.
 fn pruning_columns() -> Vec<Column> {
     vec![
         also_called(number("Plan"), &["Plan ID", "plan_id"]),
         sheet_zone(),
         also_called(number("Round"), &["Pruning round", "pruning_round", "pruning_round_type_id"]),
         also_called(text("Round name"), &["round_name"]),
-        number("Plants"),
+        also_called(number("Plants"), &["Plants Eligible for Pruning", "plants_eligible_for_pruning"]),
         col("Applicable", "yesno"),
         also_called(date("Planned date"), &["planned_date"]),
         sheet_date(),
@@ -710,14 +713,16 @@ fn pesticide_columns() -> Vec<Column> {
     ]
 }
 
-/// The Google Sheet's Fertilizer tab, a row per application (a skipped round has only its plot and round): zone_plot,
-/// application_round, applied, fertilizer_type, quantity. Fertigation is read from it, each column named as the farm
-/// says it and answering to the tab's own name, so Sync fills them instead of adding new ones.
+/// The Google Sheet's Fertilizer tab, a row per plot and round (all planned up front): zone_plot, application_round, applied
+/// (TRUE/FALSE: whether the round was given), fertilizer_type, quantity. Fertigation is read from it, each column named as the
+/// farm says it and answering to the tab's own name, so Sync fills them instead of adding new ones. The tab has no day: Date
+/// stays for a sheet that has one.
 fn fertigation_columns() -> Vec<Column> {
     vec![
         sheet_date(),
         sheet_zone(),
         also_called(text("Application"), &["Application round", "application_round"]),
+        col("Applied", "yesno"),
         also_called(text("Fertilizer"), &["Fertilizer type", "fertilizer_type", "Mix"]),
         also_called(between(number("Quantity"), Some(0.0), None), &["quantity", "Dose"]),
     ]
@@ -1018,11 +1023,15 @@ mod tests {
         let filled: Vec<Vec<String>> = headers.iter().map(|header| filled_by("fertigation", header)).collect();
         assert_eq!(
             filled,
-            [["Zone"], ["Application"], ["Date"], ["Fertilizer"], ["Quantity"]]
+            [["Zone"], ["Application"], ["Applied"], ["Fertilizer"], ["Quantity"]]
                 .iter()
                 .map(|names| names.iter().map(|name| name.to_string()).collect::<Vec<_>>())
                 .collect::<Vec<_>>()
         );
+        // `applied` is TRUE/FALSE, whether the round was given: a yes/no, never the day (the tab has none).
+        let sheet = chili_template().into_iter().find(|sheet| sheet.key == "fertigation").unwrap();
+        let applied = sheet.columns.iter().find(|column| column.name == "Applied").unwrap();
+        assert_eq!(applied.col_type, "yesno");
     }
 
     #[test]
@@ -1030,8 +1039,10 @@ mod tests {
         for key in ["fertigation", "pruning", "pesticides"] {
             assert_eq!(filled_by(key, "zone_plot"), ["Zone"], "{key}");
         }
-        // Each tab's own header for the day: Fertilizer's `applied` (Fertigation), Pruning's `actual_date` (its `planned_date` stays its own column).
-        assert_eq!(filled_by("fertigation", "applied"), ["Date"]);
+        // Each tab's own header for the day: Fungicide's `date_applied`, Pruning's `actual_date` (its `planned_date` stays its own
+        // column). Fertilizer's `applied` is a TRUE/FALSE: its own Applied column, not the Date.
+        assert_eq!(filled_by("pesticides", "date_applied"), ["Date"]);
+        assert_eq!(filled_by("fertigation", "applied"), ["Applied"]);
         assert_eq!(filled_by("pruning", "actual_date"), ["Date"]);
         assert_eq!(filled_by("pruning", "planned_date"), ["Planned date"]);
     }
@@ -1047,6 +1058,15 @@ mod tests {
         let sheet = chili_template().into_iter().find(|sheet| sheet.key == "pruning").unwrap();
         let applicable = sheet.columns.iter().find(|column| column.name == "Applicable").unwrap();
         assert_eq!(applicable.col_type, "yesno");
+    }
+
+    #[test]
+    fn pruning_reads_the_tab_as_the_farm_names_it_now() {
+        // The headers the Pruning tab has had since 2026-11-19: the same columns, named in words.
+        let headers = ["Zone Plot", "Pruning Round", "Round Name", "Plants Eligible for Pruning", "Applicable", "Planned Date", "Actual Date"];
+        let filled: Vec<Vec<String>> = headers.iter().map(|header| filled_by("pruning", header)).collect();
+        let want = ["Zone", "Round", "Round name", "Plants", "Applicable", "Planned date", "Date"];
+        assert_eq!(filled, want.iter().map(|name| vec![name.to_string()]).collect::<Vec<_>>());
     }
 
     #[test]

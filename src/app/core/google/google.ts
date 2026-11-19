@@ -380,6 +380,8 @@ export class Google {
   async disconnect(sheetId: number) {
     await this.api.deleteGoogleLink(sheetId);
     this.links.update((links) => links.filter((link) => link.sheetId !== sheetId));
+    // Disconnected on purpose: the app doesn't link it again by itself (AutoSync.linkNewTables).
+    await this.api.setSetting(noAutoLink(sheetId), 'off').catch(() => undefined);
   }
 
   /** "2 min ago", from the backend's UTC time. */
@@ -394,6 +396,11 @@ export class Google {
     if (hours < 24) return `${hours} h ago`;
     return new Date(then).toLocaleDateString('en-GB', { timeZone: 'Asia/Phnom_Penh' });
   }
+}
+
+/** The setting that keeps a table the person disconnected from being linked again by the app itself. */
+export function noAutoLink(sheetId: number) {
+  return `sheet.${sheetId}.autoLink`;
 }
 
 /** A Google Sheet's address, as the browser shows it (pasted back, it opens the same sheet). */

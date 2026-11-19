@@ -1,7 +1,8 @@
-import type { GoogleLink } from '../models';
+import type { Column, GoogleLink } from '../models';
 import { plainLayout, sameLayout, type FileLayout } from '@shared/excel/file-layout';
 import { normalizeHeader } from '@shared/sheet/columns';
 import { tabNameOf } from './link-plan';
+import { mappingFromLink } from './sheet-sync';
 
 /**
  * Connecting a table to a Google tab once its columns are matched: what the link keeps, so Sync reads the tab the
@@ -24,6 +25,31 @@ export function linkHeaderMap(sync: { headers: readonly string[]; positions: rea
     if (key || !(name in map)) map[name] = key;
   });
   return map;
+}
+
+/**
+ * The matches a table takes to another Google Sheet (the farm's real one after a test copy, say): each header its link
+ * matched goes to the same column again wherever the new tab has a header of that name, a header it left out stays out,
+ * and what the names alone match (`byName`: column key → worksheet column) fills in the rest. Nothing matched by hand has
+ * to be matched again. The result is as `mapping` is kept: each table column's key → the worksheet column that fills it.
+ */
+export function carriedMapping(
+  columns: Column[],
+  sync: { headers: readonly string[]; positions: readonly number[] },
+  remembered: Record<string, string>,
+  byName: Record<string, number>,
+): Record<string, number> {
+  const mapping = mappingFromLink(columns, [...sync.headers], [...sync.positions], remembered);
+  const leftOut = new Set(Object.entries(remembered).filter(([, key]) => key === '').map(([name]) => normalizeHeader(name)));
+  const used = new Set(Object.values(mapping));
+  for (const [key, position] of Object.entries(byName)) {
+    if (key in mapping || used.has(position)) continue;
+    const header = sync.headers[sync.positions.indexOf(position)];
+    if (header !== undefined && leftOut.has(normalizeHeader(header))) continue;
+    mapping[key] = position;
+    used.add(position);
+  }
+  return mapping;
 }
 
 /** What the link keeps of where the names and data are: nothing, when Sync would look there anyway (the names on `headerRow`, the data under them). */
@@ -74,4 +100,29 @@ export function linkChanged(
   const a = link.layout;
   const b = next.layout;
   return a === null || b === null ? a !== b : !sameLayout(a, b);
+}
+
+/** A Google Sheet file, by its id and its name. */
+export interface SpreadsheetRef {
+  spreadsheetId: string;
+  spreadsheetTitle: string;
+}
+
+/**
+ * The Google Sheet a table reads its tab from: its own link's, else the one its MAC's other tables read (the
+ * one most of them read, when there are more). Null: nothing in the MAC is read from Google yet.
+ */
+export function spreadsheetOf(links: readonly GoogleLink[], sheetId: number, macId: number): SpreadsheetRef | null {
+  const own = links.find((link) => link.sheetId === sheetId);
+  if (own) return { spreadsheetId: own.spreadsheetId, spreadsheetTitle: own.spreadsheetTitle };
+  const counted = new Map<string, { ref: SpreadsheetRef; count: number }>();
+  for (const link of links) {
+    if (link.macId !== macId) continue;
+    const seen = counted.get(link.spreadsheetId);
+    if (seen) seen.count += 1;
+    else counted.set(link.spreadsheetId, { ref: { spreadsheetId: link.spreadsheetId, spreadsheetTitle: link.spreadsheetTitle }, count: 1 });
+  }
+  let best: { ref: SpreadsheetRef; count: number } | null = null;
+  for (const item of counted.values()) if (!best || item.count > best.count) best = item;
+  return best?.ref ?? null;
 }

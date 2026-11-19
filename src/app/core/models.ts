@@ -235,6 +235,8 @@ export interface GoogleLink {
   lastRowCount: number;
   /** Where the tab's column names and data are, when the person said; null: found on each read. */
   layout: FileLayout | null;
+  /** `app`: a sheet this app made from the table and writes to (never read from). */
+  origin?: string | null;
 }
 
 export interface GoogleLinkInput {

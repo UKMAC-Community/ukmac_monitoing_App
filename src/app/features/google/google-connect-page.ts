@@ -14,7 +14,7 @@ import { WorkbookStore } from '@core/workbook-store';
 import { loadImportBook, readImportFrom, type ImportPreview } from '@shared/excel/excel-template';
 import type { ExcelJS } from '@shared/excel/exceljs';
 import { plainLayout, type FileLayout } from '@shared/excel/file-layout';
-import { defaultTab, linkChanged, linkHeaderMap, linkLayout } from '@core/google/connect-plan';
+import { carriedMapping, defaultTab, linkChanged, linkHeaderMap, linkLayout } from '@core/google/connect-plan';
 import { mappingFromLink } from '@core/google/sheet-sync';
 import { columnLabel, isEntryColumn } from '@shared/sheet/columns';
 
@@ -813,7 +813,12 @@ export class GoogleConnectPage {
     // Connected to this tab already: read where Sync reads it, so the link comes back as it is. Else the names are looked for.
     const preview = this.readTab(book, opened, table, tab, same ? (link.layout ?? plainLayout(headerRow)) : undefined);
     const auto = Object.fromEntries(preview.matched.map((item) => [item.key, item.position]));
-    const kept = same ? mappingFromLink(table.columns, preview.sync.headers, preview.sync.positions, link.headerMap) : {};
+    // Connected to another sheet before (a test copy, before the farm's real one): its matches carry over by header name.
+    const kept = same
+      ? mappingFromLink(table.columns, preview.sync.headers, preview.sync.positions, link.headerMap)
+      : link
+        ? carriedMapping(table.columns, preview.sync, link.headerMap, auto)
+        : {};
     const touched = Object.keys(kept).length > 0;
     return { tab, headerRow, preview, auto, mapping: touched ? kept : auto, touched };
   }

@@ -4,7 +4,7 @@ import { loadExcel } from '@shared/excel/exceljs';
 import { plainLayout } from '@shared/excel/file-layout';
 import { readExcelSheets } from '@shared/excel/sheet-from-excel';
 import { makeSheet } from '@shared/testing/test-helpers';
-import { defaultTab, linkChanged, linkHeaderMap, linkLayout, looseName } from './connect-plan';
+import { carriedMapping, defaultTab, linkChanged, linkHeaderMap, linkLayout, looseName } from './connect-plan';
 import { cellsFor, mappingFromLink, matchHeaders } from './sheet-sync';
 
 const soilColumns: Column[] = [
@@ -188,5 +188,27 @@ describe('connecting a MAC to one Google Sheet', () => {
 
   it('reads names loosely', () => {
     expect(looseName('QA/QC  Management')).toBe(looseName('qa-qc_management'));
+  });
+});
+
+describe('connecting a table to another Google Sheet (the real one after a test copy)', () => {
+  const columns: Column[] = [
+    { key: 'c1', name: 'Zone plot', type: 'text' },
+    { key: 'c2', name: 'Record date', type: 'date' },
+    { key: 'c9', name: 'Replant date', type: 'date' },
+    { key: 'c11', name: 'Note', type: 'text' },
+  ];
+  // The test sheet's link: three headers matched by hand, one left out on purpose.
+  const remembered = { 'block #': 'c1', 'date #': 'c2', 'replanting plants › date': 'c9', 'furrow #': '' };
+
+  it('keeps every match the link had, by header name, wherever the new tab has that header', () => {
+    const sync = { headers: ['Furrow #', 'Block #', 'Date #', 'Replanting plants › Date', 'Note'], positions: [1, 2, 3, 4, 5] };
+    expect(carriedMapping(columns, sync, remembered, { c11: 5 })).toEqual({ c1: 2, c2: 3, c9: 4, c11: 5 });
+  });
+
+  it('keeps a header left out on purpose out, and lets the names match what the link never had', () => {
+    const sync = { headers: ['Block #', 'Furrow #', 'Zone plot'], positions: [1, 2, 3] };
+    // The names would put Furrow # nowhere and Zone plot under Zone plot; Block # was matched to it by hand and wins.
+    expect(carriedMapping(columns, sync, remembered, { c1: 3, c11: 2 })).toEqual({ c1: 1 });
   });
 });

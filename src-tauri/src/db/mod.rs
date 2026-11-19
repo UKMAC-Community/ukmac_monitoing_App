@@ -12,6 +12,7 @@ pub mod ids;
 pub mod macs;
 pub mod rows;
 pub mod sheets;
+pub mod upgrade;
 
 #[cfg(test)]
 mod query_tests;
@@ -137,6 +138,11 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
          PRAGMA busy_timeout = 5000;",
     )?;
     migrate(&mut conn)?;
+    // Tables made by an earlier version take the template's new columns, their Google links matched to them (once per update).
+    // It never keeps the app from opening (the updater lives in the app): what fails is rolled back and tried at the next start.
+    if let Err(error) = upgrade::run(&mut conn) {
+        eprintln!("The tables could not be brought up to date this time: {error}");
+    }
     // A table that gained an ID column since the app last ran has its rows numbered.
     crate::db::ids::fill_all(&mut conn)?;
     Ok(conn)
@@ -155,6 +161,13 @@ fn migrate(conn: &mut Connection) -> rusqlite::Result<()> {
         tx.commit()?;
     }
     Ok(())
+}
+
+/// A database as `open` leaves it, in memory, for tests.
+#[cfg(test)]
+pub(crate) fn migrate_for_tests(conn: &mut Connection) {
+    conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+    migrate(conn).unwrap();
 }
 
 #[cfg(test)]
