@@ -175,6 +175,15 @@ export interface SavedMacFile {
   emptyOnOpen: string[];
 }
 
+export interface MadeMacKey {
+  key: string;
+  sheets: number;
+  /** Tables linked to a Google Sheet (read from there when the key is used). */
+  linked: number;
+  /** Tables that hold rows here but aren't linked to Google, so they arrive empty. */
+  emptyOnOpen: string[];
+}
+
 export interface ImportedMac {
   mac: Mac;
   sheets: number;
@@ -342,4 +351,25 @@ export interface SummaryTable {
 export interface Dashboard {
   kpis: Kpi[];
   summaries: SummaryTable[];
+}
+
+/** The local assistant: a small model on this computer (src-tauri/src/services/assistant.rs). */
+export interface AssistantStatus {
+  /** This computer has an engine to download. */
+  supported: boolean;
+  engineReady: boolean;
+  modelReady: boolean;
+  running: boolean;
+  installing: boolean;
+  modelName: string;
+  /** Bytes still to download. */
+  downloadBytes: number;
+  /** Bytes the downloaded files take. */
+  diskBytes: number;
+}
+
+export interface AssistantProgress {
+  phase: 'engine' | 'model' | 'check';
+  done: number;
+  total: number;
 }

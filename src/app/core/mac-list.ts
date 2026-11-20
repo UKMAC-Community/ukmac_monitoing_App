@@ -39,9 +39,9 @@ export class MacList {
     return mac;
   }
 
-  /** Adds the MAC saved in a `.ukmac` file (`replace`: in place of the same MAC here). */
-  async importFile(path: string, replace: boolean): Promise<ImportedMac> {
-    const done = await this.api.importMacFile(path, replace);
+  /** Adds the MAC in a key (`replace`: in place of the same MAC here). */
+  async importKey(key: string, replace: boolean): Promise<ImportedMac> {
+    const done = await this.api.importMacKey(key, replace);
     await this.refresh();
     this.powerBi.changed();
     return done;

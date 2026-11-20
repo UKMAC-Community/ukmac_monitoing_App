@@ -4,10 +4,12 @@
 
 pub mod access;
 pub mod ai;
+pub mod assistant;
 pub mod files;
 pub mod google;
 pub mod links;
 pub mod mac_file;
+pub mod mac_key;
 pub mod macs;
 pub mod rows;
 pub mod settings;

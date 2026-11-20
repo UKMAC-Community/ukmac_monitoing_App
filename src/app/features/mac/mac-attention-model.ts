@@ -13,6 +13,13 @@ export interface PartlyColumn {
   more: number;
 }
 
+/** A column most records lack: named alone, its records being most of the table. */
+export interface MostlyColumn {
+  name: string;
+  missing: number;
+  total: number;
+}
+
 /** A table with something still missing, as the MAC's dashboard says it. */
 export interface Need {
   sheetId: number;
@@ -22,9 +29,13 @@ export interface Need {
   emptyColumns: string[];
   /** Empty columns beyond the ones named. */
   moreEmpty: number;
-  /** The columns with some records lacking: the column, and which records. */
+  /** The columns most records lack (more than `MOSTLY` of them): named, not their records. */
+  mostly: MostlyColumn[];
+  /** Mostly empty columns beyond the ones named. */
+  moreMostly: number;
+  /** The columns a few records lack (`MOSTLY` of them or fewer): the column, and which records. */
   partly: PartlyColumn[];
-  /** Partly filled columns not shown (the table has more than `COLUMNS` of them). */
+  /** Such columns not shown (the table has more than `COLUMNS` of them). */
   moreColumns: number;
   /** How much of what is typed in is filled in (%, rounded down: 99 while anything is missing). */
   filled: number;
@@ -35,8 +46,13 @@ export interface Need {
 /** How many partly filled columns a box names, and how many records each. */
 export const COLUMNS = 2;
 export const RECORDS = 4;
-/** How many empty columns a box names (the rest are counted). */
+/** How many empty (or mostly empty) columns a box names (the rest are counted). */
 export const EMPTY_NAMED = 4;
+/**
+ * A column lacking in more than this share of the records is "mostly missing": the column is what's missing, not a few
+ * records' cells (a plot or a batch number left out here and there), so the records aren't listed.
+ */
+export const MOSTLY = 0.5;
 
 /** Every table with records that still lacks something, the one lacking the most first. */
 export function needsYou(sheets: readonly SheetWithRows[]): Need[] {
@@ -47,7 +63,9 @@ export function needsYou(sheets: readonly SheetWithRows[]): Need[] {
     const empty = gaps.columns.filter((column) => column.state === 'missing');
     const partly = gaps.columns.filter((column) => column.state === 'partly');
     if (!empty.length && !partly.length) continue;
-    const shown = partly.slice(0, COLUMNS).map((column): PartlyColumn => {
+    const most = partly.filter((column) => column.missing > gaps.rows * MOSTLY);
+    const few = partly.filter((column) => column.missing <= gaps.rows * MOSTLY);
+    const shown = few.slice(0, COLUMNS).map((column): PartlyColumn => {
       const lacking = columnRecords(sheet, column.key).missing;
       return {
         key: column.key,
@@ -67,8 +85,10 @@ export function needsYou(sheets: readonly SheetWithRows[]): Need[] {
       icon: sheet.icon,
       emptyColumns: empty.slice(0, EMPTY_NAMED).map((column) => column.name),
       moreEmpty: Math.max(0, empty.length - EMPTY_NAMED),
+      mostly: most.slice(0, EMPTY_NAMED).map((column) => ({ name: column.name, missing: column.missing, total: gaps.rows })),
+      moreMostly: Math.max(0, most.length - EMPTY_NAMED),
       partly: shown,
-      moreColumns: partly.length - shown.length,
+      moreColumns: few.length - shown.length,
       signature: [...empty.map((column) => `${column.key}`), ...partly.map((column) => `${column.key}:${column.missing}`)].join(','),
       lacking: empty.length * gaps.rows + partly.reduce((sum, column) => sum + column.missing, 0),
     });

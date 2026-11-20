@@ -288,3 +288,23 @@ describe('SheetTable: a plain table has no group band', () => {
     expect(el.querySelector('table')!.classList).toContain('is-plain');
   });
 });
+
+describe('SheetTable: kg in the Harvest table', () => {
+  function cells(templateKey: string | null) {
+    const weights = makeSheet(51, 'Harvest', [col('c1', 'Zone plot'), col('c2', 'Harvest yield', { type: 'number', unit: 'kg' }), col('c3', 'Height', { type: 'number', unit: 'cm' })], [{ c1: 'A1', c2: '145.9', c3: '30' }, { c1: 'A2', c3: '31' }], templateKey);
+    const fixture = TestBed.createComponent(SheetTable);
+    fixture.componentRef.setInput('sheet', weights);
+    fixture.componentRef.setInput('rows', weights.rows);
+    fixture.componentRef.setInput('formulas', new WorkbookFormulas([weights], '2026-11-07'));
+    fixture.detectChanges();
+    return [...(fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim()));
+  }
+
+  it('writes kg after a weight, not after an empty cell or another unit', () => {
+    expect(cells('harvest')).toEqual([['A1', '145.9 kg', '30'], ['A2', '', '31']]);
+  });
+
+  it('leaves other tables as they are', () => {
+    expect(cells(null)[0]).toEqual(['A1', '145.9', '30']);
+  });
+});

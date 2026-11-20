@@ -233,7 +233,7 @@ fn assemble(conn: &Connection, mac_id: i64, links_only: bool) -> CmdResult<MacFi
     })
 }
 
-fn check_header(file: &MacFile) -> CmdResult<()> {
+pub(crate) fn check_header(file: &MacFile) -> CmdResult<()> {
     if file.format != FORMAT {
         return Err("This isn't a MAC file saved by UKMAC Monitoring.".into());
     }

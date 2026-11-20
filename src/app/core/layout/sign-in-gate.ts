@@ -18,8 +18,8 @@ import { GoogleSignIn } from './google-sign-in';
           The farm's data is kept in Google Sheets. Nothing is shown here until you sign in, and then only what your Google account can open.
         </p>
         <p class="steps">
-          To see a farm: sign in, then open the <b>.ukmac</b> file you were given (Import MAC). If your account can't open the Google Sheets
-          that file points at, nothing is added.
+          To see a farm: sign in, then paste the <b>key</b> you were given (Import MAC). If your account can't open the Google Sheets
+          that key points at, nothing is added.
         </p>
         @if (google.status()?.configured) {
           <app-google-sign-in />

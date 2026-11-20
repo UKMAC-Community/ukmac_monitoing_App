@@ -34,7 +34,7 @@ export interface PlotView {
   /** Each plot it has something for, by its code (lower case). */
   plots: Map<string, PlotSay>;
   /** Its colours and how many plots are at each, in order (a round the first to the last; a value the most plots first). */
-  legend: { label: string; colour: string; count: number }[];
+  legend: { label: string; colour: string; count: number; /** Said beside the label, quieter (a batch's variety). */ note?: string }[];
   /** A few words under its name in the list: "2 varieties", "up to 10th Application", "latest 05/02/2027". */
   summary: string;
   /** A table that weighs or counts what it records (Harvest's yield): each plot's total, to add up by zone. */
@@ -172,14 +172,21 @@ function isDone(row: Row, sheet: SheetWithRows, date: Column | undefined, skip: 
 }
 
 /** A colour for each value, the most plots first (the rest "Other"). */
-function valuesView(key: string, label: string, icon: string, said: Map<string, { text: string; more: string }>, noun: [string, string]): PlotView {
+function valuesView(key: string, label: string, icon: string, said: Map<string, { text: string; more: string }>, noun: [string, string], noted = false): PlotView {
   const counts = new Map<string, number>();
   for (const { text } of said.values()) counts.set(text, (counts.get(text) ?? 0) + 1);
   const ranked = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'en', { numeric: true }));
   const colourOf = new Map(ranked.slice(0, VALUE_COLOURS.length).map(([text], index) => [text, VALUE_COLOURS[index]]));
   const plots = new Map<string, PlotSay>();
   for (const [code, { text, more }] of said) plots.set(code, { text, short: text, colour: colourOf.get(text) ?? OTHER, more });
-  const legend = ranked.slice(0, VALUE_COLOURS.length).map(([text, count]) => ({ label: text, colour: colourOf.get(text)!, count }));
+  // With `noted`, what its plots say besides (a batch's variety) is written beside it: the one most of them say.
+  const noteOf = (text: string) => {
+    if (!noted) return undefined;
+    const tally = new Map<string, number>();
+    for (const item of said.values()) if (item.text === text && item.more) tally.set(item.more, (tally.get(item.more) ?? 0) + 1);
+    return [...tally].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'en'))[0]?.[0];
+  };
+  const legend: PlotView['legend'] = ranked.slice(0, VALUE_COLOURS.length).map(([text, count]) => ({ label: text, colour: colourOf.get(text)!, count, note: noteOf(text) }));
   const rest = ranked.slice(VALUE_COLOURS.length).reduce((sum, [, count]) => sum + count, 0);
   if (rest) legend.push({ label: 'Other', colour: OTHER, count: rest });
   return { key, label, icon, kind: 'values', plots, legend, summary: ranked.length ? `${ranked.length} ${noun[ranked.length === 1 ? 0 : 1]}` : 'nothing yet' };
@@ -237,7 +244,7 @@ function progressViews(sheets: readonly SheetWithRows[]): PlotView[] {
   }
   return [
     variety || batchVariety.size ? valuesView('variety', 'Variety', 'sprout', varieties, ['variety', 'varieties']) : null,
-    batch ? valuesView('batch', 'Nursery batch', 'package', batches, ['batch', 'batches']) : null,
+    batch ? valuesView('batch', 'Nursery batch', 'package', batches, ['batch', 'batches'], true) : null,
     status ? stagesView(`table:${sheet.sheetId}`, sheet.title, 'seedling', statuses) : null,
   ].filter((view): view is PlotView => !!view);
 }

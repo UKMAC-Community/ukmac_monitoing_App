@@ -180,8 +180,8 @@ export const foldLimit = { columns: 60 };
                     [class.soft]="look.soft"
                     [style.left.px]="look.left"
                     [class.is-lit]="lit() === item.column.key"
-                    [title]="text(row, item.column)"
-                  >{{ text(row, item.column) }}</td>
+                    [title]="cellText(row, item.column)"
+                  >{{ cellText(row, item.column) }}</td>
                 }
               }
             </tr>
@@ -254,6 +254,8 @@ export const foldLimit = { columns: 60 };
     .data-table.is-plain.is-grouped th.box, .data-table.is-plain.is-grouped th.group { text-align: center; }
     /* A table that does not fold has no vertical lines between its groups, nor after its frozen columns. */
     .data-table.is-plain.is-grouped .edge, .data-table.is-plain.is-grouped .end, .data-table.is-plain.is-grouped th.pin-last, .data-table.is-plain.is-grouped td.pin-last { border-left: 0 none; border-right: 0 none; }
+    /* ...and no line between the group names and the column names under them. */
+    .data-table.is-plain.is-grouped thead tr:not(:last-child) th { border-bottom: 0 none; }
     .data-table.is-plain .span-label { font-weight: 600; color: var(--text); }
     .data-table.is-grouped th.group { font-size: 0.75rem; }
     /* The name stays at the left of what is in view, just past the frozen columns. */
@@ -272,6 +274,8 @@ export const foldLimit = { columns: 60 };
     /* Every table's rows striped, every other one light gray over white, so a row is easy to follow across. */
     .data-table.is-zebra tbody tr:nth-child(even) { --row-bg: linear-gradient(var(--zebra), var(--zebra)); }
     .data-table.is-zebra td { background-image: var(--row-bg, none); }
+    /* Every cell has the same solid ground as the frozen ones (which must be solid to hide what scrolls under them), so a row is one colour across. */
+    .data-table.is-zebra td:not(.is-gap):not(.is-lit) { background-color: var(--surface-solid); }
     .data-table.is-zebra { --zebra: var(--row-stripe); }
     .none { position: sticky; left: 0; padding: 28px 20px; text-align: center; color: var(--text-muted); font-size: 0.875rem; }
     .data-table td.none { text-align: center; color: var(--text-muted); height: 96px; max-width: none; }
@@ -656,6 +660,12 @@ export class SheetTable {
   /** A cell to mark as missing: blank, in a column a person fills in (formula and ID columns are never on the list). */
   isGap(row: Row, column: Column): boolean {
     return !!this.missing()?.has(column.key) && isBlank(row.data[column.key]);
+  }
+
+  /** What a cell shows: its text, and in the Harvest table "kg" after a weight (the column's unit), so a number reads as a weight. */
+  cellText(row: Row, column: Column): string {
+    const value = this.text(row, column);
+    return value !== '' && this.sheet().templateKey === 'harvest' && column.unit?.trim().toLowerCase() === 'kg' ? `${value} kg` : value;
   }
 
   text(row: Row, column: Column): string {

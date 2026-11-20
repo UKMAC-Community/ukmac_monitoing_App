@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 
 import { Icon } from '@shared/ui/icon';
+import { NotificationBell } from '@features/notices/notification-bell';
 import { NavPillGlide } from '@core/layout/nav-pill-glide';
 import { SignInGate } from '@core/layout/sign-in-gate';
 import { UpdateButton } from '@core/layout/update-button';
@@ -29,7 +30,7 @@ interface Crumb {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, NavPillGlide, SignInGate, UpdateButton],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, NavPillGlide, SignInGate, UpdateButton, NotificationBell],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -77,6 +78,9 @@ export class App implements OnInit {
 
   /** The UKMAC overview stands alone: no sidebar, no top bar. */
   readonly onHome = computed(() => ['/', '/settings'].includes(this.url().split(/[?#]/)[0]));
+
+  /** The AI chat takes the whole window: no sidebar, no top bar. */
+  readonly onChat = computed(() => /^\/mac\/\d+\/assistant/.test(this.url().split(/[?#]/)[0]));
 
   /** Inside a MAC the menu is just that MAC's tables. */
   readonly inMac = computed(() => this.url().startsWith('/mac/'));
@@ -183,6 +187,7 @@ export class App implements OnInit {
       crumbs.push({ label: mac.macName, link: ['/mac', mac.macId] });
       if (url.includes('/zone-map')) crumbs.push({ label: 'Zone Map' });
       if (url.includes('/weather')) crumbs.push({ label: 'Weather' });
+      if (url.includes('/assistant')) crumbs.push({ label: 'AI chat' });
       if (url.includes('/data-check')) crumbs.push({ label: 'Data Check' });
       const sheet = match[2] ? this.store.sheet(Number(match[2])) : null;
       if (sheet) crumbs.push({ label: sheet.heading }, { label: sheet.title });

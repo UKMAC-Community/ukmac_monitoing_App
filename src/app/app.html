@@ -1,12 +1,13 @@
 @if (theme.style() === 'soft' && !gated()) {
-  <!-- The Soft theme's frosted icon rail, down the window's left edge on every page: the main places, the settings and, beside a sidebar, its fold. -->
+  <!-- The Soft theme's icon rail at the window's left edge on every page, as two frosted pieces: the main places at the top, and at the bottom the weather and AI chat of an open MAC, the settings and, beside a sidebar, its fold. -->
   <nav class="soft-rail" aria-label="Main places">
+    <div class="rail-group">
     <a class="rail-btn" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" title="All MACs" aria-label="All MACs"><app-icon name="building" [size]="19" /></a>
-    @if (!inMac() && macs.macs().length) {
+    @if (macs.macs().length) {
       <span class="rail-rule"></span>
-      <!-- Home and Settings: each MAC, by its first letter, one click from its dashboard. -->
+      <!-- Every MAC, by its first letter, one click from its dashboard (one MAC: one letter). The open one is lit. -->
       @for (mac of macs.macs(); track mac.macId) {
-        <a class="rail-btn rail-mac" [routerLink]="['/mac', mac.macId]" [title]="mac.macName + ' · ' + mac.macCode" [attr.aria-label]="mac.macName">{{ initial(mac.macName) }}</a>
+        <a class="rail-btn rail-mac" [class.active]="mac.macId === openMacId()" [routerLink]="['/mac', mac.macId]" [title]="mac.macName + ' · ' + mac.macCode" [attr.aria-label]="mac.macName">{{ initial(mac.macName) }}</a>
       }
     }
     @if (openMacId(); as macId) {
@@ -18,17 +19,23 @@
           <span class="rail-dot"></span>
         }
       </a>
-      <a class="rail-btn" [routerLink]="['/mac', macId, 'weather']" routerLinkActive="active" title="Weather" aria-label="Weather"><app-icon name="cloud-sun" [size]="19" /></a>
       <a class="rail-btn" [routerLink]="['/mac', macId, 'zone-map']" routerLinkActive="active" title="Zone Map" aria-label="Zone Map"><app-icon name="pin" [size]="19" /></a>
     }
-    <span class="grow"></span>
+    </div>
+    <div class="rail-group rail-bottom">
+    <app-notification-bell [macId]="openMacId()" />
+    @if (openMacId(); as macId) {
+      <a class="rail-btn" [routerLink]="['/mac', macId, 'weather']" routerLinkActive="active" title="Weather" aria-label="Weather"><app-icon name="cloud-sun" [size]="19" /></a>
+      <a class="rail-btn" [routerLink]="['/mac', macId, 'assistant']" routerLinkActive="active" title="AI chat: ask about the data" aria-label="AI chat"><app-icon name="sparkles" [size]="19" /></a>
+    }
     <a class="rail-btn" routerLink="/settings" routerLinkActive="active" title="Settings" aria-label="Settings"><app-icon name="settings" [size]="19" /></a>
-    @if (!onHome()) {
+    @if (!onHome() && !onChat()) {
       <button type="button" class="rail-btn" [title]="shell.collapsed() ? 'Open the sidebar' : 'Fold the sidebar'" [attr.aria-label]="shell.collapsed() ? 'Open the sidebar' : 'Fold the sidebar'" (click)="shell.toggle()"><app-icon name="panel-left" [size]="19" /></button>
     }
+    </div>
   </nav>
 }
-@if (!onHome() && !gated()) {
+@if (!onHome() && !gated() && !onChat()) {
 <aside class="sidebar rail-scroll" [class.is-collapsed]="shell.collapsed()">
   <div class="sidebar-header">
     @if (!shell.collapsed()) {
@@ -132,12 +139,20 @@
               }
             </a>
           }
-          <a class="nav-link" [routerLink]="['/mac', mac.macId, 'weather']" routerLinkActive="active" #wxLink="routerLinkActive" title="Weather: now, the last two weeks and the next week, from Open-Meteo">
+          <!-- Weather and AI chat: in the Soft look these are on the icon rail's bottom piece, so the menu leaves them out (soft.css). -->
+          <a class="nav-link in-rail" [routerLink]="['/mac', mac.macId, 'weather']" routerLinkActive="active" #wxLink="routerLinkActive" title="Weather: now, the last two weeks and the next week, from Open-Meteo">
             @if (wxLink.isActive) {
               <span class="nav-pill"></span>
             }
             <app-icon name="cloud-sun" [size]="17" />
             <span class="nav-label">Weather</span>
+          </a>
+          <a class="nav-link in-rail" [routerLink]="['/mac', mac.macId, 'assistant']" routerLinkActive="active" #aiLink="routerLinkActive" title="AI chat: ask about the data">
+            @if (aiLink.isActive) {
+              <span class="nav-pill"></span>
+            }
+            <app-icon name="sparkles" [size]="17" />
+            <span class="nav-label">AI chat</span>
           </a>
           @if (!shell.collapsed()) {
             <span class="nav-section-label">Farm Layout</span>
@@ -239,7 +254,7 @@
 }
 
 <main class="content">
-  @if (!onHome() && !gated()) {
+  @if (!onHome() && !gated() && !onChat()) {
   <header class="topbar">
     <div class="topbar-left">
       <nav class="breadcrumbs" aria-label="Where you are">

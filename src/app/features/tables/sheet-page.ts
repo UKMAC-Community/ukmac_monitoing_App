@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, injec
 import { DashboardStudio } from '@features/dashboard/dashboard-studio';
 import { SheetDashboard } from '@features/dashboard/sheet-dashboard';
 import { type CrossFilter, dashboardOf, filteredSheet } from '@features/dashboard/dashboard-model';
+import { columnRecords } from '@features/dashboard/data-gaps';
 import { Router, RouterLink } from '@angular/router';
 
 import { ColumnDialog } from './column-dialog';
@@ -60,6 +61,21 @@ export class SheetPage {
   readonly view = input<string | undefined>();
   /** `?column=`: a column of the table to bring into view and light up (the Data Check links to it). */
   readonly column = input<string | undefined>();
+  /** `?gap=`: only the rows with nothing in this column (the MAC dashboard's Needs you links to it), as Needs you counted them. */
+  readonly gap = input<string | undefined>();
+  readonly gapColumn = computed(() => {
+    const key = this.gap();
+    return key ? (this.sheet()?.columns.find((column) => column.key === key) ?? null) : null;
+  });
+  private readonly gapRows = computed(() => {
+    const sheet = this.sheet();
+    const column = this.gapColumn();
+    return sheet && column ? new Set(columnRecords(sheet, column.key).missing.map((record) => record.rowId)) : null;
+  });
+  /** Every row again (the column stays lit). */
+  clearGap() {
+    void this.router.navigate([], { queryParams: { gap: null }, queryParamsHandling: 'merge', replaceUrl: true });
+  }
   readonly mode = computed<'table' | 'dashboard' | 'sheet'>(() => (this.view() === 'dashboard' ? 'dashboard' : this.view() === 'sheet' ? 'sheet' : 'table'));
   readonly sheet = computed(() => this.store.sheet(Number(this.sheetId())));
 
@@ -104,7 +120,11 @@ export class SheetPage {
     this.gapFirst.update((now) => (now === key ? null : key));
   }
   /** No rows with a gap to show: why, in plain words. */
-  readonly missingEmptyText = computed(() => (this.gapColumns() && !this.filtered() ? 'Nothing missing: every row has all its columns filled in.' : null));
+  readonly missingEmptyText = computed(() => {
+    const column = this.gapColumn();
+    if (column && !this.search().trim() && !this.activeFilter()) return `Every row has ${column.name} filled in now.`;
+    return this.gapColumns() && !this.filtered() ? 'Nothing missing: every row has all its columns filled in.' : null;
+  });
   readonly linkOptions = (column: Column) => this.store.linkOptions(column);
 
   /** What a click on a group in the dashboard keeps in its other visuals (of this table only). */
@@ -363,7 +383,8 @@ export class SheetPage {
   private readonly searched = computed<Row[]>(() => {
     const sheet = this.sheet();
     if (!sheet) return [];
-    const rows = this.kept();
+    const only = this.gapRows();
+    const rows = only ? this.kept().filter((row) => only.has(row.rowId)) : this.kept();
     const words = this.search().trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (!words.length) return rows;
     return rows.filter((row) => {
@@ -420,7 +441,7 @@ export class SheetPage {
     return rows;
   }
 
-  readonly filtered = computed(() => !!this.search().trim() || !!this.activeFilter());
+  readonly filtered = computed(() => !!this.search().trim() || !!this.activeFilter() || !!this.gapRows());
   readonly formulaCount = computed(() => this.sheet()?.columns.filter((column) => column.type === 'formula').length ?? 0);
   readonly problemCount = computed(() => {
     const sheet = this.sheet();

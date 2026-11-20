@@ -32,10 +32,19 @@ describe('needsYou', () => {
   });
 
   it('puts the table lacking the most first, and names a few records and says how many more', () => {
-    const many = makeSheet(7, 'Pruning', [col('c1', 'Zone plot'), col('c2', 'Date')], Array.from({ length: 10 }, (_, at) => ({ c1: `A${at + 1}`, c2: at === 9 ? '2026-07-01' : '' })));
+    const many = makeSheet(7, 'Pruning', [col('c1', 'Zone plot'), col('c2', 'Date')], Array.from({ length: 10 }, (_, at) => ({ c1: `A${at + 1}`, c2: at < 5 ? '' : '2026-07-01' })));
     const needs = needsYou([plants, many]);
     expect(needs.map((need) => need.title)).toEqual(['Pruning', 'Plant Progress']);
-    expect(needs[0].partly[0]).toMatchObject({ missing: 9, records: ['A1', 'A2', 'A3', 'A4'], more: 5 });
+    expect(needs[0].partly[0]).toMatchObject({ missing: 5, records: ['A1', 'A2', 'A3', 'A4'], more: 1 });
+  });
+
+  it('names a column most records lack without listing them, and lists the records of one a few lack', () => {
+    // 10 plots: Date lacking in 9 (the column is what's missing), Batch in 2 (two plots left out).
+    const rows = Array.from({ length: 10 }, (_, at) => ({ c1: `A${at + 1}`, c2: at === 9 ? '2026-07-01' : '', c3: at < 2 ? '' : 'B1' }));
+    const [need] = needsYou([makeSheet(7, 'Pruning', [col('c1', 'Zone plot'), col('c2', 'Date'), col('c3', 'Batch number')], rows)]);
+    expect(need.mostly).toEqual([{ name: 'Date', missing: 9, total: 10 }]);
+    expect(need.partly).toEqual([{ key: 'c3', name: 'Batch number', missing: 2, total: 10, records: ['A1', 'A2'], more: 0 }]);
+    expect(need.moreColumns).toBe(0);
   });
 
   it('says how much of the table is filled in, never 100 while something is missing', () => {

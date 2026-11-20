@@ -75,6 +75,13 @@ pub fn run() {
             app.manage(google);
             // Optional AI connection: keys stay outside the database and its backups.
             app.manage(services::ai::AiState::load(&folder));
+            // The local assistant (a small model run on this computer): stopped when the app closes, or after a quiet spell.
+            app.manage(services::assistant::AssistantState::new(&folder));
+            let handle = app.handle().clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+                handle.state::<services::assistant::AssistantState>().stop_if_idle();
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -109,6 +116,9 @@ pub fn run() {
             commands::mac_file::export_mac_file,
             commands::mac_file::peek_mac_file,
             commands::mac_file::import_mac_file,
+            commands::mac_key::export_mac_key,
+            commands::mac_key::peek_mac_key,
+            commands::mac_key::import_mac_key,
             commands::google::google_status,
             commands::google::google_save_client,
             commands::google::google_sign_in,
@@ -128,11 +138,23 @@ pub fn run() {
             commands::ai::ai_generate_visuals,
             commands::ai::ai_cancel_generation,
             commands::ai::ai_clear_connection,
+            commands::assistant::assistant_status,
+            commands::assistant::assistant_install,
+            commands::assistant::assistant_cancel,
+            commands::assistant::assistant_start,
+            commands::assistant::assistant_stop,
+            commands::assistant::assistant_remove,
+            commands::assistant::assistant_ask,
             commands::ui_update::ui_update_look,
             commands::ui_update::ui_update_install,
             commands::ui_update::ui_update_apply,
             commands::ui_update::ui_booted,
         ])
-        .run(context)
-        .expect("error while running UKMAC Monitoring");
+        .build(context)
+        .expect("error while building UKMAC Monitoring")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                app.state::<services::assistant::AssistantState>().stop();
+            }
+        });
 }

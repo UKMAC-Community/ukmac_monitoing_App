@@ -64,6 +64,8 @@ export class Google {
   readonly pendingConnections = signal<number | null>(null);
   /** Tables being read now (by sheet id). */
   readonly syncing = signal<ReadonlySet<number>>(new Set());
+  /** Tables whose last read failed (by sheet id), with why: kept until a read of it works, for the notifications. */
+  readonly failures = signal<ReadonlyMap<number, string>>(new Map());
 
   readonly signedIn = computed(() => this.status()?.signedIn ?? false);
   private started = false;
@@ -179,6 +181,18 @@ export class Google {
   }
 
   /** A Google call that may find the sign-in has ended: the status is read again then, so the screen says so. */
+  /** Runs a read of a table, remembering whether it failed (and why). */
+  private async track<T>(sheetId: number, work: () => Promise<T>): Promise<T> {
+    try {
+      const done = await work();
+      if (this.failures().has(sheetId)) this.failures.update((map) => new Map([...map].filter(([id]) => id !== sheetId)));
+      return done;
+    } catch (error) {
+      this.failures.update((map) => new Map(map).set(sheetId, errorText(error)));
+      throw error;
+    }
+  }
+
   private async guard<T>(work: () => Promise<T>): Promise<T> {
     try {
       return await work();
@@ -255,7 +269,7 @@ export class Google {
     if (this.isSyncing(sheetId)) throw new Error('This table is being read already.');
     this.syncing.update((set) => new Set(set).add(sheetId));
     try {
-      return await this.guard(() => this.read(link));
+      return await this.track(sheetId, () => this.guard(() => this.read(link)));
     } finally {
       this.syncing.update((set) => {
         const next = new Set(set);
@@ -344,7 +358,7 @@ export class Google {
           downloads.set(link.spreadsheetId, shared);
         }
         const download = shared;
-        results.set(sheetId, await this.guard(async () => this.read(link, download)));
+        results.set(sheetId, await this.track(sheetId, () => this.guard(async () => this.read(link, download))));
       } catch (error) {
         results.set(sheetId, error instanceof Error ? error : new Error(errorText(error)));
       } finally {

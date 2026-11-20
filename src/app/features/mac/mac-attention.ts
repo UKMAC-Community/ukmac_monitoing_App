@@ -7,7 +7,7 @@ import { Google } from '@core/google/google';
 import type { SheetWithRows } from '@core/models';
 import { Toasts } from '@core/toast';
 import { Icon } from '@shared/ui/icon';
-import { needsYou, recordsLine } from './mac-attention-model';
+import { needsYou, recordsLine, type MostlyColumn } from './mac-attention-model';
 
 /** What a person took off the list, per MAC: the table, and what was missing in it then (so a change brings it back). */
 const key = (macId: number) => `ukmac.attention.${macId}`;
@@ -124,20 +124,33 @@ function read(macId: number): Record<string, string> {
                 @if (need.emptyColumns.length) {
                   <p class="empty-line"><span class="flag" aria-hidden="true"></span><span><b>Nothing entered:</b> {{ need.emptyColumns.join(', ') }}@if (need.moreEmpty) { and {{ need.moreEmpty }} more}</span></p>
                 }
+                @if (need.mostly.length) {
+                  <!-- Most records lack it: the column is what's missing, so it's named alone. -->
+                  <p class="empty-line mostly" [title]="countsOf(need.mostly)">
+                    <span class="flag" aria-hidden="true"></span>
+                    <span><b>Mostly missing:</b> {{ namesOf(need.mostly) }}@if (need.moreMostly) { and <a class="and-more" [routerLink]="['/mac', macId(), 'data-check']">{{ need.moreMostly }} more</a>}</span>
+                  </p>
+                }
                 @for (column of need.partly; track column.key) {
-                  <div class="col-line">
-                    <div class="col-top">
-                      <span class="col" [title]="column.name">{{ column.name }}</span>
+                  <!-- Opens the table on just the rows missing it, the column lit. -->
+                  <a
+                    class="col-line"
+                    [routerLink]="['/mac', macId(), 'table', need.sheetId]"
+                    [queryParams]="{ column: column.key, gap: column.key }"
+                    [title]="'Show the ' + column.missing + ' rows of ' + need.title + ' missing ' + column.name"
+                  >
+                    <span class="col-top">
+                      <span class="col">{{ column.name }}</span>
                       <span class="mini" aria-hidden="true"><i [style.width.%]="(column.missing / column.total) * 100"></i></span>
-                      <span class="count">{{ column.missing }} of {{ column.total }} missing</span>
-                    </div>
+                      <span class="count">{{ column.missing }} of {{ column.total }} missing <app-icon class="go" name="arrow-right" [size]="12" /></span>
+                    </span>
                     @if (column.records.length) {
-                      <p class="recs" [title]="line(column.records, column.more)">{{ line(column.records, column.more) }}</p>
+                      <span class="recs">{{ line(column.records, column.more) }}</span>
                     }
-                  </div>
+                  </a>
                 }
                 @if (need.moreColumns) {
-                  <a class="more-cols" [routerLink]="['/mac', macId(), 'data-check']">+ {{ need.moreColumns }} more {{ need.moreColumns === 1 ? 'column' : 'columns' }} partly filled <app-icon name="arrow-right" [size]="12" /></a>
+                  <a class="more-cols" [routerLink]="['/mac', macId(), 'data-check']">+ {{ need.moreColumns }} more {{ need.moreColumns === 1 ? 'column' : 'columns' }} with a few missing <app-icon name="arrow-right" [size]="12" /></a>
                 }
               </li>
             }
@@ -185,30 +198,35 @@ function read(macId: number): Record<string, string> {
     .sync-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: color-mix(in srgb, var(--accent) 18%, transparent); }
     .sync-bar > span { display: block; height: 100%; background: var(--accent); transition: width 300ms ease; }
 
-    /* Needs you: a table a block, how full it is, then what is missing in it. */
-    .needs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; max-height: 460px; overflow-y: auto; }
-    .need { display: flex; flex-direction: column; gap: 8px; padding: 12px 2px; }
-    .need + .need { border-top: var(--hairline) solid var(--border); }
-    .need:first-child { padding-top: 2px; }
+    /* Needs you: a table a box, how full it is, then what is missing in it. */
+    .needs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; max-height: 520px; overflow-y: auto; }
+    .need { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--radius); background: var(--fill); }
     .need-head { display: flex; align-items: center; gap: 8px; }
     .need-title { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .need-title:hover { color: var(--accent); }
     .pct { flex: none; font-size: 0.75rem; font-weight: 600; color: var(--success); font-variant-numeric: tabular-nums; }
     .pct.low { color: var(--warning); }
-    .meter { height: 4px; border-radius: 999px; background: var(--fill); overflow: hidden; }
+    .meter { height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; }
     .meter i { display: block; height: 100%; border-radius: inherit; background: var(--success); }
     .meter.low i { background: var(--warning); }
     .empty-line { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 0.8125rem; color: var(--text); }
     .empty-line b { font-weight: 600; color: var(--danger, #b42318); }
     .flag { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--danger, #d92d20); transform: translateY(-1px); }
-    .col-line { display: flex; flex-direction: column; gap: 2px; padding-left: 15px; }
-    .col-top { display: grid; grid-template-columns: minmax(0, 1fr) 72px 118px; align-items: center; gap: 10px; font-size: 0.8125rem; }
+    .mostly b { color: var(--warning); }
+    .mostly .flag { background: var(--warning); }
+    .and-more { color: var(--accent); font-weight: 600; text-decoration: none; }
+    .col-line { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; padding: 4px 8px 4px 31px; border-radius: var(--radius-sm); color: inherit; text-decoration: none; }
+    .col-line:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+    .col-line:hover .col { color: var(--accent); }
+    .col-line .go { opacity: 0; transition: opacity 120ms ease; }
+    .col-line:hover .go, .col-line:focus-visible .go { opacity: 1; }
+    .col-top { display: grid; grid-template-columns: minmax(0, 1fr) 72px 134px; align-items: center; gap: 10px; font-size: 0.8125rem; }
     .col { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .mini { height: 4px; border-radius: 999px; background: var(--fill); overflow: hidden; }
+    .mini { height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; }
     .mini i { display: block; height: 100%; background: var(--warning); border-radius: inherit; }
-    .count { text-align: right; font-size: 0.75rem; color: var(--warning); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .recs { margin: 0; font-size: 0.75rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .more-cols { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding-left: 15px; font-size: 0.75rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+    .count { display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px; font-size: 0.75rem; color: var(--warning); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .recs { display: block; margin: 0; font-size: 0.75rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .more-cols { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding-left: 23px; font-size: 0.75rem; font-weight: 600; color: var(--accent); text-decoration: none; }
   `,
 })
 export class MacAttention {
@@ -337,6 +355,14 @@ export class MacAttention {
 
   line(records: readonly string[], more: number) {
     return recordsLine(records, more);
+  }
+
+  namesOf(columns: readonly MostlyColumn[]) {
+    return columns.map((column) => column.name).join(', ');
+  }
+
+  countsOf(columns: readonly MostlyColumn[]) {
+    return columns.map((column) => `${column.name}: ${column.missing} of ${column.total} missing`).join('\n');
   }
 
   readonly unconnected = computed(() => {

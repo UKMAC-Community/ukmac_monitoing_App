@@ -73,9 +73,9 @@
         <!-- The map fills the screen, so what is under it (zone status, analysis, the table) is easy to miss: a button at the bottom of the screen goes down to it, then shrinks to a small round one if nobody uses it. -->
         @if (atTop()) {
           <div class="go-down-wrap">
-            <button type="button" class="go-down" title="Go down to the zone status and the table" aria-label="Go down to the zone status and the table" (click)="goDown($event)">
+            <button type="button" class="go-down" title="Scroll down to the zone status and the table" aria-label="Scroll down to the zone status and the table" (click)="goDown($event)">
               <app-icon name="arrow-down" [size]="16" />
-              <span class="go-label">Zone status and table</span>
+              <span class="go-label">Scroll down for zone status and table</span>
             </button>
           </div>
         }
@@ -143,6 +143,9 @@
               }
               @if (activeFilter(); as filter) {
                 · <button type="button" class="chip active" title="Show every row again" (click)="setFilter(null)">{{ filter.name }}: {{ filter.labels.join(', ') }} <app-icon name="x" [size]="12" /></button>
+              }
+              @if (gapColumn(); as only) {
+                · <button type="button" class="chip active" title="Show every row again" (click)="clearGap()">Missing {{ only.name }} <app-icon name="x" [size]="12" /></button>
               }
             </p>
           </div>

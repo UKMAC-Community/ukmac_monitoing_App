@@ -74,6 +74,7 @@ const RAIN_BAR = 56;
           @if (weather(); as w) {
             <section class="now card" aria-label="Weather now">
               @if (w.now; as now) {
+               <div class="now-top">
                 <div class="now-main">
                   <strong class="now-temp">{{ round(now.temperature) }}°</strong>
                   <div class="now-text">
@@ -88,6 +89,7 @@ const RAIN_BAR = 56;
                   <li title="Water in the top soil (3 to 9 cm), and its warmth 6 cm down: Open-Meteo's model estimate"><app-icon name="shovel" [size]="15" /><span>Soil</span><b>{{ one(now.soilMoisture) }}% · {{ round(now.soilTemp) }}°</b></li>
                   <li><app-icon name="sun" [size]="15" /><span>Sun</span><b>{{ whole(now.solar) }} W/m² · {{ whole(now.cloud) }}% cloud</b></li>
                 </ul>
+               </div>
               }
               <ul class="totals">
                 <li><span>Rain, last {{ past }} days</span><b>{{ pastRain() }} mm</b></li>
@@ -99,7 +101,7 @@ const RAIN_BAR = 56;
             <section class="card timeline" aria-label="Timeline">
               <header class="tl-head">
                 <div>
-                  <h2>Timeline</h2>
+                  <h2 class="label">Timeline</h2>
                   <p class="muted">Each day's warmest and coolest, and its rain. The days before today are what the weather did; after, the forecast.</p>
                 </div>
                 <button type="button" class="btn btn-secondary btn-sm" (click)="centreToday(true)">Today</button>
@@ -150,7 +152,7 @@ const RAIN_BAR = 56;
 
             <section class="card warnings" aria-label="Warnings from the forecast">
               <header class="sec-head">
-                <h2><app-icon name="alert" [size]="16" /> Warnings</h2>
+                <h2 class="label"><app-icon name="alert" [size]="14" /> Warnings</h2>
                 <span class="muted">From the forecast for the next {{ next }} days, not an official warning</span>
               </header>
               @if (alerts().length) {
@@ -172,10 +174,10 @@ const RAIN_BAR = 56;
             </section>
 
             @if (day(); as d) {
-              <section class="farm-day" aria-label="The farm's weather on a day">
+              <section class="card farm-day" aria-label="The farm's weather on a day">
                 <header class="sec-head day-head">
                   <div>
-                    <h2>{{ d.today ? 'Today' : weekday(d.date) + ' ' + short(d.date) }} on the farm</h2>
+                    <h2 class="label">{{ d.today ? 'Today' : weekday(d.date) + ' ' + short(d.date) }} on the farm</h2>
                     <span class="muted">{{ d.past ? 'What the weather did, as Open-Meteo works it out' : d.today ? 'Today, measured so far and forecast for the rest' : 'The forecast' }} · tap a day in the timeline to see it here</span>
                   </div>
                   @if (!d.today) {
@@ -183,7 +185,7 @@ const RAIN_BAR = 56;
                   }
                 </header>
                 <div class="kpis">
-                  <article class="card kpi">
+                  <article class="kpi">
                     <div class="kpi-top"><p>Temperature &amp; growth</p><span class="kpi-icon warm"><app-icon name="thermometer" [size]="16" /></span></div>
                     <strong class="kpi-value">{{ round(d.max) }}° / {{ round(d.min) }}°</strong>
                     <dl>
@@ -193,7 +195,7 @@ const RAIN_BAR = 56;
                       <div><dt>Next {{ next }} days</dt><dd>{{ gddNext() }} GDD</dd></div>
                     </dl>
                   </article>
-                  <article class="card kpi">
+                  <article class="kpi">
                     <div class="kpi-top"><p>Rainfall</p><span class="kpi-icon rain"><app-icon name="umbrella" [size]="16" /></span></div>
                     <strong class="kpi-value">{{ one(d.rain) }} mm</strong>
                     <dl>
@@ -203,7 +205,7 @@ const RAIN_BAR = 56;
                       <div title="Rain less the water lost (ET₀) over the next days, as forecast"><dt>Balance, next {{ next }} d</dt><dd [class.dry]="balanceNext() < 0">{{ signed(balanceNext()) }} mm</dd></div>
                     </dl>
                   </article>
-                  <article class="card kpi" title="Open-Meteo's model estimate of the soil, not a sensor in the field">
+                  <article class="kpi" title="Open-Meteo's model estimate of the soil, not a sensor in the field">
                     <div class="kpi-top"><p>Soil <span class="kpi-note">estimate</span></p><span class="kpi-icon soil"><app-icon name="shovel" [size]="16" /></span></div>
                     <strong class="kpi-value">{{ one(d.soilMoisture) }}% <small>water, 3–9 cm</small></strong>
                     <dl>
@@ -212,7 +214,7 @@ const RAIN_BAR = 56;
                       <div><dt>Vs day before</dt><dd>{{ soilChange() }}</dd></div>
                     </dl>
                   </article>
-                  <article class="card kpi">
+                  <article class="kpi">
                     <div class="kpi-top"><p>Humidity &amp; wet leaves</p><span class="kpi-icon leaf"><app-icon name="leaf" [size]="16" /></span></div>
                     <strong class="kpi-value">{{ whole(d.humidity) }}% <small>humidity</small></strong>
                     <dl>
@@ -222,7 +224,7 @@ const RAIN_BAR = 56;
                       <div title="Vapour pressure deficit: how hard the air pulls water from the leaves (high: the plants lose water fast)"><dt>VPD (max)</dt><dd>{{ d.vpd === null ? '—' : d.vpd.toFixed(2) + ' kPa' }}</dd></div>
                     </dl>
                   </article>
-                  <article class="card kpi">
+                  <article class="kpi">
                     <div class="kpi-top"><p>Wind</p><span class="kpi-icon wind"><app-icon name="wind" [size]="16" /></span></div>
                     <strong class="kpi-value">{{ whole(d.windMean) }} km/h <small>mean</small></strong>
                     <dl>
@@ -231,7 +233,7 @@ const RAIN_BAR = 56;
                       <div><dt>From</dt><dd class="dir">@if (d.windDir !== null) {<app-icon name="navigation" [size]="12" [style.transform]="'rotate(' + (d.windDir + 180) + 'deg)'" />} {{ compass(d.windDir) }}</dd></div>
                     </dl>
                   </article>
-                  <article class="card kpi">
+                  <article class="kpi">
                     <div class="kpi-top"><p>Sun &amp; cloud</p><span class="kpi-icon sun"><app-icon name="sun" [size]="16" /></span></div>
                     <strong class="kpi-value">{{ one(d.solar) }} <small>MJ/m² of sun</small></strong>
                     <dl>
@@ -262,29 +264,35 @@ const RAIN_BAR = 56;
     /* The page scrolls; its cards keep their full height (a card that clips its content would otherwise be squeezed to a line). */
     .page > * { flex: none; }
     .refresh { margin-left: auto; align-self: center; }
-    .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 36px 20px; text-align: center; margin: 16px 20px 0; }
+    /* Panels line up with the header, as Data Check's does: the page's own padding is the only inset. */
+    .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 36px 20px; text-align: center; }
     .empty p { max-width: 440px; margin: 0; color: var(--text-muted); font-size: 0.875rem; line-height: 1.5; }
-    .alert-box { margin: 16px 20px 0; }
-    .now { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 40px; margin: 16px 20px 0; padding: 20px 24px; }
+    /* The small mono caps that head a part of a panel. */
+    .label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-family: var(--mono); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+    /* What sits inside a panel: a raised, lighter card. */
+    .now-facts li, .totals li, .col, .warn, .kpi { border: var(--hairline) solid var(--border); background: var(--surface-solid); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+    .now { display: flex; flex-direction: column; gap: 16px; padding: 24px 28px; }
+    .now-top { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 32px; }
     .now-main { display: flex; align-items: center; gap: 16px; }
-    .now-temp { font-size: 3rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+    .now-temp { font-size: 2.75rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
     .now-text { display: flex; flex-direction: column; gap: 2px; }
-    .now-word { font-size: 1.0625rem; font-weight: 600; }
-    .now-facts, .totals { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; padding: 0; list-style: none; }
-    .now-facts li { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; }
+    .now-word { font-size: 1rem; font-weight: 600; }
+    .now-facts, .totals { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .now-facts li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 0.8125rem; }
     .now-facts span, .totals span { color: var(--text-muted); }
+    .now-facts b { font-weight: 600; font-variant-numeric: tabular-nums; }
     .now-facts app-icon { color: var(--text-muted); }
-    .totals { margin-left: auto; }
-    .totals li { display: flex; flex-direction: column; gap: 2px; font-size: 0.8125rem; }
-    .totals b { font-size: 1.0625rem; font-variant-numeric: tabular-nums; }
-    .timeline { margin: 16px 20px 0; padding: 0; overflow: hidden; }
-    .tl-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px 8px; }
-    .tl-head h2 { margin: 0; font-size: 1.0625rem; }
-    .tl-head p { margin: 2px 0 0; font-size: 0.8125rem; }
-    .strip { display: flex; overflow-x: auto; padding: 4px 12px 16px; scrollbar-width: thin; }
-    .col { flex: none; width: 92px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 4px; border-radius: var(--radius-md); font-size: 0.8125rem; }
-    .col.past { opacity: 0.78; }
-    .col.today { background: var(--accent-soft); opacity: 1; }
+    .totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .totals li { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; }
+    .totals span { font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    .totals b { font-size: 1.0625rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .timeline { display: flex; flex-direction: column; gap: 14px; padding: 24px 28px; overflow: hidden; }
+    .tl-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .tl-head p { margin: 6px 0 0; font-size: 0.8125rem; }
+    .strip { display: flex; gap: 8px; overflow-x: auto; margin: 0 -4px; padding: 4px 4px 10px; scrollbar-width: thin; }
+    .col { flex: none; width: 96px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px; border-radius: 14px; font-size: 0.8125rem; }
+    .col.past { opacity: 0.8; }
+    .col.today { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface-solid)); opacity: 1; }
     .col-date { display: flex; flex-direction: column; align-items: center; gap: 1px; height: 68px; }
     .col-date span { color: var(--text-muted); font-size: 0.75rem; }
     .here { margin-top: 3px; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.6875rem; font-style: normal; font-weight: 600; }
@@ -299,29 +307,28 @@ const RAIN_BAR = 56;
     .col-foot { display: flex; flex-direction: column; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
     .col-foot .chance { color: #2f86bd; font-size: 0.75rem; }
     .col-foot .wind { color: var(--text-muted); font-size: 0.75rem; }
-    .source { margin: 12px 24px 24px; font-size: 0.75rem; line-height: 1.5; }
-    .sec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
-    .sec-head h2 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 1.0625rem; }
+    .source { margin: 0 4px; font-size: 0.75rem; line-height: 1.5; }
+    .sec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
     .sec-head > .muted, .day-head .muted { font-size: 0.8125rem; }
-    .warnings { margin: 16px 20px 0; padding: 16px 20px; }
-    .warn-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
-    .warn { display: flex; gap: 10px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--warning-soft); color: var(--text); font-size: 0.8125rem; line-height: 1.45; }
+    .warnings { padding: 24px 28px; }
+    .warn-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+    .warn { display: flex; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--warning-soft); color: var(--text); font-size: 0.8125rem; line-height: 1.45; }
     .warn > app-icon { margin-top: 2px; color: var(--warning); }
     .warn.danger { background: var(--danger-soft); }
     .warn.danger > app-icon { color: var(--danger); }
     .warn b { font-weight: 600; }
     .warn-days { margin-left: 8px; color: var(--text-muted); font-size: 0.75rem; }
     .warn p { margin: 2px 0 0; color: var(--text-muted); }
-    .calm { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 0.875rem; color: var(--text-muted); }
+    .calm { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: 0.875rem; color: var(--text-muted); }
     .calm app-icon { color: var(--success); }
-    .farm-day { margin: 16px 20px 0; container-type: inline-size; }
+    .farm-day { padding: 24px 28px; container-type: inline-size; }
     .day-head { justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .day-head > div { display: flex; flex-direction: column; gap: 2px; }
     /* Six cards: three a row, two when narrow, one on a phone. */
     .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     @container (max-width: 820px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @container (max-width: 480px) { .kpis { grid-template-columns: minmax(0, 1fr); } }
-    .kpi { min-width: 0; margin: 0; padding: 16px; }
+    .kpi { min-width: 0; margin: 0; padding: 16px; border-radius: 12px; }
     .kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .kpi-top p { margin: 0; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
     .kpi-note { margin-left: 4px; font-weight: 500; text-transform: none; opacity: 0.8; }
@@ -340,7 +347,7 @@ const RAIN_BAR = 56;
     .kpi dd { display: flex; align-items: center; gap: 4px; margin: 2px 0 0; font-size: 0.75rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .kpi dd.dry { color: var(--danger); }
     .kpi dd .badge { font-size: 0.6875rem; }
-    .spray { margin: 16px 20px 0; padding: 16px 20px; }
+    .spray { padding: 24px 28px; }
     .spray .sec-head b { color: var(--text); }
     .hours { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; margin: 14px 0 0; }
     .hr { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -350,8 +357,8 @@ const RAIN_BAR = 56;
     .windows { margin: 8px 0 0; font-size: 0.8125rem; }
     .rule { margin: 8px 0 0; font-size: 0.75rem; line-height: 1.5; }
     .col { cursor: pointer; }
-    .col:hover:not(.today):not(.picked) { background: var(--surface-hover, #f2f2f4); }
-    .col.picked { background: var(--surface-hover, #f2f2f4); box-shadow: inset 0 0 0 1.5px var(--accent); opacity: 1; }
+    .col:hover:not(.today):not(.picked) { box-shadow: 0 3px 10px rgba(0, 0, 0, 0.09); }
+    .col.picked { border-color: var(--accent); opacity: 1; }
     .col:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .source a { color: inherit; text-decoration: underline; }
   `,

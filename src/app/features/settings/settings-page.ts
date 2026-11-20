@@ -1,3 +1,4 @@
+import { AssistantCard } from '@features/assistant/assistant-card';
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, OnInit, signal, viewChild } from '@angular/core';
 
 import { RouterLink } from '@angular/router';
@@ -18,7 +19,7 @@ import { baseName } from '@core/paths';
 /** Google sign-in and the sheets read from it, Power BI, backups, and where the data is kept. */
 @Component({
   selector: 'app-settings-page',
-  imports: [Icon, RouterLink, GoogleSignIn, SegmentedThumb],
+  imports: [Icon, RouterLink, GoogleSignIn, SegmentedThumb, AssistantCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -403,6 +404,11 @@ import { baseName } from '@core/paths';
               <button type="button" class="btn btn-secondary btn-sm" (click)="backup()"><app-icon name="download" /> Save a backup…</button>
             </div>
           </section>
+        </div>
+
+        <div id="assistant">
+          <span class="section-label">Assistant</span>
+          <app-assistant-card />
         </div>
 
         <div>

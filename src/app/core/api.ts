@@ -11,12 +11,14 @@ import type {
   DatabaseInfo,
   DriveFile,
   GoogleLink,
+  AssistantStatus,
   GoogleLinkInput,
   GoogleStatus,
   ImportRecord,
   ImportedMac,
   Mac,
   MacFilePeek,
+  MadeMacKey,
   MacInput,
   Row,
   SavedMacFile,
@@ -71,6 +73,43 @@ export class Api {
   /** Adds the file's MAC (`replace`: in place of the same MAC here). */
   importMacFile(path: string, replace: boolean) {
     return invoke<ImportedMac>('import_mac_file', { path, replace });
+  }
+  /** The MAC's tables and their Google links as one encrypted key (no data in it). */
+  exportMacKey(macId: number) {
+    return invoke<MadeMacKey>('export_mac_key', { macId });
+  }
+  /** What a key holds. Refused, with nothing shown, when the signed-in account can't open the key's Google Sheets. */
+  peekMacKey(key: string) {
+    return invoke<MacFilePeek>('peek_mac_key', { key });
+  }
+  /** Adds the key's MAC (`replace`: in place of the same MAC here), after the same check. */
+  importMacKey(key: string, replace: boolean) {
+    return invoke<ImportedMac>('import_mac_key', { key, replace });
+  }
+  // ------------------------------------------- the local assistant
+
+  assistantStatus() {
+    return invoke<AssistantStatus>('assistant_status');
+  }
+  /** Downloads what is missing (progress comes as `assistant-progress` events). */
+  assistantInstall() {
+    return invoke<AssistantStatus>('assistant_install');
+  }
+  assistantCancel() {
+    return invoke<void>('assistant_cancel');
+  }
+  assistantStart() {
+    return invoke<AssistantStatus>('assistant_start');
+  }
+  assistantStop() {
+    return invoke<AssistantStatus>('assistant_stop');
+  }
+  assistantRemove() {
+    return invoke<AssistantStatus>('assistant_remove');
+  }
+  /** A question about a MAC's data: what the app found for it (query results and records) goes to the assistant on this computer only. */
+  assistantAsk(macId: number, context: string, question: string) {
+    return invoke<string>('assistant_ask', { macId, context, question });
   }
   /** MACs nobody has yet (made before accounts), with the Google Sheets they are linked to. */
   unownedMacs() {

@@ -195,7 +195,7 @@ interface PaletteItem {
                                   @if (item.view.legend.length) {
                                     <ul class="sl-legend">
                                       @for (entry of item.view.legend; track entry.label) {
-                                        <li class="pick" role="button" tabindex="0" [class.on]="focus()?.colour === entry.colour" title="Pick out these plots on the map" (click)="focusColour(entry.colour)" (keydown.enter)="focusColour(entry.colour)"><i [style.background]="entry.colour"></i><span>{{ entry.label }}</span><b>{{ entry.count }}</b></li>
+                                        <li class="pick" role="button" tabindex="0" [class.on]="focus()?.colour === entry.colour" title="Pick out these plots on the map" (click)="focusColour(entry.colour)" (keydown.enter)="focusColour(entry.colour)"><i [style.background]="entry.colour"></i><span>{{ entry.label }}@if (entry.note) {<em class="note"> · {{ entry.note }}</em>}</span><b>{{ entry.count }}</b></li>
                                       }
                                       @if (item.missing) {
                                         <li class="pick" role="button" tabindex="0" [class.on]="focus()?.colour === noData" title="Pick out these plots on the map" (click)="focusColour(noData)" (keydown.enter)="focusColour(noData)"><i class="none"></i><span>No data</span><b>{{ item.missing }}</b></li>
@@ -446,6 +446,7 @@ interface PaletteItem {
     .sl-legend i { flex: none; width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 var(--hairline) rgb(0 0 0 / 0.15); }
     .sl-legend i.none { background: #c9cec9; }
     .sl-legend span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sl-legend .note { font-style: normal; color: var(--text-muted); }
     .sl-legend b { font-weight: 600; font-variant-numeric: tabular-nums; }
     .sl-legend li.pick { margin: 0 -6px; padding: 3px 6px; border-radius: var(--radius-sm); cursor: pointer; }
     .sl-legend li.pick:hover { background: var(--surface-hover); }

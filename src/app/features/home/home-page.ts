@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { Icon } from '@shared/ui/icon';
 import { MacDialog } from '@features/mac/mac-dialog';
+import { ImportKeyDialog } from './import-key-dialog';
 import { UpdateButton } from '@core/layout/update-button';
 import { Api, errorText } from '@core/api';
 import { Google } from '@core/google/google';
@@ -17,7 +18,7 @@ import { baseName } from '@core/paths';
 /** Every MAC on this Mac, under its province (its location), and a new one. */
 @Component({
   selector: 'app-home-page',
-  imports: [RouterLink, Icon, MacDialog, UpdateButton],
+  imports: [RouterLink, Icon, MacDialog, ImportKeyDialog, UpdateButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="home">
@@ -41,7 +42,7 @@ import { baseName } from '@core/paths';
           <input class="input-field has-prefix" type="search" placeholder="Search MACs" [value]="search()" (input)="search.set($any($event.target).value)" />
         </label>
         <div class="toolbar-actions">
-          <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="importFromFile()" title="Add a MAC saved to a file. Its data is read from Google, for accounts that can open the sheets">
+          <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="openImport()" title="Add a MAC from its key. Its data is read from Google, for accounts that can open the sheets">
             <app-icon name="upload" /> Import MAC
           </button>
           <button type="button" class="btn btn-primary" (click)="openNew()"><app-icon name="plus" /> Create MAC</button>
@@ -67,11 +68,11 @@ import { baseName } from '@core/paths';
           <p>
             A new chili MAC comes with the chili tables — Zones, Batch, Nursery Progress, Zone Records, QA/QC Management and the rest.
             Then download a table's Excel template, fill it in, and import it.
-            Already have a MAC saved to a file on another computer? Import it here with its tables and rows.
+            Already have a MAC key from another computer? Import it here: its tables are made and read from Google.
           </p>
           <div class="empty-actions">
             <button type="button" class="btn btn-primary" (click)="openNew()"><app-icon name="plus" /> Create MAC</button>
-            <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="importFromFile()"><app-icon name="upload" /> Import a MAC file</button>
+            <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="openImport()"><app-icon name="upload" /> Import a MAC key</button>
           </div>
         </div>
       }
@@ -111,14 +112,15 @@ import { baseName } from '@core/paths';
       <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
         <button type="button" class="menu-item" (click)="open(menu.mac)"><app-icon name="table" /> Open</button>
         <button type="button" class="menu-item" (click)="edit(menu.mac)"><app-icon name="edit" /> Edit</button>
-        <button type="button" class="menu-item" (click)="saveToFile(menu.mac)" title="Save this MAC's tables and their Google links to a file. No data is in it: everything is read from Google when the file is opened"><app-icon name="download" /> Save a link file…</button>
+        <button type="button" class="menu-item" (click)="copyKey(menu.mac)" title="Copy one key with this MAC's tables and their Google links. No data is in it: whoever pastes it in Import MAC gets the tables linked and read from Google, if their account can open the sheets"><app-icon name="copy" /> Copy MAC key</button>
         <button type="button" class="menu-item" (click)="saveInputSheet(menu.mac)" title="An Excel workbook with a tab for each table that is not in Google yet (Zones aside), with the rows it holds now: upload it to Google Drive and open it as a Google Sheet"><app-icon name="table" /> Google Sheet for input…</button>
-        <button type="button" class="menu-item" (click)="openLinkTables(menu.mac)" title="Connect this MAC's tables to the tabs of one Google Sheet, column by column, so importing this MAC's file reads all of them"><app-icon name="refresh" /> Connect Google Sheet…</button>
+        <button type="button" class="menu-item" (click)="openLinkTables(menu.mac)" title="Connect this MAC's tables to the tabs of one Google Sheet, column by column, so importing this MAC's key reads all of them"><app-icon name="refresh" /> Connect Google Sheet…</button>
         <div class="menu-divider"></div>
         <button type="button" class="menu-item danger" (click)="remove(menu.mac)"><app-icon name="trash" /> Delete</button>
       </div>
     }
 
+    <app-import-key-dialog [open]="importOpen()" [busy]="busy()" [error]="importError()" (closed)="importOpen.set(false)" (submitted)="importFromKey($event)" />
     <app-mac-dialog [open]="dialogOpen()" [mac]="editing()" (closed)="dialogOpen.set(false)" (saved)="saved($event)" />
   `,
   styles: `
@@ -179,6 +181,9 @@ export class HomePage {
   readonly menu = this.menu$.asReadonly();
   /** A file is being written or read. */
   readonly busy = signal(false);
+  readonly importOpen = signal(false);
+  /** Why the pasted key was refused (shown in the dialog, which stays open). */
+  readonly importError = signal('');
 
 
   /** MACs by province: the first part of their location ("Battambang, Thma Koul" → Battambang). */
@@ -243,24 +248,19 @@ export class HomePage {
     }
   }
 
-  /** The MAC's tables and their Google links in one `.ukmac` file: no rows, so the file can't leak the farm's data. */
-  async saveToFile(mac: Mac) {
+  /** The MAC's tables and their Google links as one key on the clipboard: no rows, so the key can't leak the farm's data. */
+  async copyKey(mac: Mac) {
     this.menu$.set(null);
-    const stamp = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
-    const name = mac.macName.replace(/[\\/:*?"<>|]+/g, ' ').trim() || mac.macCode;
-    const path = await this.api.pickSavePath(`${name} ${stamp}.ukmac`, 'UKMAC MAC file', ['ukmac']);
-    if (!path) return;
     this.busy.set(true);
     try {
-      const saved = await this.api.exportMacFile(mac.macId, path);
+      const made = await this.api.exportMacKey(mac.macId);
+      await navigator.clipboard.writeText(made.key);
       this.toasts.show(
-        `${mac.macName} saved to ${baseName(path)}: ${saved.sheets} tables and ${saved.linked} Google link${saved.linked === 1 ? '' : 's'}; ` +
-          'no data in the file' +
-          ` (${size(saved.bytes)})`,
+        `Key for ${mac.macName} copied: ${made.sheets} tables, ${made.linked} Google link${made.linked === 1 ? '' : 's'}, no data. Paste it in Import MAC.`,
       );
-      if (saved.emptyOnOpen.length) {
+      if (made.emptyOnOpen.length) {
         this.toasts.show(
-          `Not linked to Google, so empty when the file is opened: ${saved.emptyOnOpen.join(', ')}. Link a table to a Google Sheet for its data to follow.`,
+          `Not linked to Google, so empty where the key is used: ${made.emptyOnOpen.join(', ')}. Link a table to a Google Sheet for its data to follow.`,
           'info',
           undefined,
           14000,
@@ -273,37 +273,31 @@ export class HomePage {
     }
   }
 
+  openImport() {
+    this.importError.set('');
+    this.importOpen.set(true);
+  }
+
   /**
-   * Adds the MAC from a `.ukmac` file. A link file has no rows: its tables are made, linked to their Google Sheets, and read
-   * from there with the signed-in account; where that account can't open a sheet, the tables stay empty. If this computer has
-   * that MAC already, asks whether to replace it or keep both.
+   * Adds the MAC from a pasted key. The key has no rows: its tables are made, linked to their Google Sheets and read from
+   * there with the signed-in account. Whether that account can open every sheet is checked first, by the app itself: if not,
+   * nothing is added or shown and the dialog says so. If this computer has that MAC already, asks whether to replace it or keep both.
    */
-  async importFromFile() {
+  async importFromKey(key: string) {
     if (this.busy()) return;
-    const path = await this.api.pickMacFile();
-    if (!path) return;
+    this.importError.set('');
     this.busy.set(true);
     try {
-      const peek = await this.api.peekMacFile(path);
-      // The file adds nothing unless this account can open every Google Sheet it points at: no MAC, no table, no zone.
-      const refused = await this.refusedSheets(peek.spreadsheets);
-      if (refused) {
-        this.toasts.show(refused, 'error', undefined, 14000);
-        return;
-      }
+      const peek = await this.api.peekMacKey(key);
       let replace = false;
       if (peek.sameMac) {
         const here = peek.sameMac;
         // Keep both is the first button (what Return picks): replacing is the one that loses data.
         const answer = await this.api.choose(
           `${here.macName} (${here.macCode}) is already on this computer: ${here.sheetCount} tables, ${here.rowCount} rows, last changed ${here.updatedAt.slice(0, 10)}.\n\n` +
-            (peek.linksOnly
-              ? `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.linkedTables} linked to Google${peek.rows ? `, and ${peek.rows} rows` : ', no data'}.\n\n` +
-                `Keep both: the file's copy is added next to it, with a new code, and read from Google.\n` +
-                `Replace: the one here is taken out, with every row in it (also tables that aren't linked to Google, which can't be read back), and the file's copy takes its place.`
-              : `The file was saved on ${peek.exportedAt.slice(0, 10)}: ${peek.sheets} tables, ${peek.rows} rows.\n\n` +
-                `Keep both: the file's copy is added next to it, with a new code.\n` +
-                `Replace: the one here is taken out and the file's copy takes its place, so anything changed here since is lost.`),
+            `The key has ${peek.sheets} tables, ${peek.linkedTables} linked to Google, no data.\n\n` +
+            `Keep both: the key's copy is added next to it, with a new code, and read from Google.\n` +
+            `Replace: the one here is taken out, with every row in it (also tables that aren't linked to Google, which can't be read back), and the key's copy takes its place.`,
           'This MAC is already here',
           'Keep both',
           'Replace',
@@ -311,47 +305,24 @@ export class HomePage {
         if (answer === null) return;
         replace = answer === 'no';
       }
-      const done = await this.macs.importFile(path, replace);
+      const done = await this.macs.importKey(key, replace);
+      this.importOpen.set(false);
       if (done.replacedMacId !== null && this.store.mac()?.macId === done.replacedMacId) this.store.workbook.set(null);
       await this.google.refreshLinks();
-      const code = done.codeChanged ? ` · code ${done.mac.macCode}, the file's was taken here` : '';
-      if (peek.linksOnly) {
-        this.toasts.show(`${done.mac.macName} added: ${done.sheets} tables${code}`);
-        void this.router.navigate(['/mac', done.mac.macId]);
-        await this.loadFromGoogle(done);
-      } else {
-        this.toasts.show(`${done.mac.macName} added: ${done.sheets} tables, ${done.rows} rows${code}`);
-        void this.router.navigate(['/mac', done.mac.macId]);
-      }
+      const code = done.codeChanged ? ` · code ${done.mac.macCode}, the key's was taken here` : '';
+      this.toasts.show(`${done.mac.macName} added: ${done.sheets} tables${code}`);
+      void this.router.navigate(['/mac', done.mac.macId]);
+      await this.loadFromGoogle(done);
     } catch (error) {
-      this.toasts.error(errorText(error));
+      // A refusal stays in the dialog, where the key was pasted.
+      this.importError.set(errorText(error));
     } finally {
       this.busy.set(false);
     }
   }
 
   /**
-   * Asks Google, with the signed-in account, whether it can open each of the file's sheets. Returns the message to show when it
-   * can't (or can't tell), and nothing when all can be opened.
-   */
-  private async refusedSheets(sheets: { id: string; title: string }[]): Promise<string | null> {
-    const who = this.google.status()?.email;
-    for (const sheet of sheets) {
-      try {
-        await this.api.googleFileInfo(sheet.id);
-      } catch (error) {
-        const text = errorText(error);
-        const account = who ? `The Google account ${who}` : 'This Google account';
-        return NO_ACCESS.test(text)
-          ? `${account} can't open the Google Sheet “${sheet.title}”, so nothing was added. Ask the owner to share it with this account, then open the file again.`
-          : `Could not check the Google Sheet “${sheet.title}”, so nothing was added: ${text}`;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Reads a just-opened link file's tables from their Google Sheets with the signed-in account. A table whose sheet this
+   * Reads a just-added key's tables from their Google Sheets with the signed-in account. A table whose sheet this
    * account can't open stays empty (nothing of it is read), and the person is told whose sheet it was; tables that were
    * never linked have no data to come from and are empty too.
    */
@@ -364,7 +335,7 @@ export class HomePage {
       this.toasts.show(
         done.rows > 0
           ? `${name} added. No table is linked to Google, so every table is empty.`
-          : `${name} has no data in its file and no table is linked to Google, so every table is empty.`,
+          : `${name} has no data in its key and no table is linked to Google, so every table is empty.`,
         'info',
         undefined,
         9000,
@@ -373,7 +344,7 @@ export class HomePage {
     }
     if (!this.google.signedIn()) {
       const answer = await this.api.choose(
-        `${name}'s data is in Google Sheets, not in the file.\n\nSign in with Google to read it. If the account you sign in with can't open those sheets, the tables stay empty.`,
+        `${name}'s data is in Google Sheets, not in the key.\n\nSign in with Google to read it. If the account you sign in with can't open those sheets, the tables stay empty.`,
         'Read the data from Google',
         'Sign in',
         'Not now',
@@ -469,7 +440,3 @@ export class HomePage {
 
 /** Google's answers when the signed-in account may not open a sheet. */
 const NO_ACCESS = /can't open it|didn't let this account|share it with you|can't find that sheet/i;
-
-function size(bytes: number) {
-  return bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}

@@ -221,6 +221,9 @@ interface Outcome {
                                   <app-icon [name]="state.icon" [size]="15" />
                                 }
                               </span>
+                              @if (state.kind === 'warn') {
+                                <p class="why"><strong>Why the warning:</strong> {{ state.tip }}</p>
+                              }
                             </div>
                           }
                         </div>
@@ -396,7 +399,7 @@ interface Outcome {
     .group { margin: 0 0 6px 2px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 8px; }
     .pair {
-      display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 10px 7px 12px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; padding: 7px 10px 7px 12px;
       border: var(--hairline) solid var(--border); border-radius: var(--radius-md); background: var(--surface-solid);
       transition: border-color var(--dur-fast, 0.15s) var(--ease, ease), box-shadow var(--dur-fast, 0.15s) var(--ease, ease);
     }
@@ -418,6 +421,8 @@ interface Outcome {
     .pick .pk-ic { left: 10px; }
     .pick .pk-chev { right: 10px; }
     .pair.on .pick .pk-ic, .pair.on .pick .pk-chev { color: var(--accent); }
+    .why { flex: 0 0 100%; margin: 0; padding: 5px 0 2px 26px; font-size: 0.75rem; line-height: 1.4; color: var(--warning); }
+    .why strong { font-weight: 600; }
     .state { flex: none; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; cursor: default; }
     .state.ok { color: var(--success); }
     .state.warn { color: var(--warning); }
@@ -678,8 +683,8 @@ export class GoogleConnectPage {
     const opened = this.opened();
     const zones = table.templateKey === 'zones';
     if (tab) {
-      if (zones) return { kind: 'warn', icon: 'alert', tip: 'Its rows and the map’s plot outlines will come from this tab' };
-      if (link && (link.spreadsheetId !== opened?.file.id || link.tabTitle !== tab)) return { kind: 'warn', icon: 'alert', tip: `Moves from “${link.spreadsheetTitle} › ${link.tabTitle}”` };
+      if (zones) return { kind: 'warn', icon: 'alert', tip: 'This table’s rows and the map’s plot outlines will be replaced by what is in this tab.' };
+      if (link && (link.spreadsheetId !== opened?.file.id || link.tabTitle !== tab)) return { kind: 'warn', icon: 'alert', tip: `This table is linked to “${link.spreadsheetTitle} › ${link.tabTitle}” now; it will move to this tab instead.` };
       if (link) return { kind: 'ok', icon: 'cloud-check', tip: 'Connected now' };
       return { kind: 'none', icon: null, tip: '' };
     }

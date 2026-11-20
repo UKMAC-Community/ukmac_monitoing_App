@@ -17,6 +17,9 @@
 //! was there stays left out. A linked table that changed is read again from Google at the next check (`RESYNC_KEY`), so
 //! its cells are written as the new columns want them.
 //!
+//! A step can also take out a column of a table's own (not its template's) that an older tab's header gave it, when nothing
+//! is in it; the link leaves that header out from then on, so a tab that still has it doesn't bring it back.
+//!
 //! The steps taken are kept in `settings` (`STEP_KEY`): each runs once, so a column the person deletes afterwards stays deleted.
 
 use std::collections::HashSet;
@@ -32,17 +35,27 @@ pub const STEP_KEY: &str = "template.step";
 /// The linked tables (a JSON list of sheet ids) to read again from Google, as soon as the app can.
 pub const RESYNC_KEY: &str = "google.resync";
 
-/// Each step: the template tables whose columns it changed. Add a step (never edit one already shipped) when a release
-/// changes a template table's columns.
-const STEPS: &[&[&str]] = &[
+/// A release's change to the template tables. Add a step (never edit one already shipped) when a release changes a template
+/// table's columns.
+struct Step {
+    /// The template tables whose columns it changed: each is brought up to its template.
+    tables: &'static [&'static str],
+    /// Columns a table has of its own (not its template's) that it takes out when nothing is in them: (template, column name).
+    drop: &'static [(&'static str, &'static str)],
+}
+
+const STEPS: &[Step] = &[
     // 1 (the update after 0.1.13): Fertigation, Pruning and Pesticides read the farm sheet's Fertilizer, Pruning and Fungicide
     // tabs column by column (0.1.13 gave them Date, Zone and Note only); Fertilizer's `applied` (TRUE/FALSE) is Fertigation's
     // Applied, not its Date; Pruning's Plants answers to "Plants Eligible for Pruning", as the tab names it now.
-    &["fertigation", "pruning", "pesticides"],
+    Step { tables: &["fertigation", "pruning", "pesticides"], drop: &[] },
     // 2: Plant Progress has the farm sheet's two-line header: Plant count under "Total chili plants planted", the replant date and
     // count under "Replanting plants", Dead plant under "Plant dead after planting". The columns keep their keys and values
     // (a column of the table that the template now has in a group is that column).
-    &["zone-records"],
+    Step { tables: &["zone-records"], drop: &[] },
+    // 3: Harvest's "Main file link:", a note's label an older Harvest tab had among its headers (Sync made it a column; the
+    // tab has Zone Plot, Chili Type, Date Harvest and Harvest Yield now), goes.
+    Step { tables: &[], drop: &[("harvest", "Main file link:")] },
 ];
 
 pub fn run(conn: &mut Connection) -> rusqlite::Result<()> {
@@ -54,7 +67,8 @@ pub fn run(conn: &mut Connection) -> rusqlite::Result<()> {
     if taken >= STEPS.len() {
         return Ok(());
     }
-    let keys: HashSet<&str> = STEPS[taken..].iter().flat_map(|step| step.iter().copied()).collect();
+    let keys: HashSet<&str> = STEPS[taken..].iter().flat_map(|step| step.tables.iter().copied()).collect();
+    let drops: Vec<(&str, &str)> = STEPS[taken..].iter().flat_map(|step| step.drop.iter().copied()).collect();
     let tx = conn.transaction()?;
     let sheets: Vec<(i64, String)> = {
         let mut statement = tx.prepare("SELECT sheet_id, template_key FROM sheets WHERE template_key IS NOT NULL ORDER BY sheet_id")?;
@@ -67,6 +81,10 @@ pub fn run(conn: &mut Connection) -> rusqlite::Result<()> {
     for (sheet_id, key) in sheets {
         if keys.contains(key.as_str()) && upgrade_table(&tx, sheet_id, &key)? {
             resync.push(sheet_id);
+        }
+        let names: Vec<&str> = drops.iter().filter(|(table, _)| *table == key).map(|(_, name)| *name).collect();
+        if !names.is_empty() {
+            drop_columns(&tx, sheet_id, &key, &names)?;
         }
     }
     if !resync.is_empty() {
@@ -165,6 +183,74 @@ fn rename_key(value: &mut Value, from: &str, to: &str) -> bool {
         Value::Object(map) => map.values_mut().fold(false, |found, item| rename_key(item, from, to) || found),
         _ => false,
     }
+}
+
+/// Takes out the table's own columns of these names (never its template's, nor its ID) when no row has anything in them. A
+/// Google tab's header that filled one, or goes by its name, is left out from then on (nothing to read again: they were empty).
+fn drop_columns(tx: &Transaction, sheet_id: i64, template_key: &str, names: &[&str]) -> rusqlite::Result<()> {
+    let template = template::chili_template().into_iter().find(|sheet| sheet.key == template_key).map(|sheet| sheet.columns).unwrap_or_default();
+    let text: String = tx.query_row("SELECT columns FROM sheets WHERE sheet_id = ?1", [sheet_id], |row| row.get(0))?;
+    let Ok(mut columns) = serde_json::from_str::<Vec<Column>>(&text) else {
+        return Ok(());
+    };
+    let mut rows: Vec<(i64, Map<String, Value>)> = {
+        let mut statement = tx.prepare("SELECT row_id, data FROM sheet_rows WHERE sheet_id = ?1")?;
+        let found = statement
+            .query_map([sheet_id], |row| {
+                let data: String = row.get(1)?;
+                Ok((row.get(0)?, serde_json::from_str(&data).unwrap_or_default()))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        found
+    };
+    let wanted: HashSet<String> = names.iter().map(|name| normalize(name)).collect();
+    let gone: Vec<Column> = columns
+        .iter()
+        .filter(|column| !column.auto && wanted.contains(&normalize(&column.name)))
+        .filter(|column| !template.iter().any(|item| same_column(column, item)))
+        .filter(|column| !rows.iter().any(|(_, data)| has_value(data.get(&column.key))))
+        .cloned()
+        .collect();
+    if gone.is_empty() {
+        return Ok(());
+    }
+    columns.retain(|column| !gone.iter().any(|item| item.key == column.key));
+    tx.execute(
+        "UPDATE sheets SET columns = ?2, updated_at = datetime('now') WHERE sheet_id = ?1",
+        params![sheet_id, serde_json::to_string(&columns).unwrap_or(text)],
+    )?;
+    // Their empty cells, so nothing is left under a key a later column could be given.
+    for (row_id, data) in rows.iter_mut() {
+        let before = data.len();
+        for column in &gone {
+            data.remove(&column.key);
+        }
+        if data.len() != before {
+            tx.execute(
+                "UPDATE sheet_rows SET data = ?2 WHERE row_id = ?1",
+                params![*row_id, serde_json::to_string(data).unwrap_or_else(|_| "{}".into())],
+            )?;
+        }
+    }
+    let map: Option<String> = tx
+        .query_row("SELECT header_map FROM google_links WHERE sheet_id = ?1 AND origin IS NOT 'app'", [sheet_id], |row| row.get(0))
+        .optional()?;
+    if let Some(map) = map {
+        let mut header_map: Map<String, Value> = serde_json::from_str(&map).unwrap_or_default();
+        for value in header_map.values_mut() {
+            if gone.iter().any(|column| value.as_str() == Some(column.key.as_str())) {
+                *value = Value::String(String::new());
+            }
+        }
+        for column in &gone {
+            header_map.insert(normalize(&column.name), Value::String(String::new()));
+        }
+        tx.execute(
+            "UPDATE google_links SET header_map = ?2 WHERE sheet_id = ?1",
+            params![sheet_id, serde_json::to_string(&header_map).unwrap_or_else(|_| "{}".into())],
+        )?;
+    }
+    Ok(())
 }
 
 /// Brings one table up to its template. True when it is read from Google and changed (so it should be read again).
@@ -728,6 +814,64 @@ mod tests {
         run(&mut conn).unwrap();
         assert_eq!(setting(&conn, STEP_KEY).as_deref(), Some(&*STEPS.len().to_string()));
         assert_eq!(setting(&conn, RESYNC_KEY), None);
+    }
+
+    /// Harvest as Sync left it on the farm's Mac: "Main file link:" a column of its own, empty in every row, the tab no longer
+    /// having it; and another table's column of that name, which the step doesn't name.
+    fn harvest_with_a_main_file_link() -> Connection {
+        let mut conn = Connection::open_in_memory().unwrap();
+        db::migrate_for_tests(&mut conn);
+        conn.execute("INSERT INTO macs (mac_uuid, mac_name, mac_code) VALUES ('u', 'Pursat', 'MAC-001')", []).unwrap();
+        // The template's other steps are behind it already.
+        conn.execute("INSERT INTO settings (key, value) VALUES (?1, '2')", [STEP_KEY]).unwrap();
+        let mut harvest: Vec<Value> = template::chili_template()
+            .into_iter()
+            .find(|sheet| sheet.key == "harvest")
+            .unwrap()
+            .columns
+            .into_iter()
+            .enumerate()
+            .map(|(at, mut column)| {
+                column.key = format!("c{}", at + 1);
+                serde_json::to_value(column).unwrap()
+            })
+            .collect();
+        let link_key = format!("c{}", harvest.len() + 1);
+        harvest.push(column(&link_key, "Main file link:", "text"));
+        add_table(&conn, 10, "Harvest", "harvest", Value::Array(harvest), 20);
+        add_rows(&conn, 10, &[serde_json::json!({ "c2": "A1", &link_key: "" }), serde_json::json!({ "c2": "A2" })]);
+        add_link(&conn, 10, "Harvest", serde_json::json!({ "zone plot": "c2" }));
+        add_table(&conn, 11, "Zone Measurement", "zone-measurement", Value::Array(vec![column("c1", "Main file link:", "text")]), 2);
+        conn
+    }
+
+    #[test]
+    fn harvest_loses_its_empty_main_file_link_and_its_tab_leaves_that_header_out() {
+        let mut conn = harvest_with_a_main_file_link();
+        let link_key = key_of(&conn, 10, "Main file link:");
+        let before = names(&conn, 10);
+        run(&mut conn).unwrap();
+        let after = names(&conn, 10);
+        assert!(!after.contains(&"Main file link:".to_string()));
+        assert_eq!(after.len(), before.len() - 1);
+        assert!(cells(&conn, 10).iter().all(|row| !row.contains_key(&link_key)));
+        assert_eq!(cells(&conn, 10)[0]["c2"], "A1");
+        // A tab that still has the header doesn't bring the column back; what the link matched stays.
+        assert_eq!(header_map(&conn, 10)["main file link:"], "");
+        assert_eq!(header_map(&conn, 10)["zone plot"], "c2");
+        // Nothing to read again, and another table's column of that name is its own business.
+        assert_eq!(setting(&conn, RESYNC_KEY), None);
+        assert_eq!(names(&conn, 11), ["Main file link:"]);
+    }
+
+    #[test]
+    fn a_main_file_link_with_something_in_it_stays() {
+        let mut conn = harvest_with_a_main_file_link();
+        let link_key = key_of(&conn, 10, "Main file link:");
+        conn.execute("UPDATE sheet_rows SET data = json_set(data, '$.' || ?1, 'https://drive/x') WHERE sheet_id = 10", [&link_key]).unwrap();
+        run(&mut conn).unwrap();
+        assert!(names(&conn, 10).contains(&"Main file link:".to_string()));
+        assert_eq!(setting(&conn, STEP_KEY).as_deref(), Some(&*STEPS.len().to_string()));
     }
 
     #[test]

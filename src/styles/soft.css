@@ -92,15 +92,52 @@
   box-shadow: var(--edge), var(--shadow-sm);
 }
 
-/* The table pages' and the Zone Map's title bar is a raised, rounded panel like the cards under it, set in from the sidebar and the window's edge,
-   not a flat strip across the whole width. */
-[data-style='soft'] .sheet-head,
-[data-style='soft'] .zm-head {
-  margin: 8px 20px 0;
-  border-bottom: none;
+/* The table pages' and the Zone Map's title bar is a pane of frosted glass (as the icon rail is), set in from the sidebar and the window's edge,
+   not a flat strip across the whole width: what scrolls or shows behind it is blurred through it. */
+:root[data-style='soft'] .sheet-head,
+:root[data-style='soft'] .zm-head {
+  position: relative;
+  z-index: 5;
+  border: var(--hairline) solid rgba(255, 255, 255, 0.85);
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--edge), var(--shadow-sm);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.46));
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  backdrop-filter: saturate(180%) blur(22px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 1px 2px rgba(24, 28, 44, 0.05), 0 12px 32px rgba(24, 28, 44, 0.09);
+}
+
+:root[data-style='soft'] .sheet-head {
+  margin: 8px 20px 0;
+}
+
+/* On a table's page the page scrolls up under the glass (so there is something to blur), rather than starting below it: the bar keeps
+   a fixed height (--head-h), the page reaches up to the window's top and starts its content under the bar. The QA/QC map keeps its own. */
+:root[data-style='soft'] app-sheet-page:not(:has(app-qa-qc-map)):has(.page-scroll) .sheet-head {
+  --head-h: 58px;
+  min-height: var(--head-h);
+  box-sizing: border-box;
+  margin-bottom: calc(-1 * (var(--head-h) + 8px));
+}
+
+:root[data-style='soft'] app-sheet-page:not(:has(app-qa-qc-map)) .page-scroll {
+  padding-top: calc(58px + 8px + 14px);
+  /* Nothing shows in the 8px between the top bar and the glass. */
+  clip-path: inset(8px 0 0 0);
+}
+
+/* The buttons on the glass are glass too, a little clearer than the pane. */
+:root[data-style='soft'] .sheet-head .btn-secondary,
+:root[data-style='soft'] .zm-head .btn-secondary,
+:root[data-style='soft'] .sheet-head .page-back-icon,
+:root[data-style='soft'] .zm-head .page-back-icon {
+  background: rgba(255, 255, 255, 0.62);
+  border: var(--hairline) solid rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 8px rgba(24, 28, 44, 0.06);
+}
+
+:root[data-style='soft'] .sheet-head .btn-secondary:hover:not(:disabled),
+:root[data-style='soft'] .zm-head .btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 [data-style='soft'] .topbar {
@@ -225,7 +262,8 @@
 
 /* ------------------------------------------------------------- the icon rail */
 
-/* A frosted-glass strip down the window's left edge: the main places as icons, the settings and the sidebar's fold at its foot. */
+/* The window's left edge: two pieces of frosted glass. The main places on top, in a piece that reaches down to the second, however
+   few icons it holds (as the sidebar beside it runs the window's height); the weather, AI chat, settings and the sidebar's fold at the bottom. */
 .soft-rail {
   position: sticky;
   top: 12px;
@@ -234,13 +272,24 @@
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
-  gap: 6px;
+  gap: 10px;
   width: 56px;
   height: calc(100vh - 24px);
   height: calc(100dvh - 24px);
   margin: 12px 0 12px 12px;
-  padding: 14px 0;
-  border-radius: 26px;
+}
+
+/* One piece: the icons set in by the same 9px all round, so its round ends follow the tiles' corners (14px + 9px). */
+.soft-rail .rail-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 0;
+  border-radius: 23px;
   background: rgba(255, 255, 255, 0.58);
   border: var(--hairline) solid rgba(255, 255, 255, 0.9);
   -webkit-backdrop-filter: saturate(180%) blur(22px);
@@ -248,9 +297,23 @@
   box-shadow: var(--edge), var(--shadow-sm);
 }
 
+/* The top piece fills the height the second leaves, its icons at its top; the second rests at the bottom of the window. */
+.soft-rail .rail-group:first-child {
+  flex-grow: 1;
+}
+
+.soft-rail .rail-bottom {
+  margin-top: auto;
+}
+
 @media (min-width: 1024px) {
   .soft-rail {
     display: flex;
+  }
+
+  /* Weather and AI chat are on the rail, so the menu beside it doesn't list them again. Narrower, with no rail, the menu keeps them. */
+  [data-style='soft'] .sidebar .nav-link.in-rail {
+    display: none;
   }
 }
 
@@ -292,6 +355,10 @@
   font-weight: 700;
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.soft-rail .rail-mac.active {
+  color: var(--accent);
 }
 
 .soft-rail .rail-mac:hover {

@@ -21,7 +21,6 @@ import { Toasts } from '@core/toast';
 import { WorkbookStore } from '@core/workbook-store';
 import { buildPowerBiWorkbook } from '@shared/excel/powerbi-export';
 import { safeFileName } from '@shared/excel/exceljs';
-import { formatDate } from '@shared/sheet/columns';
 import { baseName } from '@core/paths';
 
 const HEADING_ICONS: Record<string, string> = {
@@ -50,9 +49,6 @@ const HEADING_ICONS: Record<string, string> = {
               <span><app-icon name="pin" [size]="13" /> {{ mac.macLocation || 'Review this MAC.' }}</span>
               @if (mac.latitude !== null && mac.longitude !== null) {
                 <span>{{ mac.latitude }}, {{ mac.longitude }}</span>
-              }
-              @if (mac.startDate) {
-                <span><app-icon name="calendar" [size]="13" /> {{ date(mac.startDate) }}{{ mac.endDate ? ' – ' + date(mac.endDate) : '' }}</span>
               }
               <span class="chip crop"><app-icon name="sprout" [size]="13" /> Chili</span>
             </p>
@@ -300,10 +296,6 @@ export class MacPage {
     this.menuAt.set({ x: Math.min(box.right - 210, window.innerWidth - 230), y: box.bottom + 6 });
   }
   readonly totalRows = computed(() => this.store.sheets().reduce((sum, sheet) => sum + sheet.rows.length, 0));
-
-  date(iso: string) {
-    return formatDate(iso);
-  }
 
   headingIcon(heading: string) {
     return HEADING_ICONS[heading] ?? 'table';

@@ -57,6 +57,11 @@ describe('the Zone Map shown by variety, batch and each table', () => {
     expect(sayOf(view('batch'), 'A1')?.text).toBe('NB-01');
   });
 
+  it('says each batch\'s variety beside it in the legend', () => {
+    expect(view('batch').legend.map((item) => [item.label, item.note])).toEqual([['NB-01', 'Mali'], ['NB-02', 'Daineang'], ['NB-03', 'Daineang']]);
+    expect(view('variety').legend.every((item) => item.note === undefined)).toBe(true);
+  });
+
   it('lists the statuses in the crop\'s order, not by how many plots, each its stage\'s colour', () => {
     const statuses = ['Harvesting', 'Harvesting', 'Harvesting', 'Establishing', 'Establishing', 'Fruit set', 'Cycle complete', 'Flowering', 'Vegetative'];
     const crop = makeSheet(4, 'Plant Progress', [col('p', 'Zone plot'), col('s', 'Status')], statuses.map((status, at) => ({ p: `P${at}`, s: status })), 'zone-records');

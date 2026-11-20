@@ -3,9 +3,11 @@
 
 pub mod access;
 pub mod ai;
+pub mod assistant;
 pub mod client_seal;
 pub mod google;
 pub mod links;
 pub mod mac_file;
+pub mod mac_key;
 pub mod template;
 pub mod ui_update;

@@ -196,7 +196,10 @@
    shrinks to a small round one; hover or focus opens it again. Zero height and sticky, so it stays at the bottom of what is on screen. */
 .go-down-wrap {
   position: sticky;
-  bottom: 20px;
+  /* Last in the page, so it holds to the window's bottom edge the whole way down rather than hanging from the map's. */
+  order: 99;
+  /* The page keeps 96px of padding under its content, which sticky counts as part of the edge: 14px from the window is 96px less. */
+  bottom: -82px;
   z-index: 5;
   flex: none;
   height: 0;
@@ -207,8 +210,7 @@
 }
 .go-down {
   position: absolute;
-  /* Lower than the line it hangs from: it sits across the map's bottom edge, 4px above the window's when the map is taller than it. */
-  bottom: -16px;
+  bottom: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -226,7 +228,7 @@
   pointer-events: auto;
 }
 .go-down app-icon { flex: none; display: inline-flex; color: var(--accent); }
-.go-label { overflow: hidden; white-space: nowrap; max-width: 14rem; }
+.go-label { overflow: hidden; white-space: nowrap; max-width: 22rem; }
 .go-down:hover { background: color-mix(in srgb, var(--text) 7%, var(--surface-solid)); }
 @media (prefers-reduced-motion: no-preference) {
   .go-down { animation: go-down-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both, go-down-pad 400ms ease 6s forwards; }
@@ -234,7 +236,7 @@
   .go-down:hover app-icon, .go-down:focus-visible app-icon { animation: none; }
   .go-label { animation: go-down-label 400ms ease 6s forwards; }
   .go-down:hover, .go-down:focus-visible { animation: none; padding: 0 14px; opacity: 1; }
-  .go-down:hover .go-label, .go-down:focus-visible .go-label { animation: none; max-width: 14rem; opacity: 1; }
+  .go-down:hover .go-label, .go-down:focus-visible .go-label { animation: none; max-width: 22rem; opacity: 1; }
 }
 @keyframes go-down-in { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
 @keyframes go-down-bob { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(3px); } }
