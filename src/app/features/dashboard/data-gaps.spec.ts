@@ -3,8 +3,8 @@ import { provideRouter } from '@angular/router';
 
 import type { Column } from '@core/models';
 import { makeSheet } from '@shared/testing/test-helpers';
-import { columnRecords, gapSentence, tableGaps } from './data-gaps';
-import { DataGaps } from './data-gaps-panel';
+import { columnRecords, gapSentence, recordGaps, tableGaps } from './data-gaps';
+import { DataGaps, plotFirst } from './data-gaps-panel';
 
 const columns: Column[] = [
   { key: 'c1', name: 'Zone', type: 'text', required: true },
@@ -65,6 +65,56 @@ describe('tableGaps: what a table still lacks', () => {
   });
 });
 
+describe('recordGaps: each record with what it lacks', () => {
+  const batch = makeSheet(7, 'Nursery Progress', [
+    { key: 'a', name: 'ID', type: 'number', auto: true },
+    { key: 'b', name: 'Batch number', type: 'link', required: true },
+    { key: 'c', name: 'Variety name', type: 'formula', formula: "=LOOKUP('Batch'[Variety name],'Batch'[Batch number],[Batch number],\"\")" },
+    { key: 'd', name: 'Total number', type: 'number' },
+    { key: 'e', name: 'Min height (cm)', type: 'number' },
+    { key: 'f', name: 'Max height (cm)', type: 'number' },
+  ], [
+    { a: '1', b: 'B1', d: '100', e: '8.7' },
+    { a: '2', b: 'B2', d: '', e: '' },
+    { a: '3', b: 'B3', d: '90', e: '9' },
+  ]);
+
+  it('names each record by its batch and its worked-out variety, and lists what it lacks in the table\'s order', () => {
+    const gaps = recordGaps(batch, (column, row) => (column.key === 'c' ? ({ B1: 'Chili Red', B2: 'Chili Green', B3: '' } as Record<string, string>)[row.data['b']] : String(row.data[column.key] ?? '')));
+    expect(gaps.map((gap) => [gap.number, gap.label, gap.missing])).toEqual([
+      [1, 'B1 · Chili Red', ['Max height (cm)']],
+      [2, 'B2 · Chili Green', ['Total number', 'Min height (cm)', 'Max height (cm)']],
+      [3, 'B3', ['Max height (cm)']],
+    ]);
+  });
+
+  it('leaves out a record with nothing missing, and a table with no gaps', () => {
+    expect(recordGaps(done)).toEqual([]);
+    const whole = makeSheet(8, 'Whole', [{ key: 'a', name: 'Zone', type: 'text', required: true }, { key: 'b', name: 'Plants', type: 'number' }], [{ a: 'A', b: '1' }, { a: 'B', b: '' }]);
+    expect(recordGaps(whole).map((gap) => gap.number)).toEqual([2]);
+  });
+});
+
+describe('plotFirst: the plot leads the checker\'s table', () => {
+  const sheet = makeSheet(5, 'Harvest', [
+    { key: 'a', name: 'ID', type: 'number', auto: true },
+    { key: 'b', name: 'Date harvest', type: 'date' },
+    { key: 'c', name: 'Zone plot', type: 'link' },
+    { key: 'd', name: 'Harvest yield', type: 'number' },
+  ], [{ a: '1', b: '2027-02-11', c: 'B12', d: '5' }]);
+
+  it('moves the Zone plot column to the front, the rest as they were', () => {
+    expect(plotFirst(sheet).columns.map((column) => column.name)).toEqual(['Zone plot', 'ID', 'Date harvest', 'Harvest yield']);
+    expect(plotFirst(sheet).rows).toBe(sheet.rows);
+  });
+
+  it('uses Plot when there is no Zone plot, and leaves a table with neither as it is', () => {
+    const zones = makeSheet(6, 'Zones', [{ key: 'a', name: 'ID', type: 'number' }, { key: 'b', name: 'Zone', type: 'text' }, { key: 'c', name: 'Plot', type: 'text' }], []);
+    expect(plotFirst(zones).columns.map((column) => column.name)).toEqual(['Plot', 'ID', 'Zone']);
+    expect(plotFirst(records)).toBe(records);
+  });
+});
+
 describe('columnRecords: which records have it and which not', () => {
   it('splits the records on the column, naming each by what else is entered on it (the required column first)', () => {
     const { missing, filled } = columnRecords(records, 'c2');
@@ -81,8 +131,10 @@ describe('columnRecords: which records have it and which not', () => {
 });
 
 describe('the Missing data panel', () => {
-  function mount() {
-    localStorage.removeItem('ukmac.data-check.shape');
+  /** `shape`: what was picked before ('columns' for most of these; none: the first time, the default). */
+  function mount(shape: 'columns' | 'table' | null = 'columns') {
+    localStorage.removeItem('ukmac.data-check.shape.v2');
+    if (shape) localStorage.setItem('ukmac.data-check.shape.v2', shape);
     TestBed.configureTestingModule({ providers: [provideRouter([])] });
     const fixture = TestBed.createComponent(DataGaps);
     fixture.componentRef.setInput('sheets', [{ ...done, heading: 'Setup' }, { ...records, heading: 'Planting' }, { ...empty, heading: 'Planting' }]);
@@ -172,9 +224,15 @@ describe('the Missing data panel', () => {
   });
 
   it('shows the table itself, as the table page does: its records with something missing, each empty cell marked, and keeps the choice', () => {
-    const { fixture, el } = mount();
+    const { fixture, el } = mount(null);
     open(fixture, el, 'Plant Progress');
+    // The table is what opens first; "By column" is a click away.
+    expect(el.querySelector('app-sheet-table')).not.toBeNull();
+    expect(el.querySelector('.board')).toBeNull();
     const shape = (name: string) => ([...el.querySelectorAll('.segmented .segment')] as HTMLButtonElement[]).find((button) => button.textContent?.includes(name))!;
+    shape('By column').click();
+    fixture.detectChanges();
+    expect(el.querySelector('app-sheet-table')).toBeNull();
     shape('As the table').click();
     fixture.detectChanges();
     expect(el.querySelector('.board')).toBeNull();
@@ -184,7 +242,7 @@ describe('the Missing data panel', () => {
     // Plants on one record, Variety on all three, Checked on two; the formula and the ID are never missing.
     expect([...el.querySelectorAll('.gap-count')].map((count) => count.textContent?.trim())).toEqual(['1 missing', '3 missing', '2 missing']);
     expect(el.querySelectorAll('td.is-gap').length).toBe(6);
-    expect(localStorage.getItem('ukmac.data-check.shape')).toBe('table');
+    expect(localStorage.getItem('ukmac.data-check.shape.v2')).toBe('table');
     // A column's count clicked: its records missing it on top, lit; clicked again, the usual order.
     const first = () => el.querySelector('app-sheet-table tbody tr td')?.textContent?.trim();
     expect(first()).toBe('A1');
@@ -200,5 +258,31 @@ describe('the Missing data panel', () => {
     fixture.detectChanges();
     expect(el.querySelector('app-sheet-table')).toBeNull();
     expect(el.querySelector('.board')).not.toBeNull();
+  });
+
+  it('says on each partly filled column which records lack it, without a click', () => {
+    const { fixture, el } = mount('columns');
+    open(fixture, el, 'Plant Progress');
+    const lacks = [...el.querySelectorAll('.item')].map((card) => ({ name: card.querySelector('.name')?.textContent?.trim(), who: [...card.querySelectorAll('.lack-who')].map((w) => w.textContent?.trim().split(' · ')[0]) }));
+    // Plants: A2 has none; Checked: A2 and A3; Variety (nothing anywhere) and the complete Zone say nothing.
+    expect(lacks.find((card) => card.name === 'Plants')?.who).toEqual(['A2']);
+    expect(lacks.find((card) => card.name === 'Checked')?.who).toEqual(['A2', 'A3']);
+    expect(lacks.find((card) => card.name === 'Variety')?.who).toEqual([]);
+    expect(lacks.find((card) => card.name === 'Zone')?.who).toEqual([]);
+  });
+
+  it('lists the records one by one, each named and with the values it lacks', () => {
+    const { fixture, el } = mount(null);
+    open(fixture, el, 'Plant Progress');
+    ([...el.querySelectorAll('.segmented .segment')] as HTMLButtonElement[]).find((button) => button.textContent?.includes('By record'))!.click();
+    fixture.detectChanges();
+    expect(el.querySelector('app-sheet-table')).toBeNull();
+    const rows = [...el.querySelectorAll('.rgap')].map((rec) => rec.textContent?.replace(/\s+/g, ' ').trim());
+    expect(rows.length).toBe(3);
+    // A1 lacks Plants? no: A1 has 10. It lacks Variety and Checked is answered, so Variety only.
+    expect(rows[0]).toContain('A1');
+    expect(rows[0]).toContain('Variety');
+    expect(rows[1]).toContain('Plants');
+    expect(localStorage.getItem('ukmac.data-check.shape.v2')).toBe('records');
   });
 });

@@ -11,7 +11,8 @@ import { WorkbookStore } from '@core/workbook-store';
 import { isFormulaError } from '@shared/formula/evaluate-formula';
 import { gapsFirst, hasGap, missingData } from '@features/tables/missing-data';
 import { SheetTable } from '@features/tables/sheet-table';
-import { columnRecords, gapSentence, tableGaps, type ColumnGap, type GapState, type TableGaps } from './data-gaps';
+import { displayCell } from '@shared/sheet/columns';
+import { columnRecords, gapSentence, recordGaps, tableGaps, type ColumnGap, type GapState, type TableGaps } from './data-gaps';
 
 const STATE_TEXT: Record<GapState, string> = { missing: 'Nothing entered', partly: 'Partly filled', complete: 'Complete' };
 const STATE_BADGE: Record<GapState, string> = { missing: 'danger', partly: 'warning', complete: 'success' };
@@ -112,6 +113,7 @@ const STATE_BADGE: Record<GapState, string> = { missing: 'danger', partly: 'warn
               <div class="segmented" role="group" aria-label="Show what is missing">
                 <button type="button" class="segment" [attr.aria-pressed]="shape() === 'columns'" (click)="setShape('columns')"><app-icon name="grid" [size]="14" /> By column</button>
                 <button type="button" class="segment" [attr.aria-pressed]="shape() === 'table'" (click)="setShape('table')"><app-icon name="table" [size]="14" /> As the table</button>
+                <button type="button" class="segment" [attr.aria-pressed]="shape() === 'records'" (click)="setShape('records')"><app-icon name="clipboard" [size]="14" /> By record</button>
               </div>
             }
 
@@ -126,8 +128,38 @@ const STATE_BADGE: Record<GapState, string> = { missing: 'danger', partly: 'warn
               </p>
               @if (gapRows().length) {
                 <div class="gap-table">
-                  <app-sheet-table [sheet]="table.sheet" [rows]="gapRows()" [formulas]="store.formulas()" [sort]="sort()" [missing]="gapColumns()" [gapFirst]="gapFirst()" (gapFirstBy)="toggleGapFirst($event)" (sortBy)="sortBy($event)" />
+                  <app-sheet-table [sheet]="checkSheet() ?? table.sheet" [rows]="gapRows()" [formulas]="store.formulas()" [sort]="sort()" [missing]="gapColumns()" [gapFirst]="gapFirst()" (gapFirstBy)="toggleGapFirst($event)" (sortBy)="sortBy($event)" />
                 </div>
+              }
+            }
+
+            @if (table.rows && shape() === 'records') {
+              <!-- Record by record: what each one is (its batch, its variety) and which values it lacks. -->
+              <p class="table-note">
+                @if (recordList().total) {
+                  <b>{{ recordList().total | number }}</b> of {{ table.rows | number }} {{ table.rows === 1 ? 'record has' : 'records have' }} something missing. Each says what it is and which values it lacks.
+                } @else {
+                  Every record has all its columns filled in.
+                }
+              </p>
+              @if (recordList().total) {
+                <ul class="rgaps">
+                  @for (rec of recordList().items; track rec.rowId) {
+                    <li class="rgap">
+                      <span class="no">#{{ rec.number }}</span>
+                      <span class="rwho">{{ rec.label || 'No other input on this record' }}</span>
+                      <span class="rlack">
+                        <span class="mchip gone">{{ rec.missing.length }} missing</span>
+                        @for (name of rec.missing; track name) {
+                          <span class="rname">{{ name }}</span>
+                        }
+                      </span>
+                    </li>
+                  }
+                </ul>
+                @if (recordList().more) {
+                  <button type="button" class="chip" (click)="moreRecords()">Show {{ recordList().more > PAGE ? PAGE : recordList().more }} more ({{ recordList().more }} left)</button>
+                }
               }
             }
 
@@ -159,6 +191,13 @@ const STATE_BADGE: Record<GapState, string> = { missing: 'danger', partly: 'warn
                               @if (column.where) { <span class="mchip where">{{ column.where }}</span> }
                             </span>
                           </button>
+                          @if (column.state === 'partly' && lackedBy().get(column.key); as lack) {
+                            <p class="lack" [title]="'These records have nothing in ' + column.name">
+                              <span class="lack-head">Missing on</span>
+                              @for (who of lack.first; track $index) { <span class="lack-who">{{ who }}</span> }
+                              @if (lack.more) { <span class="lack-more">+{{ lack.more }} more</span> }
+                            </p>
+                          }
                           @if (open() === column.key && records(); as rec) {
                             <div class="records">
                               <div class="segmented is-sm" role="group" aria-label="Which records">
@@ -248,6 +287,17 @@ const STATE_BADGE: Record<GapState, string> = { missing: 'danger', partly: 'warn
     .mchip.gone { color: var(--warning); font-weight: 600; } .mchip.gone.is-none { color: var(--danger); }
     .mchip.good { color: var(--success); font-weight: 600; }
     .mchip.req { color: var(--danger); font-weight: 600; }
+    .lack { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0; padding: 0 12px 12px; font-size: 0.75rem; }
+    .lack-head { color: var(--text-muted); margin-right: 2px; }
+    .lack-who { padding: 2px 9px; border-radius: 8px; background: var(--warning-soft); color: var(--warning); font-weight: 500; overflow-wrap: anywhere; }
+    .lack-more { color: var(--text-muted); font-weight: 500; }
+    .rgaps { width: 100%; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .rgap { display: grid; grid-template-columns: 3.5rem minmax(160px, 16rem) minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px 14px; border: var(--hairline) solid var(--border); border-radius: 12px; background: var(--surface-solid); font-size: 0.8125rem; }
+    .rgap .no { color: var(--text-muted); font-variant-numeric: tabular-nums; padding-top: 2px; }
+    .rgap .rwho { font-weight: 600; overflow-wrap: anywhere; padding-top: 2px; }
+    .rlack { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .rname { padding: 2px 10px; border-radius: 999px; background: var(--warning-soft); color: var(--warning); font-weight: 500; }
+    @media (max-width: 900px) { .rgap { grid-template-columns: 3rem minmax(0, 1fr); } .rlack { grid-column: 1 / -1; } }
     .records { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 2px 12px 12px; }
     .recs { width: 100%; display: flex; flex-direction: column; }
     .rec { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 8px; font-size: 0.8125rem; }
@@ -282,7 +332,12 @@ export class DataGaps {
   readonly sheets = input.required<readonly SheetWithRows[]>();
   readonly store = inject(WorkbookStore);
   /** How the open table's gaps are shown: a card for each column, or the table itself with each empty cell marked (kept). */
-  readonly shape = signal<'columns' | 'table'>(readShape());
+  readonly shape = signal<'columns' | 'table' | 'records'>(readShape());
+  /** The open table as the checker reads it: its plot (Zone plot, else Plot) first, so each record says which plot it is. */
+  readonly checkSheet = computed(() => {
+    const sheet = this.current()?.sheet;
+    return sheet ? plotFirst(sheet) : null;
+  });
   readonly sort = signal<{ key: string; dir: 1 | -1 } | null>(null);
   /** A column's "9 missing" clicked in the table: its records with nothing there on top (clicked again: the usual order). */
   readonly gapFirst = signal<string | null>(null);
@@ -354,9 +409,10 @@ export class DataGaps {
     this.open.set(null);
     this.sort.set(null);
     this.gapFirst.set(null);
+    this.recordsShown.set(this.PAGE);
   }
 
-  setShape(shape: 'columns' | 'table') {
+  setShape(shape: 'columns' | 'table' | 'records') {
     this.shape.set(shape);
     try {
       localStorage.setItem(SHAPE_KEY, shape);
@@ -395,6 +451,44 @@ export class DataGaps {
     });
     return first && gaps.has(first) ? gapsFirst(sorted, first) : sorted;
   });
+
+  private readonly recordsShown = signal(25);
+  /** Every record of the open table with something missing, each named (its batch, its variety) and with what it lacks. */
+  private readonly allRecordGaps = computed(() => {
+    const table = this.current();
+    if (!table) return [];
+    const formulas = this.store.formulas();
+    const sheet = table.sheet;
+    return recordGaps(sheet, (column, row) => {
+      if (column.type !== 'formula') return displayCell(column, row.data[column.key] ?? '').trim();
+      const raw = formulas.cell(sheet, row, column);
+      return raw === null || raw === '' || isFormulaError(raw) ? '' : typeof raw === 'number' ? String(Number(raw.toFixed(3))) : String(raw).trim();
+    });
+  });
+
+  /** The open table's records with something missing, a page of them. */
+  readonly recordList = computed(() => {
+    const all = this.allRecordGaps();
+    return { items: all.slice(0, this.recordsShown()), total: all.length, more: Math.max(0, all.length - this.recordsShown()) };
+  });
+
+  /** For each column only partly filled: which records lack it, named (the first few, and how many more): its card says it without a click. */
+  readonly lackedBy = computed(() => {
+    const SHOWN = 6;
+    const names = new Map<string, string[]>();
+    for (const rec of this.allRecordGaps()) {
+      for (const key of rec.missingKeys) {
+        const list = names.get(key) ?? [];
+        list.push(rec.label || `#${rec.number}`);
+        names.set(key, list);
+      }
+    }
+    return new Map([...names].map(([key, list]) => [key, { first: list.slice(0, SHOWN), more: Math.max(0, list.length - SHOWN) }]));
+  });
+
+  moreRecords() {
+    this.recordsShown.update((n) => n + this.PAGE);
+  }
 
   /** A column's name clicked in the table: sorted up, then down, then as entered. */
   sortBy(key: string) {
@@ -445,12 +539,22 @@ export class DataGaps {
   }
 }
 
-const SHAPE_KEY = 'ukmac.data-check.shape';
+/** (The key moved on when the table became the default, so an earlier pick of "By column" doesn't hide it.) */
+const SHAPE_KEY = 'ukmac.data-check.shape.v2';
 
-function readShape(): 'columns' | 'table' {
+function readShape(): 'columns' | 'table' | 'records' {
   try {
-    return localStorage.getItem(SHAPE_KEY) === 'table' ? 'table' : 'columns';
+    const saved = localStorage.getItem(SHAPE_KEY);
+    return saved === 'columns' || saved === 'records' ? saved : 'table';
   } catch {
-    return 'columns';
+    return 'table';
   }
+}
+
+/** The table with its plot column ("Zone plot", else "Plot") moved to the front; as it was when it has none. */
+export function plotFirst(sheet: SheetWithRows): SheetWithRows {
+  const find = (name: string) => sheet.columns.find((column) => column.name.trim().toLowerCase() === name);
+  const plot = find('zone plot') ?? find('plot');
+  if (!plot || sheet.columns[0] === plot) return sheet;
+  return { ...sheet, columns: [plot, ...sheet.columns.filter((column) => column !== plot)] };
 }

@@ -1,8 +1,9 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 
 import { baseName } from './paths';
 import { Toasts } from './toast';
-import { AppUpdater, type PendingUpdate, type UpdateEvent, type UpdaterBackend } from './updater';
+import { AppUpdater, isNewerVersion, type PendingUpdate, type UiLook, type UpdateEvent, type UpdaterBackend } from './updater';
 
 function pending(run: (onEvent: (event: UpdateEvent) => void) => Promise<void> = async () => {}): PendingUpdate {
   return { version: '0.2.0', currentVersion: '0.1.0', body: 'Faster tables', downloadAndInstall: async (onEvent) => run(onEvent ?? (() => {})) };
@@ -238,5 +239,79 @@ describe('baseName', () => {
         vi.useRealTimers();
       }
     });
+  });
+});
+
+describe('AppUpdater, a UI-only update', () => {
+  function withUi(look: UiLook, found: PendingUpdate | null = null) {
+    const ui = {
+      look: vi.fn(async () => look),
+      install: vi.fn(async () => look.available?.version ?? ''),
+      apply: vi.fn(async () => look.available?.version ?? ''),
+      booted: vi.fn(async () => {}),
+      servedVersion: vi.fn(async () => look.running),
+      reload: vi.fn(),
+    };
+    const backend: UpdaterBackend = { version: async () => '0.1.16', check: async () => found, relaunch: async () => {}, ui };
+    const updater = TestBed.inject(AppUpdater);
+    updater.backend = backend;
+    return { updater, ui };
+  }
+  const newer: UiLook = { running: '0.1.16', available: { version: '0.1.17', notes: '' }, needsRestart: false };
+
+  it('keeps the new screens ready, and loads them into the window without a restart when asked', async () => {
+    const { updater, ui } = withUi(newer);
+    await updater.check();
+    expect(ui.install).toHaveBeenCalledTimes(1);
+    expect(updater.screensReady()).toBe('0.1.17');
+    expect(ui.apply).not.toHaveBeenCalled();
+
+    await updater.showScreens();
+    expect(ui.apply).toHaveBeenCalledTimes(1);
+    expect(ui.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the new screens at the next page change', async () => {
+    const { updater, ui } = withUi(newer);
+    await updater.check();
+    await TestBed.inject(Router).navigateByUrl('/');
+    await vi.waitFor(() => expect(ui.reload).toHaveBeenCalledTimes(1));
+    expect(updater.screens()).toBe('0.1.16');
+  });
+
+  it('does not offer the normal update for a release whose screens are the ones already here', async () => {
+    const full = { ...pending(), version: '0.1.17' };
+    const { updater } = withUi(newer, full);
+    await updater.check();
+    expect(updater.update()).toBeNull();
+    expect(updater.state()).toBe('current');
+  });
+
+  it('still offers the normal update when the release changes more than the screens', async () => {
+    const full = { ...pending(), version: '0.1.17' };
+    const { updater, ui } = withUi({ running: '0.1.16', available: null, needsRestart: true }, full);
+    await updater.check();
+    expect(ui.install).not.toHaveBeenCalled();
+    expect(updater.update()?.version).toBe('0.1.17');
+  });
+
+  it('says the screens started, with the version they carry', async () => {
+    const { updater, ui } = withUi({ running: '0.1.17', available: null, needsRestart: false });
+    await updater.confirmBoot();
+    expect(ui.booted).toHaveBeenCalledWith('0.1.17');
+    expect(updater.screens()).toBe('0.1.17');
+  });
+
+  it('goes on with the normal update when the screens cannot be looked at (no network, not the app)', async () => {
+    const { updater, ui } = withUi(newer, pending());
+    ui.look.mockRejectedValue(new Error('error sending request'));
+    await updater.check();
+    expect(updater.update()?.version).toBe('0.2.0');
+  });
+
+  it('compares versions by number', () => {
+    expect(isNewerVersion('0.1.10', '0.1.9')).toBe(true);
+    expect(isNewerVersion('0.1.16', '0.1.16')).toBe(false);
+    expect(isNewerVersion('x', '0.1.16')).toBe(false);
   });
 });

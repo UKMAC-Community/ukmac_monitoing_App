@@ -8,6 +8,18 @@ import { Icon } from '@shared/ui/icon';
 import { Pager, pageSlice, savedPageSize } from '@shared/ui/pager';
 import { isBlank } from './missing-data';
 
+/**
+ * Tables read as one plain row of column names, their groups (a band over some of the columns, and the lines that close it) left out:
+ * Plant Progress, whose few grouped columns left a band that was blank across most of the table.
+ */
+export const PLAIN_TABLES: ReadonlySet<string> = new Set(['zone-records']);
+
+/** The sheet as the table draws it: a plain table's columns with their groups and boxes taken off (the data and the other tables are as they are). */
+export function plainSheet(sheet: SheetWithRows): SheetWithRows {
+  if (!sheet.templateKey || !PLAIN_TABLES.has(sheet.templateKey) || !sheet.columns.some((column) => column.group || column.box)) return sheet;
+  return { ...sheet, columns: sheet.columns.map(({ group: _group, box: _box, ...column }) => column) };
+}
+
 interface Span {
   /** What folds: a box's or a group's name (with the box it sits in). */
   id: string;
@@ -23,6 +35,9 @@ interface Span {
   foldable: boolean;
 }
 
+/** A table with more columns than this can fold its boxes and groups (an object so a test can change it). */
+export const foldLimit = { columns: 60 };
+
 /**
  * A table's rows to read, as the system shows them: a plain table, its column boxes over the names.
  * A box or a group folds to its first column (its name stays over it) with the ⊖ on its header, and
@@ -34,7 +49,7 @@ interface Span {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(window:resize)': 'measure()' },
   template: `
-    @if (stageChips().length >= 3 || foldables().length) {
+    @if (foldsOn() && (stageChips().length >= 3 || foldables().length)) {
       <div class="bar">
         @if (stageChips().length >= 3) {
           <div class="jump">
@@ -72,12 +87,12 @@ interface Span {
       </button>
     }
     <div class="table-card scroller" #scroller (scroll)="measure()">
-      <table class="data-table" [class.is-grouped]="showBoxes() || showGroups()" [class.is-zebra]="zebra()" [style.--pin-w.px]="pinWidth()">
+      <table class="data-table is-zebra" [class.is-grouped]="showBoxes() || showGroups()" [class.is-plain]="!foldsOn()" [style.--pin-w.px]="pinWidth()">
         <thead>
           @if (showBoxes()) {
             <tr class="boxes">
               @for (box of boxSpans(); track box.id) {
-                <th [attr.colspan]="box.span" [attr.data-start]="box.start" class="box" [class.edge]="edgeAt(box.start)" [class.is-folded]="box.folded" [class.pin]="overPins(box)" [class.pin-last]="overPins(box)" [style.left.px]="overPins(box) ? 0 : null">
+                <th [attr.colspan]="box.span" [attr.data-start]="box.start" class="box" [class.edge]="edgeAt(box.start)" [class.is-folded]="box.folded" [class.pin]="overPins(box)" [class.pin-last]="pinEnds(box)" [style.left.px]="pinLeftOf(box)">
                   @if (box.foldable) {
                     <button type="button" class="fold" [attr.aria-expanded]="!box.folded" [title]="box.folded ? 'Open the group' : 'Fold the group to its first column'" (click)="toggle(box.id)">
                       <app-icon [name]="box.folded ? 'circle-plus' : 'circle-minus'" [size]="14" />
@@ -93,7 +108,7 @@ interface Span {
           @if (showGroups()) {
             <tr class="boxes">
               @for (group of groupSpans(); track group.id) {
-                <th [attr.colspan]="group.span" class="group" [class.edge]="edgeAt(group.start)" [class.end]="spanEnds(group)" [class.is-folded]="group.folded" [class.pin]="overPins(group)" [class.pin-last]="overPins(group)" [style.left.px]="overPins(group) ? 0 : null">
+                <th [attr.colspan]="group.span" class="group" [class.edge]="edgeAt(group.start)" [class.end]="spanEnds(group)" [class.is-folded]="group.folded" [class.pin]="overPins(group)" [class.pin-last]="pinEnds(group)" [style.left.px]="pinLeftOf(group)">
                   @if (group.foldable) {
                     <button type="button" class="fold" [attr.aria-expanded]="!group.folded" [title]="group.folded ? 'Open the group' : 'Fold the group to its first column'" (click)="toggle(group.id)">
                       <app-icon [name]="group.folded ? 'circle-plus' : 'circle-minus'" [size]="14" />
@@ -235,6 +250,11 @@ interface Span {
     .data-table.is-grouped td.soft { color: var(--text-muted); }
     .data-table.is-grouped th.box,
     .data-table.is-grouped th.group { text-align: left; }
+    /* A table that does not fold: its group names are plain text, centred over their columns, as the farm sheet has them. */
+    .data-table.is-plain.is-grouped th.box, .data-table.is-plain.is-grouped th.group { text-align: center; }
+    /* A table that does not fold has no vertical lines between its groups, nor after its frozen columns. */
+    .data-table.is-plain.is-grouped .edge, .data-table.is-plain.is-grouped .end, .data-table.is-plain.is-grouped th.pin-last, .data-table.is-plain.is-grouped td.pin-last { border-left: 0 none; border-right: 0 none; }
+    .data-table.is-plain .span-label { font-weight: 600; color: var(--text); }
     .data-table.is-grouped th.group { font-size: 0.75rem; }
     /* The name stays at the left of what is in view, just past the frozen columns. */
     .data-table.is-grouped th .fold,
@@ -249,16 +269,17 @@ interface Span {
     .data-table tbody tr:hover td.pin { background-image: linear-gradient(var(--row-hover), var(--row-hover)), var(--row-bg, none); }
     .data-table td.pin.is-gap { background-image: linear-gradient(var(--warning-soft), var(--warning-soft)); }
     .data-table .pin-last { border-right: 1px solid var(--border-strong); }
-    /* A wide table's rows striped, every other one faintly tinted, so a row is easy to follow across (the system's Table, 12+ columns). */
-    .data-table.is-zebra tbody tr:nth-child(odd) { --row-bg: linear-gradient(var(--zebra), var(--zebra)); }
+    /* Every table's rows striped, every other one light gray over white, so a row is easy to follow across. */
+    .data-table.is-zebra tbody tr:nth-child(even) { --row-bg: linear-gradient(var(--zebra), var(--zebra)); }
     .data-table.is-zebra td { background-image: var(--row-bg, none); }
-    .data-table.is-zebra { --zebra: color-mix(in srgb, var(--text) 3.5%, transparent); }
+    .data-table.is-zebra { --zebra: var(--row-stripe); }
     .none { position: sticky; left: 0; padding: 28px 20px; text-align: center; color: var(--text-muted); font-size: 0.875rem; }
     .data-table td.none { text-align: center; color: var(--text-muted); height: 96px; max-width: none; }
   `,
 })
 export class SheetTable {
-  readonly sheet = input.required<SheetWithRows>();
+  readonly sheetIn = input.required<SheetWithRows>({ alias: 'sheet' });
+  readonly sheet = computed(() => plainSheet(this.sheetIn()));
   /** The rows to show, searched and sorted. */
   readonly rows = input.required<Row[]>();
   readonly formulas = input.required<WorkbookFormulas>();
@@ -293,6 +314,11 @@ export class SheetTable {
   readonly showBoxes = computed(() => this.sheet().columns.some((column) => column.box));
   readonly showGroups = computed(() => this.sheet().columns.some((column) => column.group));
 
+  /**
+   * Open and close (the ⊖ on a box or group, Show and Fold all) is only for a table too wide to read at once (QA/QC's stages, hundreds of
+   * columns). A table of a few dozen columns shows them all, its group names plain over their columns.
+   */
+  readonly foldsOn = computed(() => this.sheet().columns.length > foldLimit.columns);
   /** The boxes and groups that are folded (by id), kept for the table. */
   readonly folded = signal<ReadonlySet<string>>(new Set());
 
@@ -326,13 +352,18 @@ export class SheetTable {
     const columns = this.columns();
     let count = 0;
     while (count < columns.length && !columns[count].box && !columns[count].group) count += 1;
+    // A table that does not fold, its ID straight followed by a group (Nursery Progress: ID, then Batch): that first group stays too, so
+    // the row is known by its batch whatever scrolls past.
+    if (!this.foldsOn() && count <= 1 && count < columns.length) {
+      const place = (column: Column) => `${column.box ?? ''}\u0000${column.group ?? ''}`;
+      const first = place(columns[count]);
+      while (count < columns.length && place(columns[count]) === first) count += 1;
+    }
     return count < columns.length && count <= 4 ? count : 0;
   });
   /** Where each frozen column sits (px from the left) and how wide they are together, measured once drawn. */
   readonly pinLefts = signal<number[]>([]);
   readonly pinWidth = signal(0);
-  /** A wide table's rows striped, as the system's Table does from 12 columns. */
-  readonly zebra = computed(() => this.visible().length >= 12);
 
   /** The columns in view that close a group (a line after them): its last shown column, unless a new stage starts next. */
   private readonly groupEnds = computed(() => {
@@ -369,9 +400,19 @@ export class SheetTable {
     return looks;
   });
 
-  /** The header cell over the frozen columns (the blank one over ID, Date and Zone): frozen with them. */
+  /** A header cell lying wholly over frozen columns (the blank one over ID, the Batch group over its columns): frozen with them. */
   overPins(span: Span): boolean {
-    return this.pinCount() > 0 && span.start === 0 && !span.label && span.total === this.pinCount();
+    return this.pinCount() > 0 && span.start + span.total <= this.pinCount();
+  }
+
+  /** Where a frozen header cell sits (px from the left): as its first column does. */
+  pinLeftOf(span: Span): number | null {
+    return this.overPins(span) ? (this.pinLefts()[span.start] ?? 0) : null;
+  }
+
+  /** The header cell that ends the frozen columns. */
+  pinEnds(span: Span): boolean {
+    return this.overPins(span) && span.start + span.total === this.pinCount();
   }
 
   /** A group's header closes with the line its last shown column does. */
@@ -461,7 +502,8 @@ export class SheetTable {
     // Each table's folds are kept, and read again when another table is shown.
     effect(() => {
       const key = this.foldKey();
-      untracked(() => this.folded.set(readFolded(key) ?? this.firstOpen()));
+      const on = this.foldsOn();
+      untracked(() => this.folded.set(on ? (readFolded(key) ?? this.firstOpen()) : new Set()));
     });
     // Another table is shown: all its columns again.
     effect(() => {
@@ -565,7 +607,7 @@ export class SheetTable {
       .map((run) => {
         let span = 0;
         for (let at = run.start; at < run.start + run.total; at += 1) if (!this.hidden().has(at)) span += 1;
-        const foldable = !!run.label && run.total > 1 && !inFoldedBox(run);
+        const foldable = this.foldsOn() && !!run.label && run.total > 1 && !inFoldedBox(run);
         return { ...run, span, folded: foldable && this.folded().has(run.id), foldable };
       })
       .filter((run) => run.span > 0);

@@ -85,7 +85,10 @@ export function buildJourney(plot: string, sheets: readonly SheetWithRows[]): Jo
           for (const column of sheet.columns) {
             if (column === plotColumn || column === dateColumn || LEFT_OUT.has(column.name.toLowerCase())) continue;
             const value = factOf(formulas, sheet, row, column);
+            // A harvest always says both its ripe and its unripe yield: "null" for the one it didn't pick.
+            const name = column.name.toLowerCase();
             if (value) facts.push({ name: column.name, value });
+            else if (source.kind === 'harvest' && (name === 'ripe yield' || name === 'unripe yield')) facts.push({ name: column.name, value: 'null' });
             if (source.kind === 'harvest' && column.name.toLowerCase() === 'harvest yield') yieldTotal += Number(String(row.data[column.key] ?? '').replace(/,/g, '')) || 0;
           }
           events.push({ kind: source.kind, label: source.label, icon: source.icon, date: isIsoDate(rawDate.slice(0, 10)) ? rawDate.slice(0, 10) : '', facts });
@@ -124,6 +127,29 @@ function factOf(formulas: WorkbookFormulas, sheet: SheetWithRows, row: Row, colu
   return displayCell(column, String(row.data[column.key] ?? ''));
 }
 
+/** A row of the timeline, or the place where harvests are folded away (how many, and whether they are shown now). */
+export interface TimelineItem {
+  event?: JourneyEvent;
+  fold?: { count: number; open: boolean };
+}
+
+/**
+ * A plot is picked many times: its first harvest and its last two show, the ones between are folded away (in their place, a row to
+ * show them) until asked for. The other rows all show.
+ */
+export function foldHarvests(events: readonly JourneyEvent[], open: boolean): TimelineItem[] {
+  const harvests = events.filter((event) => event.kind === 'harvest');
+  if (harvests.length <= 3) return events.map((event) => ({ event }));
+  const between = new Set(harvests.slice(1, -2));
+  const items: TimelineItem[] = [];
+  for (const event of events) {
+    if (event === harvests[1]) items.push({ fold: { count: between.size, open } });
+    if (between.has(event) && !open) continue;
+    items.push({ event });
+  }
+  return items;
+}
+
 /** Which part of a plot's story a table is (by its template): 'harvest' for the Harvest table; the Zone Map's Show list uses it. */
 export function journeyKindOf(templateKey: string | null | undefined): JourneyKind | null {
   return JOURNEY_SOURCES.find((source) => source.template === templateKey)?.kind ?? null;
@@ -131,8 +157,8 @@ export function journeyKindOf(templateKey: string | null | undefined): JourneyKi
 
 /**
  * A plot's whole story, from planting to harvest: the planting date, every plant record, soil, irrigation, fertigation,
- * pruning, pesticide and harvest row, each with its date, newest last. Shown on a full screen (the dashboard map's card
- * opens it) and, `compact`, in the Zone Map's side panel.
+ * pruning, pesticide and harvest row, each with its date, newest last. Shown down the big map's right side (the dashboard
+ * map's card opens it) and, `compact`, in the Zone Map's side panel.
  */
 @Component({
   selector: 'app-journey-view',
@@ -157,21 +183,31 @@ export function journeyKindOf(templateKey: string | null | undefined): JourneyKi
       </div>
       @if (shown().length) {
         <ol class="timeline">
-          @for (event of shown(); track $index) {
-            <li class="event" [attr.data-kind]="event.kind">
-              <time class="when">{{ day(event.date) }}</time>
-              <span class="mark"><app-icon [name]="event.icon" [size]="compact() ? 12 : 14" /></span>
-              <div class="what">
-                <strong>{{ event.label }}</strong>
-                @if (event.facts.length) {
-                  <dl class="facts">
-                    @for (fact of event.facts; track fact.name) {
-                      <div><dt>{{ fact.name }}</dt><dd>{{ fact.value }}</dd></div>
-                    }
-                  </dl>
-                }
-              </div>
-            </li>
+          @for (item of shown(); track $index) {
+            @if (item.event; as event) {
+              <li class="event" [attr.data-kind]="event.kind">
+                <time class="when">{{ day(event.date) }}</time>
+                <span class="mark"><app-icon [name]="event.icon" [size]="compact() ? 12 : 14" /></span>
+                <div class="what">
+                  <strong>{{ event.label }}</strong>
+                  @if (event.facts.length) {
+                    <dl class="facts">
+                      @for (fact of event.facts; track fact.name) {
+                        <div><dt>{{ fact.name }}</dt><dd>{{ fact.value }}</dd></div>
+                      }
+                    </dl>
+                  }
+                </div>
+              </li>
+            } @else if (item.fold; as fold) {
+              <!-- The harvests between the first and the last two: folded away, or shown again. -->
+              <li class="fold">
+                <button type="button" class="btn btn-secondary btn-sm" [attr.aria-expanded]="fold.open" (click)="harvestsOpen.set(!fold.open)">
+                  <app-icon [name]="fold.open ? 'chevron-down' : 'chevron-right'" [size]="13" />
+                  {{ fold.open ? 'Show only the first and the last 2 harvests' : fold.count + ' more harvests' }}
+                </button>
+              </li>
+            }
           }
         </ol>
       } @else {
@@ -181,7 +217,9 @@ export function journeyKindOf(templateKey: string | null | undefined): JourneyKi
   `,
   styles: `
     :host { display: block; }
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    /* Two by two, the last (the yield) across both. */
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 18px; }
+    .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
     .stat { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: var(--hairline) solid var(--border); border-radius: var(--radius-md, 12px); background: var(--surface-solid); }
     .stat span { font-size: 0.8125rem; color: var(--text-muted); }
     .stat strong { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -202,6 +240,9 @@ export function journeyKindOf(templateKey: string | null | undefined): JourneyKi
     .facts dt { font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; text-align: left; }
     .facts dd { margin: 0; font-size: 0.875rem; font-weight: 400; text-align: left; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
     .none { padding: 48px 0; text-align: center; color: var(--text-muted); }
+    /* The folded harvests' row: its button under the cards, the line running on past it. */
+    .fold { display: grid; grid-template-columns: 112px 34px 1fr; column-gap: 16px; padding: 6px 0; }
+    .fold .btn { grid-column: 3; justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
     [data-kind='planting'] { --c: #7c5cd6; }
     [data-kind='progress'] { --c: #2f9e77; }
     [data-kind='soil'] { --c: #a0703c; }
@@ -214,7 +255,6 @@ export function journeyKindOf(templateKey: string | null | undefined): JourneyKi
     .chip[data-kind].active app-icon { color: inherit; }
     /* In a side panel: the dates over their cards, the line close to the left. */
     .compact .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
-    .compact .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
     .compact .stat { padding: 8px 10px; gap: 2px; }
     .compact .stat span { font-size: 0.6875rem; }
     .compact .stat strong { font-size: 0.9375rem; }
@@ -230,12 +270,16 @@ export function journeyKindOf(templateKey: string | null | undefined): JourneyKi
     .compact .facts dt { font-size: 0.625rem; }
     .compact .facts dd { font-size: 0.8125rem; }
     .compact .none { padding: 20px 0; font-size: 0.8125rem; }
+    .compact .fold { grid-template-columns: 26px 1fr; column-gap: 10px; padding: 4px 0; }
+    .compact .fold .btn { grid-column: 2; }
     @media (max-width: 700px) {
       .timeline::before { left: 20px; }
       .event { grid-template-columns: 34px 1fr; }
       .when { grid-column: 2; text-align: left; padding: 0; }
       .mark { grid-row: 1 / span 2; }
       .what { grid-column: 2; }
+      .fold { grid-template-columns: 34px 1fr; }
+      .fold .btn { grid-column: 2; }
     }
   `,
 })
@@ -250,12 +294,17 @@ export class JourneyView {
 
   /** One table's rows only (from its chip), or all of them. */
   readonly kind = signal<JourneyKind | null>(null);
+  /** The harvests between the first and the last two are shown (folded away to begin with). */
+  readonly harvestsOpen = signal(false);
 
   constructor() {
     // Another plot opened: all its rows again.
     effect(() => {
       this.cell();
-      untracked(() => this.kind.set(null));
+      untracked(() => {
+        this.kind.set(null);
+        this.harvestsOpen.set(false);
+      });
     });
     // A plot opened while the map shows a table: its panel scrolls to that table's rows (once drawn).
     effect(() => {
@@ -272,7 +321,8 @@ export class JourneyView {
   readonly journey = computed(() => buildJourney(this.cell()?.plot ?? '', this.sheets()));
   readonly shown = computed(() => {
     const kind = this.kind();
-    return kind ? this.journey().events.filter((event) => event.kind === kind) : this.journey().events;
+    const events = kind ? this.journey().events.filter((event) => event.kind === kind) : this.journey().events;
+    return foldHarvests(events, this.harvestsOpen());
   });
   readonly kindLabel = computed(() => this.journey().counts.find((item) => item.kind === this.kind())?.label ?? '');
 
@@ -285,43 +335,70 @@ export class JourneyView {
   }
 }
 
-/** The plot's whole story in a panel down the right side of the map it was picked on (its card opens it); the page stays beside it. */
+/** How wide the story is down the map's right side (px; the map keeps its buttons and the picked plot clear of it), and on the big map. */
+export const JOURNEY_WIDTH = 440;
+export const JOURNEY_WIDE = 520;
+
+/** The plot's whole story in a white panel down the right side of the map it was picked on (its card's ⤢ opens it); wider on the big map. */
 @Component({
   selector: 'app-plot-journey',
   imports: [JourneyView, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '(document:keydown.escape)': 'open() && closed.emit()' },
+  host: { '(document:keydown.escape)': 'open() && closed.emit()', '[style.width]': "'min(' + (big() ? wide : width) + 'px, 100%)'" },
   template: `
     @if (open() && cell()) {
-      <aside class="panel" role="dialog" aria-label="From planting to harvest">
+      <aside class="panel" [class.big]="big()" role="dialog" aria-label="From planting to harvest">
         <header class="head">
           <div>
             <h2>{{ cell()?.plot || cell()?.label }}</h2>
             <p>{{ subtitle() }}</p>
           </div>
-          <button type="button" class="close" aria-label="Close" title="Close" (click)="closed.emit()"><app-icon name="x" [size]="14" /></button>
+          <div class="head-tools">
+            @if (fillable()) {
+              <button
+                type="button"
+                class="close"
+                [attr.aria-label]="full() ? 'Back to the dashboard' : 'Fill the page with the map and this story'"
+                [title]="full() ? 'Back to the dashboard' : 'Fill the page with the map and this story'"
+                (click)="fullChange.emit(!full())"
+              ><app-icon [name]="full() ? 'shrink' : 'expand'" [size]="14" /></button>
+            }
+            <button type="button" class="close" aria-label="Close" title="Close" (click)="closed.emit()"><app-icon name="x" [size]="14" /></button>
+          </div>
         </header>
         <div class="body">
-          <app-journey-view [cell]="cell()" [sheets]="sheets()" [compact]="true" />
+          <app-journey-view [cell]="cell()" [sheets]="sheets()" [compact]="!big()" />
         </div>
       </aside>
     }
   `,
   styles: `
-    :host { position: absolute; top: 0; right: 0; bottom: 0; z-index: 8; display: block; width: min(440px, 100%); pointer-events: none; }
+    :host { position: absolute; top: 0; right: 0; bottom: 0; z-index: 8; display: block; pointer-events: none; }
     .panel { height: 100%; display: flex; flex-direction: column; pointer-events: auto; background: var(--surface-solid, #fff); border-left: var(--hairline, 1px) solid var(--border, #e5e5ea); box-shadow: -12px 0 28px rgba(15, 23, 42, 0.18); animation: journey-in 0.26s cubic-bezier(0.32, 0.72, 0, 1); }
     .head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 12px 20px; border-bottom: var(--hairline, 1px) solid var(--border, #e5e5ea); }
     h2 { margin: 0; font-size: 1.125rem; font-weight: 650; }
+    .big .head { padding: 20px 20px 14px 24px; }
+    .big h2 { font-size: 1.375rem; }
     p { margin: 2px 0 0; font-size: 0.8125rem; color: var(--text-muted); }
+    .head-tools { flex: none; display: flex; gap: 8px; }
     .close { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: var(--surface-hover, #f2f2f4); color: var(--text-muted); cursor: pointer; }
     .close:hover { color: var(--text); }
     .body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 20px; }
+    .big .body { padding: 20px 24px 24px; }
     @keyframes journey-in { from { opacity: 0.4; transform: translateX(32px); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
   `,
 })
 export class PlotJourney {
+  readonly width = JOURNEY_WIDTH;
+  readonly wide = JOURNEY_WIDE;
   readonly open = input(false);
+  /** On the map opened big (or filling the page): wider, the dates down the left of the timeline. */
+  readonly big = input(false);
+  /** Its ⤢ beside the close fills the page with the map and the story (`full`), and its other way back. */
+  readonly fillable = input(false);
+  readonly full = input(false);
+  readonly fullChange = output<boolean>();
   readonly cell = input<ZoneCell | null>(null);
   readonly sheets = input.required<readonly SheetWithRows[]>();
   readonly closed = output<void>();

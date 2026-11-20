@@ -1,4 +1,4 @@
-import { afterRenderEffect, ChangeDetectionStrategy, Component, computed, effect, ElementRef, input, OnDestroy, output, signal, untracked, viewChild, ViewEncapsulation } from '@angular/core';
+import { afterRenderEffect, ChangeDetectionStrategy, Component, computed, effect, ElementRef, input, OnDestroy, OnInit, output, signal, untracked, viewChild, ViewEncapsulation } from '@angular/core';
 import * as maplibregl from 'maplibre-gl';
 import { getVersion, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 
@@ -29,10 +29,19 @@ const TOUR_RISE = 1400;
 /** How high a plot stands (m), and the picked one, raised out of the rest. */
 const PLOT_HEIGHT = 3;
 const PICKED_HEIGHT = 14;
+/**
+ * The picked plot floats this high (m) over its own spot, a slab this thick with a white rim round it, its shadow and a white line on the
+ * ground under it; the other plots fade while it is picked (as see-through as this), so the picked one is easy to follow.
+ */
+const FLOAT = 10;
+const SLAB = 5;
+const RIM = 1.6;
+const FADED_PLOTS = 0.28;
+const FADED_FARM = 0.35;
 /** Edited from above, the plots lie flat (as the web turns its 3D off while editing). */
 const FLAT_HEIGHT = 0.3;
 /** What a click or a hover lands on, the top of a plot's stack first: its flat bands (from above), its panes (tipped back), the plot's own bed. */
-const PICKABLE = ['glass-flat', 'glass', 'plots'];
+const PICKABLE = ['glass-flat', 'glass', 'plots', 'plots-picked'];
 /** Seen from less than this far over straight down (degrees) a plot's stack is drawn flat, as bands: the panes, a few metres apart, cannot be told apart from straight over them. */
 const FLAT_BELOW = 18;
 const NOTHING = { type: 'FeatureCollection' as const, features: [] };
@@ -86,13 +95,56 @@ export interface PlotCard {
   color: string;
 }
 
+/**
+ * A band `width` m wide round a plot ([lat, lng] corners), as MapLibre's polygon rings ([lng, lat]): each side pushed out square to
+ * itself (its corners mitred), the plot itself the hole.
+ */
+export function rimAround(points: [number, number][], width: number): number[][][] {
+  const ring = points.filter((p, i) => i === 0 || p[0] !== points[i - 1][0] || p[1] !== points[i - 1][1]);
+  if (ring.length > 2 && ring[0][0] === ring.at(-1)![0] && ring[0][1] === ring.at(-1)![1]) ring.pop();
+  const lat0 = ring.reduce((sum, p) => sum + p[0], 0) / ring.length;
+  const lng0 = ring.reduce((sum, p) => sum + p[1], 0) / ring.length;
+  const mLat = 111320;
+  const mLng = 111320 * Math.cos((lat0 * Math.PI) / 180);
+  // In metres round the plot's middle: x east, y north.
+  const xy = ring.map(([lat, lng]) => [(lng - lng0) * mLng, (lat - lat0) * mLat]);
+  const area = xy.reduce((sum, [x, y], i) => {
+    const [nx, ny] = xy[(i + 1) % xy.length];
+    return sum + x * ny - nx * y;
+  }, 0);
+  const turn = area > 0 ? 1 : -1;
+  const normal = (a: number[], b: number[]) => {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const length = Math.hypot(dx, dy) || 1;
+    return [(turn * dy) / length, (-turn * dx) / length];
+  };
+  const out = xy.map((point, i) => {
+    const n1 = normal(xy[(i - 1 + xy.length) % xy.length], point);
+    const n2 = normal(point, xy[(i + 1) % xy.length]);
+    const mx = n1[0] + n2[0];
+    const my = n1[1] + n2[1];
+    const length = Math.hypot(mx, my) || 1;
+    const cos = (mx / length) * n1[0] + (my / length) * n1[1];
+    const reach = width / Math.max(cos, 0.35);
+    return [point[0] + (mx / length) * reach, point[1] + (my / length) * reach];
+  });
+  const toLngLat = ([x, y]: number[]) => [lng0 + x / mLng, lat0 + y / mLat];
+  const outer = out.map(toLngLat);
+  const hole = ring.map(([lat, lng]) => [lng, lat]).reverse();
+  return [
+    [...outer, outer[0]],
+    [...hole, hole[0]],
+  ];
+}
+
 /** The plots on satellite imagery that can be seen from above or tipped back in 3D (MapLibre, as the system's web map). */
 @Component({
   selector: 'app-mac-map-3d',
   imports: [Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  host: { '[class.m3-expanded]': 'expanded()', '[style.--m3-cover]': "cover() + 'px'", '[class.m3-covered]': 'cover() > 0', '(document:keydown.escape)': 'expanded.set(false)', '(document:keydown)': 'stopTour()' },
+  host: { '[class.m3-expanded]': 'expanded()', '[style.--m3-cover]': "cover() + 'px'", '[style.--m3-cover-right]': "coverRight() + 'px'", '[class.m3-covered]': 'cover() > 0', '(document:keydown.escape)': 'expanded.set(false)', '(document:keydown)': 'stopTour()' },
   template: `
     <div class="m3-map" [class.m3-in]="shown()" #box role="img" aria-label="Satellite view of the plots"></div>
     @if (!shown()) {
@@ -113,26 +165,16 @@ export interface PlotCard {
     @if (card(); as card) {
       <!-- Over the picked plot, following it as the map moves (placed by placeCard). -->
       <div class="m3-card" #cardEl role="status" aria-live="polite">
+        <span class="m3-card-dot" [style.background]="card.color"><app-icon name="sprout" [size]="13" /></span>
+        <span class="m3-card-text">
+          <strong>{{ card.title }}</strong>
+          @for (line of card.lines; track $index) {
+            <span>{{ line }}</span>
+          }
+        </span>
         @if (openable()) {
-          <!-- The card opens the plot's whole story (planting to harvest) on a full screen. -->
-          <button type="button" class="m3-card-open" title="Open everything recorded for this plot, from planting to harvest" (click)="opened.emit(selected() ?? '')">
-            <span class="m3-card-dot" [style.background]="card.color"><app-icon name="sprout" [size]="13" /></span>
-            <span class="m3-card-text">
-              <strong>{{ card.title }}</strong>
-              @for (line of card.lines; track $index) {
-                <span>{{ line }}</span>
-              }
-            </span>
-            <app-icon class="m3-card-go" name="expand" [size]="13" />
-          </button>
-        } @else {
-          <span class="m3-card-dot" [style.background]="card.color"><app-icon name="sprout" [size]="13" /></span>
-          <span class="m3-card-text">
-            <strong>{{ card.title }}</strong>
-            @for (line of card.lines; track $index) {
-              <span>{{ line }}</span>
-            }
-          </span>
+          <!-- Only its ⤢ opens the plot's whole story (planting to harvest): the rest of the card lets a click through to the plots under it. -->
+          <button type="button" class="m3-card-go" title="Open everything recorded for this plot, from planting to harvest" aria-label="Open this plot's story" (click)="opened.emit(selected() ?? '')"><app-icon name="expand" [size]="13" /></button>
         }
         <button type="button" class="m3-card-x" title="Close" aria-label="Close the plot" (click)="cleared.emit()"><app-icon name="x" [size]="12" /></button>
       </div>
@@ -161,6 +203,9 @@ export interface PlotCard {
         @if (!editable()) {
           <button type="button" [class.on]="!tilted()" (click)="setTilt(false)"><app-icon name="grid" [size]="13" /> Top</button>
           <button type="button" [class.on]="tilted()" (click)="setTilt(true)"><app-icon name="cube" [size]="13" /> 3D</button>
+          @if (farmButton()) {
+            <button type="button" title="The farm drawn in 3D: every zone a field of beds" (click)="farmPicked.emit()"><app-icon name="sprout" [size]="13" /> Farm</button>
+          }
           <span class="m3-sep"></span>
           <button
             type="button"
@@ -208,17 +253,17 @@ export interface PlotCard {
     .m3-view { top: 12px; right: 12px; }
     /* The top's right: the plots switch (a white pill like the camera bar, the pick in the accent) and the camera bar next to it. */
     /* Clear of a list over the map's left (cover): narrower than both, it wraps onto a second line instead of going under it. */
-    .m3-top { position: absolute; top: 12px; right: 12px; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; max-width: calc(100% - 24px - var(--m3-cover, 0px)); }
+    .m3-top { position: absolute; top: 12px; right: calc(12px + var(--m3-cover-right, 0px)); z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; max-width: calc(100% - 24px - var(--m3-cover, 0px) - var(--m3-cover-right, 0px)); }
     .m3-top > .m3-view { position: static; }
     .m3-filter small { margin-left: 4px; font-size: 0.6875rem; font-weight: 500; opacity: 0.7; }
     /* Along the foot's right; the legend sits on the same line (same foot, same height) and keeps clear of it. */
-    .m3-tools { right: 12px; bottom: 16px; height: 38px; box-sizing: border-box; }
+    .m3-tools { right: calc(12px + var(--m3-cover-right, 0px)); bottom: 16px; height: 38px; box-sizing: border-box; }
     .m3-view button, .m3-tools button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.8125rem; font-weight: 500; cursor: pointer; }
     .m3-view button:hover:not(.on):not(:disabled), .m3-tools button:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
     .m3-view button.on { background: var(--accent); color: #fff; }
     .m3-view button:disabled { opacity: 0.45; cursor: default; }
     .m3-view button.m3-icon, .m3-tools button.m3-icon { padding: 5px 8px; }
-    .m3-legend { position: absolute; left: calc(12px + var(--m3-cover, 0px)); bottom: 16px; z-index: 5; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px; overflow-x: auto; scrollbar-width: none; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; width: fit-content; max-width: calc(100% - 12px - 250px - var(--m3-cover, 0px)); }
+    .m3-legend { position: absolute; left: calc(12px + var(--m3-cover, 0px)); bottom: 16px; z-index: 5; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px; overflow-x: auto; scrollbar-width: none; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; width: fit-content; max-width: calc(100% - 12px - 250px - var(--m3-cover, 0px) - var(--m3-cover-right, 0px)); }
     .m3-legend-x { position: sticky; left: 0; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: -6px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: var(--text-muted, #6e6e73); cursor: pointer; }
     .m3-legend-x:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
     .m3-legend-show { gap: 6px; padding: 0 14px; border: 0; font-family: inherit; color: var(--text, #1d1d1f); cursor: pointer; }
@@ -263,15 +308,15 @@ export interface PlotCard {
     .m3-card-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
     .m3-card-text strong { font-size: 13px; font-weight: 700; color: var(--text, #1d1d1f); }
     .m3-card-text span { font-size: 11.5px; color: var(--text-muted, #6e6e73); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-    .m3-card-open { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; border-radius: 999px; }
-    .m3-card-open:hover .m3-card-text strong { color: var(--accent, #0066d9); }
-    .m3-card-go { flex: none; color: var(--text-muted, #6e6e73); margin-right: 2px; }
-    .m3-card-x { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted, #6e6e73); cursor: pointer; }
-    .m3-card-x:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
+    /* Over the plots next to the picked one: a click on the card goes through to them; only its buttons take one. */
+    .m3-card { pointer-events: none; }
+    .m3-card button { pointer-events: auto; }
+    .m3-card-go, .m3-card-x { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted, #6e6e73); cursor: pointer; }
+    .m3-card-go:hover, .m3-card-x:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
     @media (prefers-reduced-motion: reduce) { .m3-card, .m3-map { transition: none; } }
   `,
 })
-export class MacMap3d implements OnDestroy {
+export class MacMap3d implements OnInit, OnDestroy {
   readonly latitude = input.required<number>();
   readonly longitude = input.required<number>();
   readonly name = input('MAC');
@@ -288,6 +333,11 @@ export class MacMap3d implements OnDestroy {
   readonly farm = input(false);
   /** A switch over the map for which plots show (the page filters `shapes` by it): each choice, its count. None: no switch. */
   readonly filters = input<{ value: string; label: string; count: number; title?: string }[]>([]);
+  /** The camera bar also has Farm (Top · 3D · Farm): the page shows the drawn farm in place of the satellite when it is picked. */
+  readonly farmButton = input(false);
+  readonly farmPicked = output<void>();
+  /** Opens from above (false) or in 3D (true): where the camera bar was left in the Farm view. */
+  readonly startTilted = input(true);
   readonly filter = input('');
   readonly filterChange = output<string>();
   /** The plots the camera is brought to (their ids) when the map opens, on Fit and on the tour, the rest staying in view round them. None: all of them. */
@@ -296,6 +346,11 @@ export class MacMap3d implements OnDestroy {
   readonly fitPadding = input<{ top: number; bottom: number; left: number; right: number }>(FIT_PADDING);
   /** How much of the map's left side (px) the page covers with a panel of its own: the plots, the section names, the zone key and the card keep clear of it. */
   readonly cover = input(0);
+  /**
+   * As `cover`, down the map's right side (the MAC page's plot story beside the big map): the buttons, the card and a fit keep clear
+   * of it, and the picked plot is brought to the middle of what is left.
+   */
+  readonly coverRight = input(0);
   /** The stacked layer picked out, by its place from the bottom (0 the first): the other layers fade. None: every layer as it is. */
   readonly highlight = input<number | null>(null);
   /** A plot's corner or the plot itself was let go: its new outline (nothing is saved here). */
@@ -346,6 +401,10 @@ export class MacMap3d implements OnDestroy {
   private handles: maplibregl.Marker[] = [];
   /** What the plots source holds now, so a drag can redraw just the plot being edited. */
   private features: PlotFeature[] = [];
+  /** How high the top of the picked plot is where it floats (m; 0: it doesn't), for its name and its card. */
+  private floatTop = 0;
+  /** The other plots are faded now (a plot is picked). */
+  private faded = false;
   /** What the pointer is over, if it is a layer of a stack: shown beside it, and its plot's layers are numbered. */
   readonly tip = signal<Tip | null>(null);
   private readonly pointedPlot = signal<string | null>(null);
@@ -375,6 +434,11 @@ export class MacMap3d implements OnDestroy {
   /** The zoom of the view of the whole farm (the first fit, then each Fit): at it, or further out, only the zones are named. */
   private wholeZoom: number | null = null;
 
+  ngOnInit() {
+    this.wantTilt = this.startTilted();
+    this.tilted.set(this.startTilted());
+  }
+
   constructor() {
     effect(() => {
       const el = this.box().nativeElement;
@@ -402,39 +466,58 @@ export class MacMap3d implements OnDestroy {
             'glass-flat': { type: 'geojson', data: NOTHING },
             // The farm's beds and plants on the plots (`farm`).
             beds: { type: 'geojson', data: NOTHING },
+            // The white rim round the picked plot where it floats.
+            rim: { type: 'geojson', data: NOTHING },
             // A plot being drawn (editing): its corners so far.
             draft: { type: 'geojson', data: NOTHING },
           },
           layers: [
             { id: 'sat', type: 'raster', source: 'sat' },
             { id: 'places', type: 'raster', source: 'places' },
+            // The picked plot's shadow on the ground, under it where it floats.
+            { id: 'picked-shadow', type: 'fill', source: 'plots', filter: ['all', ['==', ['get', 'sel'], true], ['>', ['get', 'base'], 0]], paint: { 'fill-color': '#000000', 'fill-opacity': 0.42 } },
+            // The plots, and the picked one apart (a layer's see-through is the same for all it draws: the rest fade while one is picked).
             {
               id: 'plots',
               type: 'fill-extrusion',
               source: 'plots',
-              paint: { 'fill-extrusion-color': ['to-color', ['get', 'fill']], 'fill-extrusion-base': 0, 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 0.82 },
-            },
-            // Raised beds, water and the sandy field under them, then the plants on the beds (only once close enough to see them).
-            {
-              id: 'farm-ground',
-              type: 'fill-extrusion',
-              source: 'beds',
-              filter: ['!=', ['get', 'part'], 'plant'],
-              paint: { 'fill-extrusion-color': ['to-color', ['get', 'colour']], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 1 },
+              filter: ['!=', ['get', 'sel'], true],
+              paint: { 'fill-extrusion-color': ['to-color', ['get', 'fill']], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 0.82 },
             },
             {
-              id: 'farm-plants',
+              id: 'plots-picked',
               type: 'fill-extrusion',
-              source: 'beds',
-              minzoom: 15.6,
-              filter: ['==', ['get', 'part'], 'plant'],
-              paint: {
-                'fill-extrusion-color': ['to-color', ['get', 'colour']],
-                'fill-extrusion-base': ['get', 'base'],
-                'fill-extrusion-height': ['+', ['get', 'base'], ['*', ['-', ['get', 'top'], ['get', 'base']], ['global-state', 'grow']]],
-                'fill-extrusion-opacity': 1,
-              },
+              source: 'plots',
+              filter: ['==', ['get', 'sel'], true],
+              paint: { 'fill-extrusion-color': ['to-color', ['get', 'fill']], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 0.95 },
             },
+            // Raised beds, water and the sandy field under them, then the plants on the beds (only once close enough to see them); the picked plot's apart.
+            ...(['farm', 'farm-picked'] as const).flatMap((name) => {
+              const mine = name === 'farm-picked' ? ['==', ['get', 'sel'], true] : ['!=', ['get', 'sel'], true];
+              return [
+                {
+                  id: `${name === 'farm' ? 'farm' : 'farm-picked'}-ground`,
+                  type: 'fill-extrusion' as const,
+                  source: 'beds',
+                  filter: ['all', ['!=', ['get', 'part'], 'plant'], mine] as never,
+                  paint: { 'fill-extrusion-color': ['to-color', ['get', 'colour']], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 1 } as never,
+                },
+                {
+                  id: `${name === 'farm' ? 'farm' : 'farm-picked'}-plants`,
+                  type: 'fill-extrusion' as const,
+                  source: 'beds',
+                  minzoom: 15.6,
+                  filter: ['all', ['==', ['get', 'part'], 'plant'], mine] as never,
+                  paint: {
+                    'fill-extrusion-color': ['to-color', ['get', 'colour']],
+                    'fill-extrusion-base': ['get', 'base'],
+                    'fill-extrusion-height': ['+', ['get', 'base'], ['*', ['-', ['get', 'top'], ['get', 'base']], ['global-state', 'grow']]],
+                    'fill-extrusion-opacity': 1,
+                  } as never,
+                },
+              ];
+            }),
+            { id: 'picked-rim', type: 'fill-extrusion', source: 'rim', paint: { 'fill-extrusion-color': '#ffffff', 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 1 } },
             {
               id: 'plot-lines',
               type: 'line',
@@ -577,6 +660,29 @@ export class MacMap3d implements OnDestroy {
       if (this.ready) this.draw();
     });
 
+    // A panel opened or closed down the right, or the map opened big or closed: once the box has its new size, the picked plot is
+    // brought to the middle of the map that is left (draw only goes to a plot when it is newly picked).
+    let sideBefore: string | null = null;
+    effect(() => {
+      const side = `${this.coverRight()}:${this.expanded()}`;
+      if (sideBefore === null || sideBefore === side) {
+        sideBefore = side;
+        return;
+      }
+      sideBefore = side;
+      setTimeout(() => {
+        const map = this.map;
+        if (!map) return;
+        map.resize();
+        const shape = untracked(() => this.selectedShape());
+        if (shape && this.fitted && this.revealed) {
+          this.stopTour();
+          this.focusPlot(shape);
+        }
+        this.placeCard();
+      }, 140);
+    });
+
     // The plot being drawn, and the map's own gestures while drawing (a double click is two corners, not a zoom).
     effect(() => {
       const points = this.draft();
@@ -659,7 +765,9 @@ export class MacMap3d implements OnDestroy {
     // A plot with a stack is looked at closer (its layers are what is to be read), set a little low so the top of the tower is in view.
     const tower = !!shape.stack?.length && !this.editable();
     const zoom = Math.min(20, Math.max(map.getZoom(), (camera?.zoom ?? map.getZoom()) - (tower ? 0.3 : 1.5)));
-    map.easeTo({ center: bounds.getCenter(), zoom, duration: 700, ...(tower ? { offset: [0, 70] as [number, number] } : {}), ...tilt });
+    // Beside a panel (either side), to the middle of the map that is left: offset, not padding, which would stay and move every later fit.
+    const aside = (untracked(() => this.cover()) - untracked(() => this.coverRight())) / 2;
+    map.easeTo({ center: bounds.getCenter(), zoom, duration: 700, offset: [aside, tower ? 70 : 0], ...tilt });
   }
 
   /** Waits for the flat map's imagery (it's "idle" once the tiles are in), or a few seconds at most, then shows it. */
@@ -710,18 +818,19 @@ export class MacMap3d implements OnDestroy {
       return;
     }
     // A plot with a stack: the card goes over the top of the stack, not over the plot's foot.
-    const lift = this.flatNow() ? 0 : stackTop(shape);
+    const lift = this.flatNow() ? 0 : stackTop(shape) || this.floatTop;
     const at = shape.points.map(([lat, lng]) => map.project(this.elevated(lng, lat, lift)));
     const left = Math.min(...at.map((p) => p.x));
     const right = Math.max(...at.map((p) => p.x));
     const upper = Math.min(...at.map((p) => p.y));
     const lower = Math.max(...at.map((p) => p.y));
     const { clientWidth: width, clientHeight: height } = map.getContainer();
-    const onScreen = right > 0 && left < width && lower > 0 && upper < height;
+    const clearOf = untracked(() => this.coverRight());
+    const onScreen = right > 0 && left < width - clearOf && lower > 0 && upper < height;
     el.style.visibility = onScreen ? 'visible' : 'hidden';
     el.style.opacity = onScreen ? '1' : '0';
     // Above the plot (raised, its top a little over its outline on the ground), kept inside the map's sides.
-    const x = Math.min(Math.max((left + right) / 2, untracked(() => this.cover()) + el.offsetWidth / 2 + 8), width - el.offsetWidth / 2 - 8);
+    const x = Math.min(Math.max((left + right) / 2, untracked(() => this.cover()) + el.offsetWidth / 2 + 8), width - clearOf - el.offsetWidth / 2 - 8);
     el.style.transform = `translate(${x}px, ${upper - 18}px) translate(-50%, -100%)`;
   }
 
@@ -734,18 +843,33 @@ export class MacMap3d implements OnDestroy {
     // The picked plot stands out of the rest, outlined in white (edited from above, every plot lies flat). A plot with a stack stays a low
     // bed under its layers, and is outlined alone: raised, it would swallow them.
     const farm = this.farm() && !editing;
+    const stacked = shapes.some((shape) => shape.stack?.length);
     const heightOf = (shape: MapShape) =>
       editing ? FLAT_HEIGHT : farm && !shape.stack?.length ? PLOT_HEIGHT : shape.stack?.length && shape.points.length >= 3 ? stackSizes(shape.points, shape.stack.length).bed : shape.id === selected || shape.lift ? PICKED_HEIGHT : PLOT_HEIGHT;
-    const features = shapes.map((shape) => ({
-      type: 'Feature' as const,
-      properties: { id: shape.id, fill: shape.fill, stroke: shape.id === selected ? '#ffffff' : shape.stroke, sel: shape.id === selected, top: heightOf(shape) },
-      geometry: { type: 'Polygon' as const, coordinates: [[...shape.points.map(([lat, lng]) => [lng, lat]), [shape.points[0][1], shape.points[0][0]]]] },
-    }));
+    // The picked plot floats over its spot in a white rim, the rest fade (not while editing, nor on a map of stacks: there its layers say it).
+    const picked = shapes.find((shape) => shape.id === selected && shape.points.length >= 3);
+    const floating = !!picked && !editing && !stacked;
+    const slab = farm ? PLOT_HEIGHT : SLAB;
+    this.floatTop = floating ? FLOAT + slab : 0;
+    const features = shapes.map((shape) => {
+      const float = floating && shape.id === selected;
+      return {
+        type: 'Feature' as const,
+        properties: { id: shape.id, fill: shape.fill, stroke: shape.id === selected ? '#ffffff' : shape.stroke, sel: shape.id === selected, base: float ? FLOAT : 0, top: float ? FLOAT + slab : heightOf(shape) },
+        geometry: { type: 'Polygon' as const, coordinates: [[...shape.points.map(([lat, lng]) => [lng, lat]), [shape.points[0][1], shape.points[0][0]]]] },
+      };
+    });
     this.features = features;
     (map.getSource('plots') as GeoJSONSource).setData({ type: 'FeatureCollection', features });
     untracked(() => this.drawGlass());
-    const beds = farm && !shapes.some((shape) => shape.stack?.length) ? plotBeds(shapes, PLOT_HEIGHT) : [];
+    const up = floating ? FLOAT : 0;
+    const beds = (farm && !stacked ? plotBeds(shapes, PLOT_HEIGHT) : []).map((bed) =>
+      bed.properties.id === selected ? { ...bed, properties: { ...bed.properties, sel: true, base: bed.properties.base + up, top: bed.properties.top + up } } : { ...bed, properties: { ...bed.properties, sel: false } },
+    );
     (map.getSource('beds') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: beds } as never);
+    const rim = floating && picked ? [{ type: 'Feature' as const, properties: { base: FLOAT, top: FLOAT + slab + 0.6 }, geometry: { type: 'Polygon' as const, coordinates: rimAround(picked.points, RIM) } }] : [];
+    (map.getSource('rim') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: rim } as never);
+    this.paintFade(floating);
     if (beds.length && !this.grown) {
       this.grown = true;
       this.growPlants(map);
@@ -799,9 +923,11 @@ export class MacMap3d implements OnDestroy {
       } else {
         el.textContent = shape.label;
       }
-      // A plot with a stack has its name hung over the top of the stack (so the layers under it are seen), like a flag.
-      const height = editing ? 0 : stackTop(shape);
-      const marker = new maplibregl.Marker({ element: el, pitchAlignment: 'viewport', ...(height ? { anchor: 'bottom' as const, offset: [0, -4] as [number, number] } : {}) }).setLngLat([lng, lat]).addTo(map);
+      // A plot with a stack has its name hung over the top of the stack (so the layers under it are seen), like a flag; the picked plot's
+      // lies on it where it floats.
+      const flag = editing ? 0 : stackTop(shape);
+      const height = flag || (shape.id === selected ? this.floatTop : 0);
+      const marker = new maplibregl.Marker({ element: el, pitchAlignment: 'viewport', ...(flag ? { anchor: 'bottom' as const, offset: [0, -4] as [number, number] } : {}) }).setLngLat([lng, lat]).addTo(map);
       if (height) this.lifted.push({ marker, lng, lat, height });
       this.plotTags.push({ marker, stacked: !!shape.stack?.length });
       return marker;
@@ -826,7 +952,7 @@ export class MacMap3d implements OnDestroy {
       this.stepOut(map);
       // A map of stacks, or beside a panel: tipped back the farm is shorter than the flat fit reckoned, so come back in while every plot
       // (and its stack) and every section's name still fit.
-      if (untracked(() => this.focus())?.length || untracked(() => this.cover()) > 0) {
+      if (untracked(() => this.focus())?.length || this.besidePanel()) {
         for (let step = 0; step < 20 && map.getZoom() < 19; step++) {
           const zoom = map.getZoom();
           map.jumpTo({ zoom: zoom + 0.1 });
@@ -864,6 +990,17 @@ export class MacMap3d implements OnDestroy {
     (map.getSource('glass') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: flat ? [] : glassFeatures(shapes) });
     (map.getSource('glass-flat') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: flat ? flatFeatures(shapes) : [] });
     this.liftTags();
+  }
+
+  /** While a plot is picked the others fade (see-through), their lines too; let go, all as they were. */
+  private paintFade(on: boolean) {
+    const map = this.map;
+    if (!map || on === this.faded || !map.getLayer('plots')) return;
+    this.faded = on;
+    map.setPaintProperty('plots', 'fill-extrusion-opacity', on ? FADED_PLOTS : 0.82);
+    map.setPaintProperty('farm-ground', 'fill-extrusion-opacity', on ? FADED_FARM : 1);
+    map.setPaintProperty('farm-plants', 'fill-extrusion-opacity', on ? FADED_FARM : 1);
+    map.setPaintProperty('plot-lines', 'line-opacity', (on ? ['case', ['==', ['get', 'sel'], true], 1, FADED_PLOTS] : 1) as never);
   }
 
   /** One layer shown as it is and the rest faded paler (none: all as they are), so a layer named on the key can be found on every plot. */
@@ -919,7 +1056,7 @@ export class MacMap3d implements OnDestroy {
     if (!first || !id) return null;
     // Tipped back, what is nearest the pointer comes first (MapLibre sorts what stands up by its distance).
     if (first.layer.id === 'glass') return { id: String(id), level: Number(first.properties['level']) };
-    if (first.layer.id === 'plots') return { id: String(id), level: null };
+    if (first.layer.id === 'plots' || first.layer.id === 'plots-picked') return { id: String(id), level: null };
     if (first.layer.id !== 'glass-flat') return null;
     // From above the bands lie one inside another: the layer seen is the last one drawn there that has a colour.
     const here = hits.filter((hit) => hit.layer.id === 'glass-flat');
@@ -1130,8 +1267,9 @@ export class MacMap3d implements OnDestroy {
         const el = tag.getElement();
         const wide = el.offsetWidth || Number(el.dataset['width'] ?? 0);
         const left = el.classList.contains('maplibregl-marker-anchor-right') ? at.x - 10 - wide : at.x + 10;
-        const overTools = left + wide > width - TOOLS_ROOM;
-        return left >= untracked(() => this.cover()) + 8 && left + wide <= width - 8 && at.y >= 60 && at.y <= height - (overTools ? 100 : 50);
+        const clearOf = untracked(() => this.coverRight());
+        const overTools = left + wide > width - clearOf - TOOLS_ROOM;
+        return left >= untracked(() => this.cover()) + 8 && left + wide <= width - clearOf - 8 && at.y >= 60 && at.y <= height - (overTools ? 100 : 50);
       });
   }
 
@@ -1226,7 +1364,7 @@ export class MacMap3d implements OnDestroy {
     if (!map) return;
     this.stopTour();
     // On a map of stacks it comes in as close as everything still fits, as the first fit does.
-    const camera = this.cameraFor(map.getPitch(), map.getBearing(), undefined, !!this.focus()?.length || this.cover() > 0);
+    const camera = this.cameraFor(map.getPitch(), map.getBearing(), undefined, !!this.focus()?.length || this.besidePanel());
     if (!camera) return;
     this.wholeZoom = camera.zoom;
     map.easeTo({ ...camera, duration: 700 });
@@ -1272,13 +1410,14 @@ export class MacMap3d implements OnDestroy {
     const asked = untracked(() => this.fitPadding());
     // A panel over the left side is kept clear in full; the room asked for is shared out of what is left.
     const cover = untracked(() => this.cover());
+    const coverRight = untracked(() => this.coverRight());
     const { clientWidth: full, clientHeight: height } = this.map?.getContainer() ?? { clientWidth: 0, clientHeight: 0 };
-    const width = Math.max(0, full - cover);
+    const width = Math.max(0, full - cover - coverRight);
     const across = asked.left + asked.right;
     const down = asked.top + asked.bottom;
     const x = width && across > width * 0.5 ? (width * 0.5) / across : 1;
     const y = height && down > height * 0.4 ? (height * 0.4) / down : 1;
-    return { top: asked.top * y, bottom: asked.bottom * y, left: cover + asked.left * x, right: asked.right * x };
+    return { top: asked.top * y, bottom: asked.bottom * y, left: cover + asked.left * x, right: coverRight + asked.right * x };
   }
 
   /**
@@ -1288,12 +1427,17 @@ export class MacMap3d implements OnDestroy {
   private stepOut(map: maplibregl.Map, fits: (map: maplibregl.Map) => boolean = (map) => this.fitsAll(map)) {
     const from = map.getZoom();
     for (let step = 0; step < 12 && !fits(map); step++) map.jumpTo({ zoom: map.getZoom() - 0.15 });
-    if (untracked(() => this.cover()) > 0 && !fits(map)) map.jumpTo({ zoom: from });
+    if (this.besidePanel() && !fits(map)) map.jumpTo({ zoom: from });
+  }
+
+  /** The page lays a panel over one side of the map (or both). */
+  private besidePanel() {
+    return untracked(() => this.cover()) > 0 || untracked(() => this.coverRight()) > 0;
   }
 
   /** Every section's name inside the map and, on a map brought to chosen plots, those plots with their stacks. */
   private fitsAll(map: maplibregl.Map) {
-    const plotsToo = !!untracked(() => this.focus())?.length || untracked(() => this.cover()) > 0;
+    const plotsToo = !!untracked(() => this.focus())?.length || this.besidePanel();
     return this.sectionTagsFit(map) && (!plotsToo || this.plotsFit(map));
   }
 

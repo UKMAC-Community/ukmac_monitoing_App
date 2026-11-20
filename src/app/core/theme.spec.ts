@@ -6,6 +6,7 @@ describe('Settings → Theme', () => {
   beforeEach(() => {
     localStorage.clear();
     const root = document.documentElement;
+    delete root.dataset['style'];
     delete root.dataset['accent'];
     delete root.dataset['density'];
     root.style.removeProperty('--cell-px');
@@ -16,6 +17,7 @@ describe('Settings → Theme', () => {
     TestBed.flushEffects();
     expect([theme.accent(), theme.rowHeight(), theme.columnSpacing()]).toEqual(['blue', 'default', 'normal']);
     expect(document.documentElement.dataset['accent']).toBe('blue');
+    expect(document.documentElement.dataset['style']).toBe('classic');
     expect(document.documentElement.dataset['density']).toBe('default');
     expect(document.documentElement.style.getPropertyValue('--cell-px')).toBe('16px');
   });
@@ -27,10 +29,22 @@ describe('Settings → Theme', () => {
     expect(document.documentElement.dataset['accent']).toBe('sage');
     expect(document.documentElement.dataset['density']).toBe('compact');
     expect(document.documentElement.style.getPropertyValue('--cell-px')).toBe('24px');
-    expect(JSON.parse(localStorage.getItem(THEME_KEY)!)).toEqual({ accent: 'sage', rowHeight: 'compact', columnSpacing: 'wide' });
+    expect(JSON.parse(localStorage.getItem(THEME_KEY)!)).toEqual({ style: 'classic', accent: 'sage', rowHeight: 'compact', columnSpacing: 'wide' });
     // Changing one choice leaves the others.
     theme.update({ accent: 'peach' });
-    expect(JSON.parse(localStorage.getItem(THEME_KEY)!)).toEqual({ accent: 'peach', rowHeight: 'compact', columnSpacing: 'wide' });
+    expect(JSON.parse(localStorage.getItem(THEME_KEY)!)).toEqual({ style: 'classic', accent: 'peach', rowHeight: 'compact', columnSpacing: 'wide' });
+  });
+
+  it('keeps Classic for everyone who chose before the Soft look existed, and puts Soft on the page when picked', () => {
+    localStorage.setItem(THEME_KEY, JSON.stringify({ accent: 'teal', rowHeight: 'compact', columnSpacing: 'wide' }));
+    const theme = TestBed.inject(Theme);
+    expect(theme.style()).toBe('classic');
+    theme.update({ style: 'soft' });
+    TestBed.flushEffects();
+    expect(document.documentElement.dataset['style']).toBe('soft');
+    expect(JSON.parse(localStorage.getItem(THEME_KEY)!).style).toBe('soft');
+    theme.reset();
+    expect(theme.style()).toBe('classic');
   });
 
   it('reads what was kept at the next start', () => {
@@ -51,5 +65,6 @@ describe('Settings → Theme', () => {
     expect(readTheme('not json')).toEqual(THEME_DEFAULTS);
     expect(readTheme(JSON.stringify({ accent: 'hotpink', rowHeight: 'huge', columnSpacing: 3 }))).toEqual(THEME_DEFAULTS);
     expect(readTheme(JSON.stringify({ accent: 'teal' }))).toEqual({ ...THEME_DEFAULTS, accent: 'teal' });
+    expect(readTheme(JSON.stringify({ style: 'neon' })).style).toBe('classic');
   });
 });

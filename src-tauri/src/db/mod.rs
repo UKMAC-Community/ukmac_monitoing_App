@@ -143,6 +143,10 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     if let Err(error) = upgrade::run(&mut conn) {
         eprintln!("The tables could not be brought up to date this time: {error}");
     }
+    // Once: tables read from Google, whose IDs went up at every re-read, are numbered 1, 2, 3….
+    if let Err(error) = ids::renumber_read_tables(&mut conn) {
+        eprintln!("The tables read from Google could not be numbered afresh this time: {error}");
+    }
     // A table that gained an ID column since the app last ran has its rows numbered.
     crate::db::ids::fill_all(&mut conn)?;
     Ok(conn)

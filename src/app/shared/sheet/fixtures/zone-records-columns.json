@@ -40,24 +40,28 @@
     "type": "number"
   },
   {
+    "group": "Total chili plants planted",
     "key": "c7",
     "name": "Plant count",
     "required": false,
     "type": "number"
   },
   {
+    "group": "Replanting plants",
     "key": "c8",
     "name": "Replant date",
     "required": false,
     "type": "date"
   },
   {
+    "group": "Replanting plants",
     "key": "c9",
     "name": "Replant count",
     "required": false,
     "type": "number"
   },
   {
+    "group": "Plant dead after planting",
     "key": "c10",
     "name": "Dead plant",
     "required": false,

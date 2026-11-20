@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
 import { buildSyncWorkbook } from '@shared/excel/sync-workbook';
+import { loadExcel } from '@shared/excel/exceljs';
 import { readExcelSheets } from '@shared/excel/sheet-from-excel';
 import { planLinks } from './link-plan';
 import { makeMac, makeSheet } from '@shared/testing/test-helpers';
@@ -62,5 +63,61 @@ describe('reading several tables of one Google Sheet', () => {
     expect(downloads).toEqual(['sheet-1']); // not one per table
     expect(written).toEqual({ 5: 1, 6: 2 });
     expect([...results.values()].every((result) => !(result instanceof Error))).toBe(true);
+  });
+
+  it('opens the sheet once for tables read the same way, and apart for a table with its own layout', async () => {
+    // One tab, a units row under its names: one table says its data starts under the units (its own layout), the other reads it plainly.
+    const Excel = await loadExcel();
+    const book = new Excel.Workbook();
+    const tab = book.addWorksheet('Nursery');
+    tab.addRow(['Date', 'Note']);
+    tab.addRow(['dd/mm', 'text']);
+    tab.addRow(['01/07', 'one']);
+    tab.addRow(['02/07', 'two']);
+    const bytes = (await book.xlsx.writeBuffer()) as ArrayBuffer;
+    const link = (sheetId: number, layout: GoogleLink['layout']): GoogleLink => ({
+      linkId: sheetId,
+      sheetId,
+      macId: 1,
+      macName: 'Pursat',
+      tableTitle: `Table ${sheetId}`,
+      spreadsheetId: 'sheet-1',
+      spreadsheetTitle: 'UKMAC input',
+      tabTitle: 'Nursery',
+      headerMap: {},
+      lastSyncedAt: null,
+      lastRowCount: 0,
+      layout,
+    });
+    const links = [link(7, { headerFrom: 1, headerTo: 1, dataFrom: 3 }), link(8, null), link(9, null)];
+    const empty = [7, 8, 9].map((id) => makeSheet(id, `Table ${id}`, columns, []));
+
+    const downloads: string[] = [];
+    const written: Record<number, unknown[][]> = {};
+    const api = {
+      googleDownload: async (id: string) => {
+        downloads.push(id);
+        return bytes;
+      },
+      getWorkbook: async () => ({ mac: makeMac(), sheets: empty }),
+      addRows: async (sheetId: number, rows: Record<string, unknown>[]) => {
+        written[sheetId] = rows.map((row) => [row['c1'], row['c2']]);
+        return [];
+      },
+      googleLinkSynced: async (sheetId: number) => links.find((item) => item.sheetId === sheetId)!,
+      listMacs: async () => [],
+      getSetting: async () => null,
+    };
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api }] });
+    const google = TestBed.inject(Google);
+    google.links.set(links);
+
+    const results = await google.syncMany([7, 8, 9]);
+    expect([...results.values()].filter((result) => result instanceof Error)).toEqual([]);
+    expect(downloads).toEqual(['sheet-1']);
+    // Its own layout leaves the units row out; read plainly, it is a row like the others (both plain tables alike).
+    expect(written[7]).toEqual([['01/07', 'one'], ['02/07', 'two']]);
+    expect(written[8]).toEqual([['dd/mm', 'text'], ['01/07', 'one'], ['02/07', 'two']]);
+    expect(written[9]).toEqual(written[8]);
   });
 });

@@ -32,6 +32,9 @@ function inkOn(hex: string): string {
 }
 /** A timeline's room for each day: enough to name it ("05/09/2026"). */
 const DAY_SLOT = 76;
+/** Fitted on a page (`fit`), each day's number is written over its column only when its place is this wide (px); a name, every so many days to fit one in this. */
+const VALUE_SLOT = 40;
+const NAME_ROOM = 58;
 
 /** A timeline's days as named under them: "05/09", with the year too on the first and where it changes; a group not a day keeps its name. */
 function dayNames(points: readonly ChartPoint[]): string[] {
@@ -123,10 +126,10 @@ function squarify(items: { key?: string; label: string; value: number }[], w: nu
 
 /** The donut as drawn: a white disc, the ring on it (from `DONUT_IN` to `DONUT_OUT` of the disc's radius), its segments drawn with a stroke of `DONUT_ROUND` so their corners are round, and a gap between them. */
 export const DONUT_DISC = 0.97;
-/** The labelled pie's biggest radius (px): the bigger it is, the more of each name and amount sits inside its own slice. */
-const PIE_MAX = 172;
-/** The room under the labelled pie for the line that says what it adds up to. */
-const PIE_TOTAL = 28;
+/** The labelled donut's biggest radius (px), the room each side of it for its labels, and how far apart the labels of a side keep. */
+const RING_MAX = 150;
+const RING_LABELS = 150;
+const RING_GAP = 54;
 export const DONUT_OUT = 0.88;
 export const DONUT_IN = 0.55;
 export const DONUT_ROUND = 0.1;
@@ -152,62 +155,6 @@ export function ringPath(start: number, end: number): string {
   const at = (radius: number, angle: number) => `${(Math.cos(angle) * radius).toFixed(4)} ${(Math.sin(angle) * radius).toFixed(4)}`;
   const large = a1 - a0 > Math.PI ? 1 : 0;
   return `M ${at(outer, a0)} A ${outer} ${outer} 0 ${large} 1 ${at(outer, a1)} L ${at(inner, a1)} A ${inner} ${inner} 0 ${large} 0 ${at(inner, a0)} Z`;
-}
-
-/** Where each slice's label (w × h, centred; from the pie's centre) goes inside the pie: on the middle line of its slice,
- *  wholly inside the circle and clear of the labels already placed (the biggest slices first, the others round them),
- *  at the distance from the centre that keeps the most of it on its own slice; a label that would run well over the
- *  slice's edges is tried smaller too (`small`: w × h of the smaller writing). None for a slice too thin to name inside
- *  (under 3%) or with no room left. */
-export function pieLabelSpots(
-  slices: readonly { start: number; end: number; mid: number; fraction: number; w: number; h: number; small?: { w: number; h: number } }[],
-  r: number,
-) {
-  const spots: ({ x: number; y: number; small: boolean } | null)[] = slices.map(() => null);
-  const placed: { x: number; y: number; w: number; h: number }[] = [];
-  const order = slices.map((_, index) => index).sort((a, b) => slices[b].fraction - slices[a].fraction);
-  for (const index of order) {
-    const slice = slices[index];
-    if (slice.fraction >= 0.9999) {
-      spots[index] = { x: 0, y: 0, small: false };
-      continue;
-    }
-    if (slice.fraction < 0.03) continue;
-    // The best spot for a label of a size: how much of it (a grid of points over it) is on the slice.
-    const bestFor = (w: number, h: number) => {
-      const onSlice = (x: number, y: number) => {
-        let on = 0;
-        for (let i = 0; i <= 4; i++) {
-          for (let j = 0; j <= 2; j++) {
-            const px = x - w / 2 + (w * i) / 4;
-            const py = y - h / 2 + (h * j) / 2;
-            const turn = (((Math.atan2(py, px) - slice.start) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-            if (turn <= slice.end - slice.start && Math.hypot(px, py) <= r) on++;
-          }
-        }
-        return on / 15;
-      };
-      let best: { x: number; y: number; w: number; h: number; on: number } | null = null;
-      for (const out of [0.62, 0.7, 0.54, 0.78, 0.46, 0.66, 0.58, 0.74, 0.5]) {
-        const x = Math.cos(slice.mid) * r * out;
-        const y = Math.sin(slice.mid) * r * out;
-        const corners = [[x - w / 2, y - h / 2], [x + w / 2, y - h / 2], [x - w / 2, y + h / 2], [x + w / 2, y + h / 2]];
-        if (corners.some(([cx, cy]) => Math.hypot(cx, cy) > r - 3)) continue;
-        if (placed.some((other) => Math.abs(other.x - x) < (other.w + w) / 2 + 2 && Math.abs(other.y - y) < (other.h + h) / 2 + 1)) continue;
-        const on = onSlice(x, y);
-        if (!best || on > best.on + 0.001) best = { x, y, w, h, on };
-      }
-      return best;
-    };
-    const normal = bestFor(slice.w, slice.h);
-    const smaller = slice.small && (!normal || normal.on < 0.85) ? bestFor(slice.small.w, slice.small.h) : null;
-    const best = smaller && (!normal || smaller.on > normal.on + 0.05) ? { ...smaller, small: true } : normal ? { ...normal, small: false } : null;
-    if (best) {
-      placed.push({ x: best.x, y: best.y, w: best.w, h: best.h });
-      spots[index] = { x: best.x, y: best.y, small: best.small };
-    }
-  }
-  return spots;
 }
 
 /** A KPI chart, as Power BI draws its visuals: column, bar, line, pie or donut, in its colours. */
@@ -236,33 +183,29 @@ export function pieLabelSpots(
     } @else if (!points().length) {
       <p class="none">No rows to chart yet.</p>
     } @else if (visual() === 'pie' && labelled()) {
-      <!-- A pie with each slice's name and amount inside it (a slice too thin for them: outside, on a line to it). -->
-      <svg class="pie" [attr.width]="width()" [attr.height]="pie().height" [attr.viewBox]="'0 0 ' + width() + ' ' + pie().height" role="img" [attr.aria-label]="label()">
-        <g [attr.transform]="'translate(' + pie().cx + ' ' + pie().cy + ') scale(' + pie().r + ')'">
+      <!-- A rounded donut with a gap between its segments, what it adds up to in its hole, and each segment's share and name on a dotted line to it. -->
+      <svg class="pie" [attr.width]="width()" [attr.height]="ring().height" [attr.viewBox]="'0 0 ' + width() + ' ' + ring().height" role="img" [attr.aria-label]="label()">
+        <g [attr.transform]="'translate(' + ring().cx + ' ' + ring().cy + ') scale(' + ring().r + ')'">
+          <circle class="donut-disc" r="0.97" fill="#fff" />
           <g class="spin-in">
-            @for (item of pie().items; track item.label; let i = $index) {
-              <path class="mark pick slice" [class.lit]="lit(item.key)" [style.--dx]="cos(item.mid) * 0.045" [style.--dy]="sin(item.mid) * 0.045" [attr.d]="item.path" [attr.fill]="sliceColour(item.label, i)" stroke="#fff" stroke-width="0.03" stroke-linejoin="round" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)" (mousemove)="showTip($event, item.label, [{ value: format(item.value) + ' · ' + item.share + '%' }])" (mouseleave)="hideTip()" />
+            @for (item of ring().items; track item.label; let i = $index) {
+              <path class="mark pick slice" [class.lit]="lit(item.key)" [style.--dx]="cos(item.mid) * 0.045" [style.--dy]="sin(item.mid) * 0.045" [attr.d]="item.ring" [attr.fill]="sliceColour(item.label, i)" [attr.stroke]="sliceColour(item.label, i)" [attr.stroke-width]="ringRound" stroke-linejoin="round" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" (click)="choose(item, $event)" (mousemove)="showTip($event, item.label, [{ value: format(item.value) + ' · ' + item.share + '%' }])" (mouseleave)="hideTip()" />
             }
           </g>
         </g>
-        @for (item of pie().items; track item.label; let i = $index) {
-          @if (item.inside; as at) {
-            <!-- The name and amount inside the slice, in the ink that reads on its colour. -->
-            <g class="late pie-inside" [class.small]="at.small" [attr.fill]="inkOf(item.label, i)" [attr.stroke]="sliceColour(item.label, i)" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)">
-              <text class="pie-in-name" [attr.x]="at.x" [attr.y]="at.y - (at.small ? 2 : 3)" text-anchor="middle">{{ item.name }}</text>
-              <text class="pie-in-value" [attr.x]="at.x" [attr.y]="at.y + (at.small ? 11 : 13)" text-anchor="middle">{{ item.amount }}</text>
+        @for (item of ring().items; track item.label; let i = $index) {
+          <g class="late" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)">
+            <polyline class="ring-leader" [attr.points]="item.leader" fill="none" />
+            <g (click)="choose(item, $event)" (mousemove)="showTip($event, item.label, [{ value: format(item.value) + ' · ' + item.share + '%' }])" (mouseleave)="hideTip()">
+              <text class="ring-pct" [attr.x]="item.text.x" [attr.y]="item.text.y" [attr.text-anchor]="item.text.anchor" [style.fill]="'color-mix(in srgb, ' + sliceColour(item.label, i) + ' 62%, #1d1d1f)'">{{ item.pct }}%</text>
+              <text class="ring-name" [attr.x]="item.text.x" [attr.y]="item.text.y + 17" [attr.text-anchor]="item.text.anchor">{{ item.name }}</text>
+              <text class="ring-amount" [attr.x]="item.text.x" [attr.y]="item.text.y + 31" [attr.text-anchor]="item.text.anchor">{{ item.amount }}</text>
             </g>
-          } @else {
-            <polyline class="late" [attr.points]="item.leader" fill="none" stroke="#c4c8cc" stroke-width="1" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)" />
-            <circle class="late" [attr.cx]="item.dot.x" [attr.cy]="item.dot.y" r="2" fill="#fff" stroke="#9aa0a6" stroke-width="1.25" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)" />
-            <g class="late" [class.hit]="hit(item.key)" [class.dim]="dim(item.key)" [class.recede]="receded(item.label)" (click)="choose(item, $event)">
-              <text class="pie-name" [attr.x]="item.text.x" [attr.y]="item.text.y - 5" [attr.text-anchor]="item.text.anchor">{{ item.name }}</text>
-              <text class="pie-share" [attr.x]="item.text.x" [attr.y]="item.text.y + 13" [attr.text-anchor]="item.text.anchor">{{ item.amount }}</text>
-            </g>
-          }
+          </g>
         }
-        <!-- What the slices add up to, under the pie. -->
-        <text class="pie-total" [attr.x]="pie().cx" [attr.y]="pie().height - 8" text-anchor="middle">Total <tspan class="pie-total-num">{{ format(donutTotal()) }}</tspan></text>
+        <!-- What the segments add up to, in the hole. -->
+        <text class="donut-total" [attr.x]="ring().cx" [attr.y]="ring().cy + ring().r * 0.02" text-anchor="middle" [style.font-size.px]="ring().r * 0.2">{{ format(donutTotal()) }}</text>
+        <text class="donut-caption" [attr.x]="ring().cx" [attr.y]="ring().cy + ring().r * 0.2" text-anchor="middle" [style.font-size.px]="ring().r * 0.09">Total</text>
       </svg>
     } @else if (visual() === 'pie' || visual() === 'donut') {
       <div class="round">
@@ -332,10 +275,12 @@ export function pieLabelSpots(
                               }
                             </g>
                           </g>
-                          <text class="value after" [style.--i]="i" [attr.x]="column.mid" [attr.y]="column.top - 5" text-anchor="middle">{{ format(column.total) }}</text>
+                          @if (d.values) {
+                            <text class="value after" [style.--i]="i" [attr.x]="column.mid" [attr.y]="column.top - 5" text-anchor="middle">{{ format(column.total) }}</text>
+                          }
                         </g>
                       }
-                      <text class="axis" [attr.x]="column.mid" [attr.y]="height - 8" text-anchor="middle">{{ column.name }}</text>
+                      <text class="axis" [attr.x]="fit() && i === 0 ? column.x : column.mid" [attr.y]="height - 8" [attr.text-anchor]="fit() && i === 0 ? 'start' : 'middle'">{{ column.name }}</text>
                     }
                   </svg>
                 </div>
@@ -618,9 +563,11 @@ export function pieLabelSpots(
                   @for (column of days().columns; track column.label; let i = $index) {
                     @if (!column.empty) {
                       <path class="grow-y mark pick" [style.--i]="i" [attr.d]="topRound(column.x, column.y, column.w, column.h)" [attr.fill]="colour(0)" [class.hit]="hit(column.key)" [class.dim]="dim(column.key)" (click)="choose(column, $event)" (mousemove)="showTip($event, column.label, [{ value: format(column.value) }])" (mouseleave)="hideTip()" />
-                      <text class="value after" [style.--i]="i" [attr.x]="column.mid" [attr.y]="column.y - 5" text-anchor="middle">{{ format(column.value) }}</text>
+                      @if (days().values) {
+                        <text class="value after" [style.--i]="i" [attr.x]="column.mid" [attr.y]="column.y - 5" text-anchor="middle">{{ format(column.value) }}</text>
+                      }
                     }
-                    <text class="axis" [attr.x]="column.mid" [attr.y]="height - 8" text-anchor="middle">{{ column.name }}</text>
+                    <text class="axis" [attr.x]="fit() && i === 0 ? column.x : column.mid" [attr.y]="height - 8" [attr.text-anchor]="fit() && i === 0 ? 'start' : 'middle'">{{ column.name }}</text>
                   }
                 </svg>
               </div>
@@ -758,16 +705,11 @@ export function pieLabelSpots(
     .donut-total { font-weight: 600; fill: var(--text, #1d1d1f); font-variant-numeric: tabular-nums; }
     .donut-caption { fill: var(--text-muted, #6e6e73); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
     .pie { display: block; margin: 0 auto; }
-    .pie-total { font-size: 12.5px; fill: #8e8e93; letter-spacing: 0.02em; }
-    .pie-total-num { font-weight: 600; fill: #1d1d1f; font-variant-numeric: tabular-nums; }
-    .pie-name { font-size: 13px; font-weight: 500; fill: #1d1d1f; letter-spacing: 0.01em; }
-    .pie-share { font-size: 12px; fill: #8e8e93; font-variant-numeric: tabular-nums; }
-    /* A halo of the slice's own colour round the letters, so a name running over the slice's edge still reads. */
-    .pie-inside { pointer-events: none; stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
-    .pie-in-name { font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
-    .pie-in-value { font-size: 12px; font-weight: 500; opacity: 0.85; font-variant-numeric: tabular-nums; }
-    .pie-inside.small .pie-in-name { font-size: 11px; }
-    .pie-inside.small .pie-in-value { font-size: 10.5px; }
+    /* A label of the donut: its share large and in its segment's colour, its name under it, its amount quiet; a dotted line back to the ring. */
+    .ring-pct { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+    .ring-name { font-size: 12.5px; font-weight: 500; fill: var(--text, #1d1d1f); }
+    .ring-amount { font-size: 11.5px; fill: var(--text-muted, #8e8e93); font-variant-numeric: tabular-nums; }
+    .ring-leader { stroke: #b9bec4; stroke-width: 1; stroke-dasharray: 1.5 3; stroke-linecap: round; }
     .pie path.hit, .pie g.hit { cursor: pointer; }
     .pie .dim { opacity: 0.35; }
     .pie-percent { font-size: 13px; font-weight: 600; pointer-events: none; }
@@ -789,6 +731,8 @@ export class KpiChart {
   readonly visual = input<KpiVisual>('column');
   /** A column chart of days drawn as a timeline: every day has its place, the days with no rows left empty. */
   readonly timeline = input(false);
+  /** On a page (the report export): a timeline's days share the width there is instead of scrolling sideways. */
+  readonly fit = input(false);
   readonly decimals = input<number | null>(null);
   readonly label = input('');
   /** A gauge's number, and the goal it is on its way to. */
@@ -992,21 +936,37 @@ export class KpiChart {
     });
   });
 
+  /** A timeline's room for each of its days: wide enough to name it (a long stretch scrolls sideways); fitted on a page, its share of the width. */
+  private daySlot(count: number) {
+    return this.fit() ? Math.min(DAY_SLOT, Math.max(1, (this.width() - this.left - 16) / Math.max(count, 1))) : DAY_SLOT;
+  }
+
+  /** The days' names, every so many left out when the days are too close to name each (the first always named). */
+  private namesEvery(names: string[], slot: number) {
+    const every = Math.max(1, Math.ceil(NAME_ROOM / slot));
+    if (every === 1) return names;
+    // The first, with its year (written from the left edge), is longer: the next name waits one more turn.
+    const long = (names[0]?.length ?? 0) > 6;
+    return names.map((name, index) => (index % every === 0 && !(long && index === every) ? name : ''));
+  }
+
   /** A timeline: a place of its own for every day, wide enough to name it, so a long stretch scrolls sideways. */
   readonly days = computed(() => {
     const points = this.points();
     const plot = HEIGHT - 28 - 16;
     const top = niceMax(Math.max(0, ...points.map((point) => point.value)));
-    const w = Math.min(40, DAY_SLOT * 0.62);
-    const names = dayNames(points);
+    const slot = this.daySlot(points.length);
+    const w = Math.min(40, slot * 0.62);
+    const names = this.namesEvery(dayNames(points), slot);
     const columns = points.map((point, index) => {
       const h = point.empty ? 0 : (Math.max(0, point.value) / top) * plot;
-      return { ...point, name: names[index], h, y: 16 + plot - h, w, x: 8 + DAY_SLOT * index + (DAY_SLOT - w) / 2, mid: 8 + DAY_SLOT * index + DAY_SLOT / 2 };
+      return { ...point, name: names[index], h, y: 16 + plot - h, w, x: 8 + slot * index + (slot - w) / 2, mid: 8 + slot * index + slot / 2 };
     });
     return {
       columns,
+      values: slot >= VALUE_SLOT,
       // Never narrower than the room there is, so a few days still fill the line.
-      width: Math.max(this.width() - this.left, 16 + DAY_SLOT * points.length),
+      width: Math.max(this.width() - this.left, 16 + slot * points.length),
       ticks: [0, 1, 2, 3, 4].map((step) => ({
         y: 16 + plot - (plot * step) / 4,
         label: formatNumber((top * step) / 4, top < 4 ? 2 : 0),
@@ -1022,8 +982,9 @@ export class KpiChart {
     const plot = HEIGHT - 28 - 16;
     const totals = first.map((_, index) => series.reduce((sum, item) => sum + Math.max(0, item.points[index]?.value ?? 0), 0));
     const top = niceMax(Math.max(0, ...totals));
-    const w = Math.min(40, DAY_SLOT * 0.62);
-    const names = dayNames(first);
+    const slot = this.daySlot(first.length);
+    const w = Math.min(40, slot * 0.62);
+    const names = this.namesEvery(dayNames(first), slot);
     const columns = first.map((point, index) => {
       let base = 16 + plot;
       const parts = series.map((item, seriesIndex) => {
@@ -1032,13 +993,14 @@ export class KpiChart {
         base -= h;
         return { series: seriesIndex, name: item.label, value, h, y: base };
       });
-      const x = 8 + DAY_SLOT * index;
-      return { key: point.key, label: point.label, empty: !!point.empty, name: names[index], total: totals[index], top: base, foot: 16 + plot, w, x: x + (DAY_SLOT - w) / 2, mid: x + DAY_SLOT / 2, parts };
+      const x = 8 + slot * index;
+      return { key: point.key, label: point.label, empty: !!point.empty, name: names[index], total: totals[index], top: base, foot: 16 + plot, w, x: x + (slot - w) / 2, mid: x + slot / 2, parts };
     });
     return {
       columns,
       names: series.map((item) => item.label),
-      width: Math.max(this.width() - this.left, 16 + DAY_SLOT * first.length),
+      values: slot >= VALUE_SLOT,
+      width: Math.max(this.width() - this.left, 16 + slot * first.length),
       ticks: [0, 1, 2, 3, 4].map((step) => ({
         y: 16 + plot - (plot * step) / 4,
         label: formatNumber((top * step) / 4, top < 4 ? 2 : 0),
@@ -1281,73 +1243,44 @@ export class KpiChart {
     });
   });
 
-  /** A pie is drawn with its names on it (inside each slice) when the tile is wide enough for them; narrower, with the list beside it. */
+  /** A pie is drawn as a donut with its labels round it when the tile is wide enough for them; narrower, with the list beside it. */
   readonly labelled = computed(() => this.width() >= 400);
 
-  /** The labelled pie worked out in pixels: each slice's name and amount written inside it, the pie as big as the tile allows.
-   *  A slice too thin to hold them has them outside on a line from it, at the side (then the pie leaves room for them). */
-  readonly pie = computed(() => {
+  /** The labelled donut worked out in pixels: the ring as big as the tile allows with room at each side for the labels, each label (its share, name and amount)
+   *  on a dotted line from its segment, the labels of a side kept apart from top to bottom. */
+  readonly ring = computed(() => {
     const width = this.width();
-    const named = this.slices().map((slice) => {
-      const name = this.sliceName(slice.label);
-      const amount = this.format(slice.value);
-      // About how much room the two lines take (a 13px name over a 12px amount; a comma is narrow).
-      const textWidth = (text: string, size: number) => [...text].reduce((sum, char) => sum + (/[,.]/.test(char) ? 0.3 : char === ' ' ? 0.3 : 0.58) * size, 0);
-      return {
-        ...slice,
-        name,
-        amount,
-        w: Math.max(textWidth(name, 13), textWidth(amount, 12)) + 6,
-        h: 32,
-        small: { w: Math.max(textWidth(name, 11), textWidth(amount, 10.5)) + 4, h: 26 },
-      };
+    const slices = this.slices().map((slice) => {
+      const rounded = Math.round(slice.fraction * 100);
+      return { ...slice, name: this.sliceName(slice.label), amount: this.format(slice.value), pct: rounded < 1 ? '<1' : String(rounded) };
     });
-    // As big as the tile allows with every name inside; when one has to go outside, smaller, leaving room at the sides.
-    let r = Math.max(80, Math.min(PIE_MAX, (width - 40) / 2));
-    let inside = pieLabelSpots(named, r);
-    const outside = inside.some((spot) => !spot);
-    if (outside) {
-      r = Math.max(60, Math.min(PIE_MAX - 20, (width - 240) / 2));
-      inside = pieLabelSpots(named, r);
-    }
-    // The pie, then a line under it saying what it adds up to.
-    const height = Math.round(r * 2 + (outside ? 76 : 24)) + PIE_TOTAL;
+    const sideOf = (mid: number) => (Math.cos(mid) >= 0 ? 1 : -1);
+    const perSide = Math.max(1, slices.filter((slice) => sideOf(slice.mid) > 0).length, slices.filter((slice) => sideOf(slice.mid) < 0).length);
+    const r = Math.max(70, Math.min(RING_MAX, (width - RING_LABELS * 2) / 2));
+    const height = Math.round(Math.max(r * 2 + 40, perSide * RING_GAP + 36));
     const cx = width / 2;
-    const cy = (height - PIE_TOTAL) / 2;
-    const items = named.map((slice, index) => {
+    const cy = height / 2;
+    const items = slices.map((slice) => {
       const cos = Math.cos(slice.mid);
       const sin = Math.sin(slice.mid);
-      const side = cos >= 0 ? 1 : -1;
-      const spot = inside[index];
-      return {
-        ...slice,
-        side,
-        inside: spot ? { x: cx + spot.x, y: cy + spot.y, small: spot.small } : null,
-        dot: { x: cx + cos * r * 0.9, y: cy + sin * r * 0.9 },
-        line: cy + sin * (r + 12),
-        leader: '',
-        text: { x: 0, y: 0, anchor: side > 0 ? 'start' : 'end' },
-      };
+      const side = sideOf(slice.mid);
+      return { ...slice, side, want: cy + sin * r * 0.95, y: 0, leader: '', text: { x: cx + side * (r + 56), y: 0, anchor: side > 0 ? 'start' : 'end' }, cos, sin };
     });
-    // The names outside keep apart on each side, top to bottom, and inside the tile.
     for (const side of [1, -1]) {
-      const column = items.filter((item) => !item.inside && item.side === side).sort((a, b) => a.line - b.line);
-      const gap = 40;
+      const column = items.filter((item) => item.side === side).sort((a, b) => a.want - b.want);
       column.forEach((item, index) => {
-        item.line = index ? Math.max(item.line, column[index - 1].line + gap) : Math.max(item.line, 22);
+        item.y = index ? Math.max(item.want, column[index - 1].y + RING_GAP) : Math.max(item.want, 28);
       });
       for (let index = column.length - 1; index >= 0; index--) {
-        const room = height - 22 - (index === column.length - 1 ? 0 : (column.length - 1 - index) * gap);
-        column[index].line = Math.min(column[index].line, room);
+        const room = height - 40 - (column.length - 1 - index) * RING_GAP;
+        column[index].y = Math.min(column[index].y, room);
       }
     }
-    for (const item of items.filter((item) => !item.inside)) {
-      const cos = Math.cos(item.mid);
-      const sin = Math.sin(item.mid);
-      const elbow = cx + item.side * (r + 18);
-      const far = elbow + item.side * 78;
-      item.leader = `${item.dot.x},${item.dot.y} ${cx + cos * (r + 6)},${cy + sin * (r + 6)} ${elbow},${item.line} ${far},${item.line}`;
-      item.text = { x: elbow + item.side * 4, y: item.line, anchor: item.text.anchor };
+    for (const item of items) {
+      const line = item.y - 6;
+      const from = { x: cx + item.cos * r * (DONUT_OUT + 0.05), y: cy + item.sin * r * (DONUT_OUT + 0.05) };
+      item.text = { x: cx + item.side * (r + 56), y: item.y, anchor: item.side > 0 ? 'start' : 'end' };
+      item.leader = `${from.x.toFixed(1)},${from.y.toFixed(1)} ${(cx + item.side * (r + 24)).toFixed(1)},${line.toFixed(1)} ${(cx + item.side * (r + 46)).toFixed(1)},${line.toFixed(1)}`;
     }
     return { r, cx, cy, height, items };
   });

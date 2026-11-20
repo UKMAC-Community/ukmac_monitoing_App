@@ -14,6 +14,8 @@ import { PLOT_H, PLOT_W } from './farm-scene';
 
 const DEG = Math.PI / 180;
 const ISO_AZIMUTH = Math.PI / 4;
+/** How fast the tour turns the farm: a full turn in about a minute (radians a millisecond). */
+const TOUR_RATE = (Math.PI * 2) / 60000;
 const ISO_ELEVATION = 33 * DEG;
 const TOP_ELEVATION = Math.PI / 2;
 /** The tilt from the top view into the isometric one, and how long the plants take to grow up after it begins. */
@@ -53,6 +55,8 @@ export interface FarmEngineEvents {
   onHover: (id: string | null, x: number, y: number) => void;
   /** The first frame is drawn. */
   onFirstFrame: () => void;
+  /** The tour stopped by itself (a touch, a key or a new farm), not by its button. */
+  onTourEnd?: () => void;
 }
 
 /** How far a box on the ground, things on it up to `maxY` tall, reaches across the screen and up it, turned `a` and tilted `e`. */
@@ -110,6 +114,7 @@ export class FarmEngine {
   private touched = false;
   private frame = 0;
   private visible = true;
+  private touring = false;
   private disposed = false;
   private drawnOnce = false;
   private lastK = 0;
@@ -302,6 +307,23 @@ export class FarmEngine {
     }
   }
 
+  /** The tour on or off: the camera goes slowly round the farm, from the tilted view. */
+  tour(on: boolean) {
+    if (!on) return this.stopTour(false);
+    if (!this.farm || this.reduced) return;
+    this.touring = true;
+    // From the tilted view, the whole farm in sight, then round it.
+    const home = this.fitted({ ...this.pose, azimuth: this.pose.azimuth, elevation: ISO_ELEVATION });
+    this.animate(home, 600);
+    this.invalidate();
+  }
+
+  private stopTour(tell = true) {
+    if (!this.touring) return;
+    this.touring = false;
+    if (tell) this.events.onTourEnd?.();
+  }
+
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.frame);
@@ -353,6 +375,12 @@ export class FarmEngine {
     let moving = !this.reduced;
     const dt = this.last ? Math.min(now - this.last, 64) : 0;
     this.last = now;
+    if (this.touring && !this.animation) {
+      // The tour: the farm turns slowly about its middle, kept as big as it was.
+      const turned = this.fitted({ ...this.pose, azimuth: this.pose.azimuth - dt * TOUR_RATE });
+      this.pose = { ...turned, k: this.pose.k };
+      moving = true;
+    }
     const animation = this.animation;
     if (animation) {
       animation.elapsed += dt;
@@ -534,6 +562,7 @@ export class FarmEngine {
 
   private readonly onPointerDown = (event: PointerEvent) => {
     if (this.press) return;
+    this.stopTour();
     this.canvas.setPointerCapture(event.pointerId);
     this.press = { id: event.pointerId, moved: false, turn: event.button === 2 || event.shiftKey, x: event.clientX, y: event.clientY };
     this.canvas.style.cursor = 'grabbing';
@@ -588,6 +617,7 @@ export class FarmEngine {
 
   private readonly onWheel = (event: WheelEvent) => {
     event.preventDefault();
+    this.stopTour();
     // A pinch on the trackpad comes as a wheel with ctrl held: finer steps.
     const rate = event.ctrlKey ? 0.01 : 0.0015;
     this.zoomAt(event.clientX, event.clientY, this.pose.k * Math.exp(-event.deltaY * rate));

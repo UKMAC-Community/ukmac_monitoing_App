@@ -1,0 +1,319 @@
+/* The Soft theme (Settings → Theme → Soft): raised light-grey panels on a grey canvas, soft shadows instead of hairlines,
+   a floating sidebar (a dark icon rail when folded), black pill buttons, mono small-cap labels. Everything is under
+   `[data-style='soft']` (set on <html> by Theme), so Classic, the system's frosted glass, is never touched.
+
+   It changes the system's tokens first (so every page that uses them follows), then the few shapes tokens can't reach.
+   Unlayered on purpose: it must beat the system's `@layer components`. */
+
+:root[data-style='soft'] {
+  color-scheme: light;
+
+  --bg: #e3e5e9;
+  /* A paler glow at the top left and a soft shade at the bottom, no colour. */
+  --ambient:
+    radial-gradient(56rem 36rem at 0% -10%, rgba(255, 255, 255, 0.85), transparent 66%),
+    radial-gradient(60rem 40rem at 100% 112%, rgba(176, 182, 196, 0.38), transparent 66%);
+  --ambient-focus: radial-gradient(30rem 24rem at 50% 45%, rgba(255, 255, 255, 0.7), transparent 70%);
+
+  /* Panels are a little lighter than the canvas; what sits on them (fields, rows, thumbs) lighter still. */
+  --surface: #eff0f3;
+  --surface-thick: #f4f5f7;
+  --surface-solid: #f8f9fa;
+  --surface-flat: #eff0f3;
+  --blur: none;
+  --blur-thick: none;
+
+  --surface-hover: rgba(24, 28, 44, 0.055);
+  --row-hover: rgba(24, 28, 44, 0.04);
+  --fill: rgba(24, 28, 44, 0.07);
+  --field: #f8f9fa;
+  --field-hover: #ffffff;
+  --thumb: #ffffff;
+
+  --border: rgba(24, 28, 44, 0.09);
+  --border-strong: rgba(24, 28, 44, 0.16);
+
+  --text: #16171b;
+  --text-muted: #6d7078;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-xs: 0 1px 2px rgba(24, 28, 44, 0.08);
+  --shadow-sm: 0 1px 2px rgba(24, 28, 44, 0.05), 0 10px 28px rgba(24, 28, 44, 0.07);
+  --shadow-md: 0 18px 48px rgba(24, 28, 44, 0.16), 0 2px 6px rgba(24, 28, 44, 0.08);
+
+  /* The black that buttons and the active menu row use, and the lime that a good number sits in. */
+  --ink: #17181b;
+  --ink-hover: #2a2c31;
+  --lime: #d8f35a;
+  --lime-ink: #2c3a05;
+}
+
+/* ------------------------------------------------------------- panels */
+
+[data-style='soft'] .card,
+[data-style='soft'] .table-card,
+[data-style='soft'] .tile-card,
+[data-style='soft'] .skeleton-card,
+[data-style='soft'] .skeleton-rows {
+  border-color: transparent;
+  box-shadow: var(--edge), var(--shadow-sm);
+}
+
+[data-style='soft'] .modal-dialog,
+[data-style='soft'] .menu-panel,
+[data-style='soft'] .select-panel,
+[data-style='soft'] .toast,
+[data-style='soft'] .tooltip {
+  border-color: transparent;
+  box-shadow: var(--edge), var(--shadow-md);
+}
+
+[data-style='soft'] .card-title {
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------- the frame */
+
+/* The sidebar is a raised panel floating on the canvas, beside the dark icon rail (.soft-rail). */
+[data-style='soft'] .sidebar {
+  top: 12px;
+  height: calc(100vh - 24px);
+  height: calc(100dvh - 24px);
+  margin: 12px 0 12px 8px;
+  border: none;
+  border-radius: 26px;
+  background: var(--surface);
+  box-shadow: var(--edge), var(--shadow-sm);
+}
+
+/* The table pages' and the Zone Map's title bar is a raised, rounded panel like the cards under it, set in from the sidebar and the window's edge,
+   not a flat strip across the whole width. */
+[data-style='soft'] .sheet-head,
+[data-style='soft'] .zm-head {
+  margin: 8px 20px 0;
+  border-bottom: none;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--edge), var(--shadow-sm);
+}
+
+[data-style='soft'] .topbar {
+  background: transparent;
+  border-bottom: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* The row you are on: a raised white pill with dark text, as a chosen thing in a stack of paper. */
+[data-style='soft'] .nav-link.active,
+[data-style='soft'] .nav-link.is-lit {
+  color: var(--text);
+  font-weight: 600;
+}
+
+[data-style='soft'] .nav-pill {
+  background: #ffffff;
+  box-shadow: var(--shadow-xs), 0 6px 14px rgba(24, 28, 44, 0.06);
+}
+
+[data-style='soft'] .nav-section-label,
+[data-style='soft'] .section-label {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+[data-style='soft'] .nav-children {
+  border-left-color: var(--border);
+}
+
+/* ------------------------------------------------------------- controls */
+
+[data-style='soft'] .btn {
+  border-radius: 999px;
+}
+
+[data-style='soft'] .btn-primary {
+  background: var(--ink);
+  color: #ffffff;
+}
+
+[data-style='soft'] .btn-primary:hover:not(:disabled) {
+  background: var(--ink-hover);
+}
+
+[data-style='soft'] .btn-secondary {
+  background: #f8f9fa;
+  border-color: transparent;
+  box-shadow: var(--shadow-xs), 0 4px 12px rgba(24, 28, 44, 0.05);
+}
+
+[data-style='soft'] .btn-secondary:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+[data-style='soft'] .input-field,
+[data-style='soft'] .select-trigger {
+  border-color: transparent;
+  background: var(--field);
+  box-shadow: inset 0 1px 2px rgba(24, 28, 44, 0.09), 0 0 0 var(--hairline) var(--border);
+}
+
+[data-style='soft'] .nav-search input,
+[data-style='soft'] .nav-search {
+  background: var(--field);
+}
+
+/* A segmented control is a sunk track with a raised thumb. */
+[data-style='soft'] .segmented {
+  background: rgba(24, 28, 44, 0.07);
+  box-shadow: inset 0 1px 2px rgba(24, 28, 44, 0.08);
+  border-radius: 999px;
+}
+
+[data-style='soft'] .segmented.has-thumb::before {
+  border-radius: 999px;
+  box-shadow: var(--shadow-xs), 0 4px 10px rgba(24, 28, 44, 0.08);
+}
+
+[data-style='soft'] .segmented .segment {
+  border-radius: 999px;
+}
+
+/* A good number sits in lime, as a "+20.4%" does; the other badges keep their colours, softened. */
+[data-style='soft'] .badge.success {
+  background: var(--lime);
+  color: var(--lime-ink);
+}
+
+/* ------------------------------------------------------------- tables */
+
+[data-style='soft'] .data-table th {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+[data-style='soft'] .data-table td {
+  border-color: var(--border);
+}
+
+/* ------------------------------------------------------------- big numbers */
+
+/* The headline number of a card: light and large. */
+[data-style='soft'] .page-title {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+[data-style='soft'] .fraction {
+  font-weight: 300;
+  letter-spacing: -0.03em;
+}
+
+/* ------------------------------------------------------------- the icon rail */
+
+/* A frosted-glass strip down the window's left edge: the main places as icons, the settings and the sidebar's fold at its foot. */
+.soft-rail {
+  position: sticky;
+  top: 12px;
+  z-index: 31;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  width: 56px;
+  height: calc(100vh - 24px);
+  height: calc(100dvh - 24px);
+  margin: 12px 0 12px 12px;
+  padding: 14px 0;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.58);
+  border: var(--hairline) solid rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  backdrop-filter: saturate(180%) blur(22px);
+  box-shadow: var(--edge), var(--shadow-sm);
+}
+
+@media (min-width: 1024px) {
+  .soft-rail {
+    display: flex;
+  }
+}
+
+.soft-rail .rail-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.soft-rail .rail-btn:hover {
+  background: rgba(24, 28, 44, 0.07);
+  color: var(--text);
+}
+
+/* The place you are in: a raised white tile, as the menu's active row is. */
+.soft-rail .rail-btn.active {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: var(--shadow-xs), 0 6px 14px rgba(24, 28, 44, 0.08);
+}
+
+.soft-rail .rail-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* A MAC on the rail: its first letter on a tinted tile, as the sidebar's avatar. */
+.soft-rail .rail-mac {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.soft-rail .rail-mac:hover {
+  background: var(--accent-soft-hover);
+  color: var(--accent);
+}
+
+.soft-rail .rail-rule {
+  width: 22px;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-strong);
+}
+
+/* Data Check has columns still needing input: a lime dot on its icon. */
+.soft-rail .rail-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 0 2px #ffffff;
+}

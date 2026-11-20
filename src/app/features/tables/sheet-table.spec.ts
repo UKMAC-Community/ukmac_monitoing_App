@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import type { Column } from '@core/models';
 import { WorkbookFormulas } from '@shared/formula/sheet-formulas';
 import { makeSheet } from '@shared/testing/test-helpers';
-import { SheetTable } from './sheet-table';
+import { foldLimit, plainSheet, SheetTable } from './sheet-table';
 
 const col = (key: string, name: string, extra: Partial<Column> = {}): Column => ({ key, name, type: 'text', ...extra });
 
@@ -25,9 +25,14 @@ const sheet = makeSheet(41, 'QA/QC', columns, [
 
 describe('SheetTable: boxes and groups that fold', () => {
   beforeEach(() => {
+    foldLimit.columns = 0;
     localStorage.clear();
     // jsdom has no layout to scroll.
     HTMLElement.prototype.scrollTo = () => {};
+  });
+
+  afterEach(() => {
+    foldLimit.columns = 60;
   });
 
   /** A table opened as a person left it (all open) unless it is `fresh`: seen for the first time. */
@@ -80,8 +85,8 @@ describe('SheetTable: boxes and groups that fold', () => {
     expect(el.querySelectorAll('tbody tr:first-child td.mid').length).toBe(7);
   });
 
-  it('stripes a wide table\'s rows (12 columns or more), not a narrow one', () => {
-    expect(show().el.querySelector('table.is-zebra')).toBeNull();
+  it('stripes every table\'s rows, narrow or wide', () => {
+    expect(show().el.querySelector('table.is-zebra')).not.toBeNull();
     const wide = makeSheet(45, 'Wide', Array.from({ length: 12 }, (_, at) => col(`w${at}`, `W${at}`)), [{ w0: '1' }]);
     const fixture = TestBed.createComponent(SheetTable);
     fixture.componentRef.setInput('sheet', wide);
@@ -217,5 +222,69 @@ describe('SheetTable: boxes and groups that fold', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('shows a table of a few dozen columns plainly: every column, its group names as text, no open and close', () => {
+    foldLimit.columns = 60;
+    const nursery = makeSheet(46, 'Nursery Progress', [col('id', 'ID'), col('b', 'Batch number', { group: 'Batch' }), col('v', 'Variety name', { group: 'Batch' }), col('t', 'Total number', { group: 'Seedlings' }), col('h', 'Healthy number', { group: 'Seedlings' }), col('s', 'Supply date', { group: 'Supply' })], [{ id: '1', b: 'B1', v: 'VN', t: '5', h: '4', s: '2026-07-01' }]);
+    // What an older version kept as folded does not hide anything now.
+    localStorage.setItem('ukmac.folded.46', JSON.stringify(['group:Batch\u0000']));
+    const fixture = TestBed.createComponent(SheetTable);
+    fixture.componentRef.setInput('sheet', nursery);
+    fixture.componentRef.setInput('rows', nursery.rows);
+    fixture.componentRef.setInput('formulas', new WorkbookFormulas([nursery], '2026-11-07'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.fold')).toBeNull();
+    expect(el.querySelector('.bar')).toBeNull();
+    expect([...el.querySelectorAll('th.group')].map((th) => th.textContent?.trim())).toEqual(['', 'Batch', 'Seedlings', 'Supply']);
+    expect(el.querySelectorAll('tbody tr:first-child td').length).toBe(6);
+  });
+});
+
+describe('SheetTable: a plain table has no group band', () => {
+  const progress = makeSheet(
+    4,
+    'Plant Progress',
+    [col('a', 'ID'), col('b', 'Zone plot'), col('c', 'Plant count', { group: 'Total chili plants planted' }), col('d', 'Replant count', { group: 'Replanting plants' })],
+    [{ a: '1', b: 'A1', c: '10', d: '2' }],
+    'zone-records',
+  );
+
+  it('takes the groups off Plant Progress only, its data as it was', () => {
+    expect(plainSheet(progress).columns.some((column) => column.group || column.box)).toBe(false);
+    expect(plainSheet(progress).rows).toBe(progress.rows);
+    expect(plainSheet(sheet)).toBe(sheet);
+  });
+
+  it('draws one row of column names, with no band and no group lines', () => {
+    localStorage.clear();
+    HTMLElement.prototype.scrollTo = () => {};
+    const fixture = TestBed.createComponent(SheetTable);
+    fixture.componentRef.setInput('sheet', progress);
+    fixture.componentRef.setInput('rows', progress.rows);
+    fixture.componentRef.setInput('formulas', new WorkbookFormulas([progress], '2026-11-07'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('thead tr').length).toBe(1);
+    expect([...el.querySelectorAll('thead th')].map((th) => th.textContent?.trim())).toEqual(['ID', 'Zone plot', 'Plant count', 'Replant count']);
+    expect(el.querySelector('table.is-grouped')).toBeNull();
+    expect(el.querySelector('.jump')).toBeNull();
+  });
+
+  it('freezes the ID and the first group of a table that does not fold, and draws no line between groups', () => {
+    foldLimit.columns = 60;
+    const nursery = makeSheet(47, 'Nursery Progress', [col('id', 'ID'), col('b', 'Batch number', { group: 'Batch' }), col('v', 'Variety name', { group: 'Batch' }), col('t', 'Total number', { group: 'Seedlings' }), col('h', 'Healthy number', { group: 'Seedlings' })], [{ id: '1', b: 'B1', v: 'VN', t: '5', h: '4' }]);
+    const fixture = TestBed.createComponent(SheetTable);
+    fixture.componentRef.setInput('sheet', nursery);
+    fixture.componentRef.setInput('rows', nursery.rows);
+    fixture.componentRef.setInput('formulas', new WorkbookFormulas([nursery], '2026-11-07'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    // ID, Batch number and Variety name are frozen: in the names row, in the body, and the group name over them.
+    expect([...el.querySelectorAll('thead tr:last-child th')].map((th) => th.classList.contains('pin'))).toEqual([true, true, true, false, false]);
+    expect([...el.querySelectorAll('tbody tr:first-child td')].map((td) => td.classList.contains('pin'))).toEqual([true, true, true, false, false]);
+    expect([...el.querySelectorAll('th.group.pin')].map((th) => th.textContent?.trim())).toEqual(['', 'Batch']);
+    expect(el.querySelector('table')!.classList).toContain('is-plain');
   });
 });

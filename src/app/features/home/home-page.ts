@@ -31,7 +31,7 @@ import { baseName } from '@core/paths';
         </div>
         <div class="hero-actions">
           <app-update-button />
-          <a class="btn btn-plain" routerLink="/settings"><app-icon name="chart" [size]="15" /> Power BI &amp; backup</a>
+          <a class="btn btn-plain" routerLink="/settings" title="The look of the app, Google account, Power BI file, backup and updates"><app-icon name="settings" [size]="15" /> Settings</a>
         </div>
       </header>
 

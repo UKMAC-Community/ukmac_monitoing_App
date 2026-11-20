@@ -52,7 +52,7 @@ interface CardView {
   imports: [CountUp, Icon, KpiChart, Pager, SegmentedThumb, Spark],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="canvas" [class.flat]="!selectable()" [class.studio]="selectable()">
+    <div class="canvas" [class.flat]="!selectable()" [class.studio]="selectable()" [class.print]="print()">
       @if (part() !== 'summaries' && cards().length) {
         <div class="cards" [class.tiled]="spans().length > 0">
           @for (card of cards(); track card.kpi.id; let i = $index) {
@@ -79,7 +79,11 @@ interface CardView {
                   } @else if (card.arrow === 'down') {
                     <app-icon name="arrow-down" [size]="22" />
                   }
-                  <span [appCountUp]="card.value"></span>
+                  @if (print()) {
+                    <span>{{ card.value }}</span>
+                  } @else {
+                    <span [appCountUp]="card.value"></span>
+                  }
                 </p>
                 <p class="foot" [class.gone]="card.gone" [attr.title]="card.foot + (card.delta ? ' ' + card.delta : '')">
                   <span class="foot-text">{{ card.foot }}</span>
@@ -124,7 +128,7 @@ interface CardView {
               } @else {
                 <div class="chart-row">
                   <div class="chart-main">
-                    <app-kpi-chart [points]="chart.points" [series]="chart.series" [visual]="chart.kpi.visual" [timeline]="!!chart.kpi.timeline" [totalLine]="!!chart.kpi.totalLine" [zoneColours]="!!chart.kpi.zoneColours" [decimals]="chart.kpi.decimals" [label]="kpiTitle(chart.kpi)" [value]="chart.value" [goal]="chart.kpi.goal" [pickable]="!selectable() && chart.kpi.visual !== 'gauge'" [selected]="lit(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart)" (groupClick)="clickGroup(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart, $event)" />
+                    <app-kpi-chart [points]="chart.points" [series]="chart.series" [visual]="chart.kpi.visual" [timeline]="!!chart.kpi.timeline" [fit]="print()" [totalLine]="!!chart.kpi.totalLine" [zoneColours]="!!chart.kpi.zoneColours" [decimals]="chart.kpi.decimals" [label]="kpiTitle(chart.kpi)" [value]="chart.value" [goal]="chart.kpi.goal" [pickable]="!selectable() && chart.kpi.visual !== 'gauge'" [selected]="lit(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart)" (groupClick)="clickGroup(chart.kpi.id, chart.kpi.groupBy, chart.kpi.groupPart, $event)" />
                   </div>
                 </div>
               }
@@ -260,6 +264,13 @@ interface CardView {
     }
     :host { display: flex; flex-direction: column; flex: 1; min-height: 0; }
     .canvas { flex: 1; min-height: 0; overflow: auto; background: #f3f2f1; padding: 18px 20px 28px; display: flex; flex-direction: column; gap: 14px; }
+    /* On an A4 page (the report export): on the paper as it is, nothing moving, every number as it lands. */
+    .canvas.print { flex: none; overflow: visible; background: transparent; padding: 0; }
+    .canvas.print .tile { animation: none; }
+    /* Every card on one line where they fit, and no switch (the page shows the chart as it opens). */
+    .canvas.print .cards:not(.tiled) { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .canvas.print .kpi-card .big { font-size: min(36px, 14cqi); }
+    .canvas.print .tile header .segmented { display: none; }
     .canvas.flat { flex: none; overflow: visible; padding: 0; background: transparent; }
     .canvas.studio { background: transparent; overflow: visible; flex: none; padding: 0; }
     .tile {
@@ -355,6 +366,8 @@ export class SheetDashboard {
   /** What a click on a group (a bar, a slice, a table row) keeps in the other visuals; shared by the board's parts. */
   readonly filter = input<CrossFilter | null>(null);
   readonly filterChange = output<CrossFilter | null>();
+  /** Drawn on an A4 page of the report export: its numbers as they are (no counting up), nothing moving, every summary and all its rows. */
+  readonly print = input(false);
 
   /** Each summary table's page and rows per page. */
   private readonly summaryPaging = signal<Readonly<Record<string, { page: number; size: number }>>>({});
@@ -466,7 +479,7 @@ export class SheetDashboard {
   private readonly summaryPicked = signal(0);
 
   /** On the page the tables share one tile with a switch between them; Edit dashboard lists each to pick it. */
-  readonly switchable = computed(() => !this.selectable() && this.part() !== 'top' && this.summaries().length > 1);
+  readonly switchable = computed(() => !this.selectable() && !this.print() && this.part() !== 'top' && this.summaries().length > 1);
 
   readonly shownSummaries = computed(() => {
     if (this.part() === 'top') return [];
@@ -540,6 +553,7 @@ export class SheetDashboard {
   }
 
   pageRows<T>(id: string, rows: readonly T[]): T[] {
+    if (this.print()) return [...rows];
     const { page, size } = this.paging(id);
     return pageSlice(rows, page, size);
   }

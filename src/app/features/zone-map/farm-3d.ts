@@ -28,6 +28,7 @@ const STAGE_WORDS: Record<BedState, string> = { harvest: 'Harvest', planting: 'P
   imports: [Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
+  host: { '[class.f3-expanded]': 'expanded()', '(document:keydown.escape)': 'expanded.set(false)' },
   template: `
     <div class="f3-box" #box role="img" aria-label="The farm in 3D: every zone a field of beds"></div>
     <div class="f3-tags" #tags aria-hidden="true"></div>
@@ -36,14 +37,32 @@ const STAGE_WORDS: Record<BedState, string> = { harvest: 'Harvest', planting: 'P
         <strong>{{ tip.name }}</strong><span>{{ tip.stage }}</span>
       </div>
     }
-    @if (filters().length) {
-      <!-- Which plots show, at the top's right: the same white pill as the satellite map's, the pick in the accent. -->
-      <div class="f3-filter" role="group" aria-label="Which plots to show">
-        @for (item of filters(); track item.value) {
-          <button type="button" [class.on]="filter() === item.value" [title]="item.title ?? ''" [attr.aria-pressed]="filter() === item.value" (click)="filterChange.emit(item.value)">{{ item.label }} <small>{{ item.count }}</small></button>
-        }
+    <!-- At the top's right, as on the satellite map: which plots show, then the camera bar (Top · 3D · Farm), Farm being this view. -->
+    <div class="f3-top">
+      @if (filters().length) {
+        <div class="f3-filter" role="group" aria-label="Which plots to show">
+          @for (item of filters(); track item.value) {
+            <button type="button" [class.on]="filter() === item.value" [title]="item.title ?? ''" [attr.aria-pressed]="filter() === item.value" (click)="filterChange.emit(item.value)">{{ item.label }} <small>{{ item.count }}</small></button>
+          }
+        </div>
+      }
+      <div class="f3-filter" role="group" aria-label="Camera">
+        <button type="button" (click)="leave.emit(false)"><app-icon name="grid" [size]="13" /> Top</button>
+        <button type="button" (click)="leave.emit(true)"><app-icon name="cube" [size]="13" /> 3D</button>
+        <button type="button" class="on" aria-pressed="true"><app-icon name="sprout" [size]="13" /> Farm</button>
+        <span class="f3-sep"></span>
+        <button
+          type="button"
+          [class.on]="touring()"
+          [attr.aria-pressed]="touring()"
+          [disabled]="still"
+          [title]="still ? 'Off: your Mac is set to reduce motion' : touring() ? 'Stop the tour' : 'Play the tour: the camera goes round the farm'"
+          (click)="toggleTour()"
+        ><app-icon [name]="touring() ? 'pause' : 'play'" [size]="13" /> {{ touring() ? 'Stop' : 'Tour' }}</button>
+        <span class="f3-sep"></span>
+        <button type="button" (click)="expanded.set(!expanded())" [attr.aria-label]="expanded() ? 'Close the big farm' : 'Open the farm bigger'"><app-icon [name]="expanded() ? 'x' : 'expand'" [size]="13" /> {{ expanded() ? 'Close' : 'Open' }}</button>
       </div>
-    }
+    </div>
     <div class="f3-legend" aria-label="What the colours mean">
       @for (entry of legend; track entry.label) {
         <span><i [style.background]="entry.fill" [style.border-color]="entry.stroke"></i>{{ entry.label }}</span>
@@ -62,6 +81,8 @@ const STAGE_WORDS: Record<BedState, string> = { harvest: 'Harvest', planting: 'P
   `,
   styles: `
     app-farm-3d { display: block; position: relative; overflow: hidden; background: #a8d484; }
+    /* Over the whole window (the page's own rule for it sits inside the map, so this one is stronger). */
+    :root:root app-farm-3d.f3-expanded.f3-expanded { position: fixed; inset: 0; z-index: 100; }
     .f3-box { position: absolute; inset: 0; }
     .f3-tags { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
     /* A zone block's name, as the web's: white, its section's colour round the edge and in its dot and text. */
@@ -74,8 +95,10 @@ const STAGE_WORDS: Record<BedState, string> = { harvest: 'Harvest', planting: 'P
     .f3-tools button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.8125rem; font-weight: 500; cursor: pointer; }
     .f3-tools button:hover { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
     .f3-tools button.f3-icon { padding: 5px 8px; }
-    .f3-filter { position: absolute; z-index: 5; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 2px; padding: 3px; background: var(--surface-solid); border: var(--hairline) solid var(--border); border-radius: 999px; box-shadow: var(--shadow-card); }
+    .f3-top { position: absolute; z-index: 5; top: 12px; right: 12px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; max-width: calc(100% - 24px); }
+    .f3-filter { display: inline-flex; align-items: center; gap: 2px; padding: 3px; background: var(--surface-solid); border: var(--hairline) solid var(--border); border-radius: 999px; box-shadow: var(--shadow-card); }
     .f3-filter button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.8125rem; font-weight: 500; cursor: pointer; }
+    .f3-filter button:disabled { opacity: 0.45; cursor: default; }
     .f3-filter button:hover:not(.on) { background: var(--surface-hover, #f2f2f4); color: var(--text, #1d1d1f); }
     .f3-filter button.on { background: var(--accent); color: #fff; }
     .f3-filter small { margin-left: 4px; font-size: 0.6875rem; font-weight: 500; opacity: 0.7; }
@@ -96,6 +119,8 @@ export class Farm3d {
   readonly filters = input<{ value: string; label: string; count: number; title?: string }[]>([]);
   readonly filter = input('');
   readonly filterChange = output<string>();
+  /** Top or 3D picked in the camera bar: back to the satellite map, from above (false) or in 3D (true). */
+  readonly leave = output<boolean>();
   readonly picked = output<string>();
   readonly cleared = output<void>();
 
@@ -106,6 +131,11 @@ export class Farm3d {
   private cells = new Map<string, ZoneCell>();
 
   readonly legend = FARM_LEGEND;
+  /** The tour (the camera going round the farm) is playing; the farm opened bigger over the page. */
+  readonly touring = signal(false);
+  readonly expanded = signal(false);
+  /** The Mac is set to reduce motion: no tour. */
+  readonly still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
   private readonly zoom = signal(1);
   readonly percent = computed(() => Math.round(this.zoom() * 100));
   readonly tip = signal<{ name: string; stage: string; x: number; y: number } | null>(null);
@@ -117,6 +147,7 @@ export class Farm3d {
         onHover: (id, x, y) => this.hover(id, x, y),
         onPick: (id) => (id ? this.picked.emit(id) : this.cleared.emit()),
         onZoom: (k) => this.zoom.set(k),
+        onTourEnd: () => this.touring.set(false),
       });
       this.ready.set(true);
     });
@@ -134,6 +165,12 @@ export class Farm3d {
       this.engine?.dispose();
       this.engine = null;
     });
+  }
+
+  toggleTour() {
+    const on = !this.touring();
+    this.touring.set(on);
+    this.engine?.tour(on);
   }
 
   run(command: 'zoomIn' | 'zoomOut' | 'fit' | 'turnLeft' | 'turnRight') {

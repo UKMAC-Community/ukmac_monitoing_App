@@ -1,3 +1,33 @@
+@if (theme.style() === 'soft' && !gated()) {
+  <!-- The Soft theme's frosted icon rail, down the window's left edge on every page: the main places, the settings and, beside a sidebar, its fold. -->
+  <nav class="soft-rail" aria-label="Main places">
+    <a class="rail-btn" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" title="All MACs" aria-label="All MACs"><app-icon name="building" [size]="19" /></a>
+    @if (!inMac() && macs.macs().length) {
+      <span class="rail-rule"></span>
+      <!-- Home and Settings: each MAC, by its first letter, one click from its dashboard. -->
+      @for (mac of macs.macs(); track mac.macId) {
+        <a class="rail-btn rail-mac" [routerLink]="['/mac', mac.macId]" [title]="mac.macName + ' · ' + mac.macCode" [attr.aria-label]="mac.macName">{{ initial(mac.macName) }}</a>
+      }
+    }
+    @if (openMacId(); as macId) {
+      <span class="rail-rule"></span>
+      <a class="rail-btn" [routerLink]="['/mac', macId]" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" title="Dashboard" aria-label="Dashboard"><app-icon name="grid" [size]="19" /></a>
+      <a class="rail-btn" [routerLink]="['/mac', macId, 'data-check']" routerLinkActive="active" title="Data Check" aria-label="Data Check">
+        <app-icon name="clipboard" [size]="19" />
+        @if (dataToFill()) {
+          <span class="rail-dot"></span>
+        }
+      </a>
+      <a class="rail-btn" [routerLink]="['/mac', macId, 'weather']" routerLinkActive="active" title="Weather" aria-label="Weather"><app-icon name="cloud-sun" [size]="19" /></a>
+      <a class="rail-btn" [routerLink]="['/mac', macId, 'zone-map']" routerLinkActive="active" title="Zone Map" aria-label="Zone Map"><app-icon name="pin" [size]="19" /></a>
+    }
+    <span class="grow"></span>
+    <a class="rail-btn" routerLink="/settings" routerLinkActive="active" title="Settings" aria-label="Settings"><app-icon name="settings" [size]="19" /></a>
+    @if (!onHome()) {
+      <button type="button" class="rail-btn" [title]="shell.collapsed() ? 'Open the sidebar' : 'Fold the sidebar'" [attr.aria-label]="shell.collapsed() ? 'Open the sidebar' : 'Fold the sidebar'" (click)="shell.toggle()"><app-icon name="panel-left" [size]="19" /></button>
+    }
+  </nav>
+}
 @if (!onHome() && !gated()) {
 <aside class="sidebar rail-scroll" [class.is-collapsed]="shell.collapsed()">
   <div class="sidebar-header">
@@ -241,8 +271,8 @@
           <app-icon name="edit" [size]="12" class="google-chip-edit" />
         </button>
       }
-      @if (onTable()) {
-        <button type="button" class="btn btn-secondary btn-sm" title="Which column of the Google Sheet fills which column of this table" (click)="google.connectionsRequest.update(n => n + 1)">
+      @if (onTable() || zoneMapZones()) {
+        <button type="button" class="btn btn-secondary btn-sm" title="Which column of the Google Sheet fills which column of this table" (click)="columns()">
           <app-icon name="columns" /> Columns
         </button>
       }

@@ -129,3 +129,47 @@ export function columnRecords(sheet: SheetWithRows, key: string): ColumnRecords 
   });
   return out;
 }
+
+/** One record with something missing: what to know it by, and which values it lacks. */
+export interface RecordGap {
+  rowId: number;
+  /** Its place in the table (1 = the first row). */
+  number: number;
+  /** What it is: the first two things that name it ("Batch 3 · Chili Red"). */
+  label: string;
+  /** The columns with nothing on it, in the table's order, each with its unit. */
+  missing: string[];
+  /** The same columns by key. */
+  missingKeys: string[];
+}
+
+/**
+ * Every record that lacks something, with what it lacks: the other side of the column board, for a checker who goes record by record
+ * ("Batch 3 · Chili Red: Min height (%), Max height (%)"). A record is named by its required and link columns first (the batch, the plot),
+ * then the worked-out ones (the variety a batch looks up), then the rest. `text` says what a cell reads (a formula's worked-out value
+ * needs the workbook); by default a typed-in cell as the table shows it, a formula nothing.
+ */
+export function recordGaps(sheet: SheetWithRows, text: (column: Column, row: SheetWithRows['rows'][number]) => string = (column, row) => (column.type === 'formula' ? '' : displayCell(column, row.data[column.key] ?? '').trim())): RecordGap[] {
+  const lacking = tableGaps(sheet).columns.filter((column) => column.missing > 0).map((column) => column.key);
+  if (!lacking.length) return [];
+  const gapColumns = sheet.columns.filter((column) => lacking.includes(column.key));
+  const nameable = sheet.columns.filter((column) => !isRemarkColumn(column) && column.type !== 'yesno' && !lacking.includes(column.key) && (column.type === 'formula' || isEntryColumn(column)));
+  const known = [
+    ...nameable.filter((column) => column.type !== 'formula' && (column.required || column.type === 'link')),
+    ...nameable.filter((column) => column.type === 'formula'),
+    ...nameable.filter((column) => column.type !== 'formula' && !column.required && column.type !== 'link'),
+  ];
+  const out: RecordGap[] = [];
+  sheet.rows.forEach((row, index) => {
+    const lacks = gapColumns.filter((column) => blank(row.data[column.key]));
+    if (!lacks.length) return;
+    const missing = lacks.map((column) => columnLabel(column));
+    const label = known
+      .map((column) => text(column, row))
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' · ');
+    out.push({ rowId: row.rowId, number: index + 1, label, missing, missingKeys: lacks.map((column) => column.key) });
+  });
+  return out;
+}

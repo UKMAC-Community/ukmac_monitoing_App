@@ -1,6 +1,6 @@
 import type { Column } from '@core/models';
 import { makeSheet } from '@shared/testing/test-helpers';
-import { buildJourney } from './plot-journey';
+import { buildJourney, foldHarvests, type JourneyEvent } from './plot-journey';
 
 const col = (key: string, name: string, extra: Partial<Column> = {}): Column => ({ key, name, type: 'text', ...extra });
 
@@ -26,6 +26,34 @@ const harvest = makeSheet(
   'harvest',
 );
 const irrigation = makeSheet(6, 'Irrigation', [col('a', 'ID', { type: 'number' }), col('b', 'Date', { type: 'date' }), col('c', 'Zone', { type: 'link' }), col('d', 'Note')], [{ a: '1', b: '2026-07-10', c: 'B12', d: 'Drip, 2 h' }], 'irrigation');
+
+describe('a harvest says both its ripe and unripe yield', () => {
+  const split = makeSheet(
+    11,
+    'Harvest',
+    [
+      col('a', 'Zone plot', { type: 'link' }),
+      col('b', 'Date harvest', { type: 'date' }),
+      col('c', 'Chili type'),
+      col('d', 'Harvest yield', { type: 'number' }),
+      col('e', 'Ripe yield', { type: 'formula', formula: '=IF([Chili type]="ripe",[Harvest yield],"")' }),
+      col('f', 'Unripe yield', { type: 'formula', formula: '=IF([Chili type]="unripe",[Harvest yield],"")' }),
+    ],
+    [
+      { a: 'B12', b: '2027-02-11', c: 'ripe', d: '88.8' },
+      { a: 'B12', b: '2027-02-12', c: 'unripe', d: '20.6' },
+    ],
+    'harvest',
+  );
+
+  it('puts null where the type has no yield', () => {
+    const [ripe, unripe] = buildJourney('B12', [split]).events;
+    expect(ripe.facts).toContainEqual({ name: 'Ripe yield', value: '88.8' });
+    expect(ripe.facts).toContainEqual({ name: 'Unripe yield', value: 'null' });
+    expect(unripe.facts).toContainEqual({ name: 'Ripe yield', value: 'null' });
+    expect(unripe.facts).toContainEqual({ name: 'Unripe yield', value: '20.6' });
+  });
+});
 
 describe('a plot from planting to harvest', () => {
   const journey = buildJourney('B12', [progress, harvest, irrigation]);
@@ -68,5 +96,43 @@ describe('a plot from planting to harvest', () => {
     expect(none.events).toEqual([]);
     expect(none.planted).toBe('');
     expect(buildJourney('B12', []).events).toEqual([]);
+  });
+});
+
+describe('a plot picked many times', () => {
+  const event = (kind: JourneyEvent['kind'], date: string): JourneyEvent => ({ kind, label: kind, icon: '', date, facts: [] });
+  const events = [
+    event('progress', '2026-07-01'),
+    event('harvest', '2026-09-01'),
+    event('harvest', '2026-09-10'),
+    event('pruning', '2026-09-12'),
+    event('harvest', '2026-09-20'),
+    event('harvest', '2026-10-01'),
+    event('harvest', '2026-10-10'),
+    event('harvest', '2026-10-20'),
+  ];
+  const shown = (items: ReturnType<typeof foldHarvests>) => items.map((item) => (item.event ? `${item.event.kind} ${item.event.date}` : `fold ${item.fold!.count}${item.fold!.open ? ' open' : ''}`));
+
+  it('shows its first harvest and its last two, the ones between folded away where they were', () => {
+    expect(shown(foldHarvests(events, false))).toEqual(['progress 2026-07-01', 'harvest 2026-09-01', 'fold 3', 'pruning 2026-09-12', 'harvest 2026-10-10', 'harvest 2026-10-20']);
+  });
+
+  it('shows them all when asked, with the way back where they were folded', () => {
+    expect(shown(foldHarvests(events, true))).toEqual([
+      'progress 2026-07-01',
+      'harvest 2026-09-01',
+      'fold 3 open',
+      'harvest 2026-09-10',
+      'pruning 2026-09-12',
+      'harvest 2026-09-20',
+      'harvest 2026-10-01',
+      'harvest 2026-10-10',
+      'harvest 2026-10-20',
+    ]);
+  });
+
+  it('folds nothing for three harvests or fewer', () => {
+    const few = events.slice(0, 5);
+    expect(shown(foldHarvests(few, false))).toEqual(few.map((item) => `${item.kind} ${item.date}`));
   });
 });

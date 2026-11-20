@@ -33,6 +33,8 @@ pub fn add_rows(
             if info.mode == "replace" {
                 tx.execute("DELETE FROM sheet_rows WHERE sheet_id = ?1", [sheet_id])
                     .map_err(err)?;
+                // The rows put back are numbered from 1 again (db/ids.rs), not after the ones just taken out.
+                crate::db::ids::restart(&tx, sheet_id).map_err(err)?;
             }
             tx.execute(
                 "INSERT INTO imports (sheet_id, file_name, mode, row_count) VALUES (?1, ?2, ?3, ?4)",

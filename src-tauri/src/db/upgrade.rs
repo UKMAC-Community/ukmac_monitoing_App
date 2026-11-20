@@ -39,6 +39,10 @@ const STEPS: &[&[&str]] = &[
     // tabs column by column (0.1.13 gave them Date, Zone and Note only); Fertilizer's `applied` (TRUE/FALSE) is Fertigation's
     // Applied, not its Date; Pruning's Plants answers to "Plants Eligible for Pruning", as the tab names it now.
     &["fertigation", "pruning", "pesticides"],
+    // 2: Plant Progress has the farm sheet's two-line header: Plant count under "Total chili plants planted", the replant date and
+    // count under "Replanting plants", Dead plant under "Plant dead after planting". The columns keep their keys and values
+    // (a column of the table that the template now has in a group is that column).
+    &["zone-records"],
 ];
 
 pub fn run(conn: &mut Connection) -> rusqlite::Result<()> {
@@ -506,6 +510,50 @@ mod tests {
     }
 
     #[test]
+    fn plant_progress_gets_the_farm_sheet_s_header_groups_and_keeps_its_columns_and_values() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        db::migrate_for_tests(&mut conn);
+        conn.execute("INSERT INTO macs (mac_uuid, mac_name, mac_code) VALUES ('u', 'Pursat', 'MAC-001')", []).unwrap();
+        let mut list = vec![
+            column("c13", "ID", "number"),
+            column("c1", "Zone plot", "link"),
+            column("c2", "Record date", "date"),
+            column("c4", "Plant count", "number"),
+            column("c8", "Replant date", "date"),
+            column("c9", "Replant count", "number"),
+            column("c10", "Dead plant", "number"),
+            column("c7", "Status", "text"),
+        ];
+        list[0]["auto"] = Value::Bool(true);
+        list[1]["source"] = Value::String("'Zones'[Plot]".into());
+        add_table(&conn, 4, "Plant Progress", "zone-records", Value::Array(list), 14);
+        add_rows(&conn, 4, &[serde_json::json!({ "c13": "1", "c1": "A1", "c2": "2026-06-08", "c4": "1615", "c8": "2026-06-19", "c9": "53", "c10": "73", "c7": "Cycle complete" })]);
+        add_link(
+            &conn,
+            4,
+            "Plant Progress",
+            serde_json::json!({ "planting date": "c2", "total chili plants planted › number": "c4", "replanting plants › date": "c8", "replanting plants › plant no": "c9" }),
+        );
+        let before = header_map(&conn, 4);
+
+        run(&mut conn).unwrap();
+
+        let columns = columns_of(&conn, 4);
+        let group_of = |name: &str| columns.iter().find(|column| column.name == name).unwrap().group.clone();
+        assert_eq!(group_of("Plant count").as_deref(), Some("Total chili plants planted"));
+        assert_eq!(group_of("Replant date").as_deref(), Some("Replanting plants"));
+        assert_eq!(group_of("Replant count").as_deref(), Some("Replanting plants"));
+        assert_eq!(group_of("Dead plant").as_deref(), Some("Plant dead after planting"));
+        assert_eq!(group_of("Status"), None);
+        // The same columns: keys, values and the Google link's headers are as they were, and nothing was added.
+        assert_eq!(key_of(&conn, 4, "Plant count"), "c4");
+        assert_eq!(key_of(&conn, 4, "Replant count"), "c9");
+        assert_eq!(cells(&conn, 4)[0].get("c9").and_then(Value::as_str), Some("53"));
+        assert_eq!(header_map(&conn, 4), before);
+        assert!(columns.iter().filter(|column| column.name == "Plant count").count() == 1);
+    }
+
+    #[test]
     fn a_pruning_table_synced_by_0_1_13_keeps_its_values_under_the_template_s_columns() {
         let mut conn = as_0_1_13_left_it();
         run(&mut conn).unwrap();
@@ -571,7 +619,7 @@ mod tests {
     fn it_runs_once() {
         let mut conn = as_0_1_13_left_it();
         run(&mut conn).unwrap();
-        assert_eq!(setting(&conn, STEP_KEY).as_deref(), Some("1"));
+        assert_eq!(setting(&conn, STEP_KEY).as_deref(), Some(&*STEPS.len().to_string()));
         // A column the person takes off afterwards stays off.
         let mut columns = columns_of(&conn, 7);
         columns.retain(|column| column.name != "Quantity");
@@ -678,7 +726,7 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         db::migrate_for_tests(&mut conn);
         run(&mut conn).unwrap();
-        assert_eq!(setting(&conn, STEP_KEY).as_deref(), Some("1"));
+        assert_eq!(setting(&conn, STEP_KEY).as_deref(), Some(&*STEPS.len().to_string()));
         assert_eq!(setting(&conn, RESYNC_KEY), None);
     }
 

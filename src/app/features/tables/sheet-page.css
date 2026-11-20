@@ -192,11 +192,64 @@
   flex-direction: column;
 }
 
+/* The QA/QC map fills the screen: a button at the bottom of it goes down to the zone status and the table. It says what it is, then, unused,
+   shrinks to a small round one; hover or focus opens it again. Zero height and sticky, so it stays at the bottom of what is on screen. */
+.go-down-wrap {
+  position: sticky;
+  bottom: 20px;
+  z-index: 5;
+  flex: none;
+  height: 0;
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+}
+.go-down {
+  position: absolute;
+  /* Lower than the line it hangs from: it sits across the map's bottom edge, 4px above the window's when the map is taller than it. */
+  bottom: -16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: var(--hairline) solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md, 0 6px 18px rgba(0, 0, 0, 0.18));
+  cursor: pointer;
+  pointer-events: auto;
+}
+.go-down app-icon { flex: none; display: inline-flex; color: var(--accent); }
+.go-label { overflow: hidden; white-space: nowrap; max-width: 14rem; }
+.go-down:hover { background: color-mix(in srgb, var(--text) 7%, var(--surface-solid)); }
+@media (prefers-reduced-motion: no-preference) {
+  .go-down { animation: go-down-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both, go-down-pad 400ms ease 6s forwards; }
+  .go-down app-icon { animation: go-down-bob 1.6s ease-in-out 0.8s infinite; }
+  .go-down:hover app-icon, .go-down:focus-visible app-icon { animation: none; }
+  .go-label { animation: go-down-label 400ms ease 6s forwards; }
+  .go-down:hover, .go-down:focus-visible { animation: none; padding: 0 14px; opacity: 1; }
+  .go-down:hover .go-label, .go-down:focus-visible .go-label { animation: none; max-width: 14rem; opacity: 1; }
+}
+@keyframes go-down-in { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes go-down-bob { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(3px); } }
+@keyframes go-down-label { to { max-width: 0; opacity: 0; } }
+@keyframes go-down-pad { to { padding: 0 11px; gap: 0; opacity: 0.85; } }
+
 /* Each table's page eases in as it opens, from the menu or from another table. */
 @media (prefers-reduced-motion: no-preference) {
   .page-in {
     animation: fade 240ms var(--ease) backwards;
   }
+}
+
+.kpi-panel.folded {
+  display: none;
 }
 
 .kpi-panel {
@@ -216,20 +269,8 @@
   padding: 0;
 }
 
-.panel-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.kpi-panel.folded .panel-head {
-  margin-bottom: 0;
-}
-
-.panel-note {
-  font-size: 0.75rem;
-  color: var(--text-muted);
+.filter-note {
+  margin: 14px 20px 0;
 }
 
 /* The sheet: the window's height once scrolled to it, so its own rows scroll inside. */

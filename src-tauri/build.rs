@@ -47,5 +47,9 @@ fn main() {
             println!("cargo:warning=the Google client still has the example values or an empty one: no Google client is built in");
         }
     }
+    // What the native side of this build is, for UI-only updates (written by scripts/ui-manifest.mjs before every build).
+    println!("cargo:rerun-if-changed=native-fingerprint.txt");
+    let native = std::fs::read_to_string("native-fingerprint.txt").map(|text| text.trim().to_string()).unwrap_or_default();
+    println!("cargo:rustc-env=UKMAC_NATIVE_FINGERPRINT={}", if native.is_empty() { "unknown" } else { native.as_str() });
     tauri_build::build()
 }

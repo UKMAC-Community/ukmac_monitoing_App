@@ -13,6 +13,12 @@ import { Toasts } from '../toast';
 import { WorkbookStore } from '../workbook-store';
 
 /** What a read of a Google Sheet's tab into its table did. */
+/** One Google Sheet downloaded for several tables, and its tabs as each way of reading them found them (a tab's own layout, or plain). */
+interface SharedDownload {
+  bytes: Promise<ArrayBuffer>;
+  opened: Map<string, Promise<ExcelSheetData[]>>;
+}
+
 export interface SyncOutcome {
   rows: number;
   /** Names of the columns that were added because the tab had new headers. */
@@ -54,6 +60,8 @@ export class Google {
   readonly editLinkRequest = signal(0);
   /** Bumped by the top bar's Columns button: the open table page then shows how the Google Sheet's columns fill its own. */
   readonly connectionsRequest = signal(0);
+  /** The Zone Map's Columns button: the Zones table (its sheet id) opens on how the Google Sheet's columns fill its own, as soon as its page is up. */
+  readonly pendingConnections = signal<number | null>(null);
   /** Tables being read now (by sheet id). */
   readonly syncing = signal<ReadonlySet<number>>(new Set());
 
@@ -257,10 +265,18 @@ export class Google {
     }
   }
 
-  private async read(link: GoogleLink, shared?: ArrayBuffer): Promise<SyncOutcome> {
-    const bytes = shared ?? (await this.api.googleDownload(link.spreadsheetId));
+  private async read(link: GoogleLink, shared?: SharedDownload): Promise<SyncOutcome> {
+    const bytes = shared ? await shared.bytes : await this.api.googleDownload(link.spreadsheetId);
     // Where the tab's names and data are, if the person said when it was connected; else found as for any tab.
-    const tabs = await readExcelSheets(bytes, link.layout ? { tab: link.tabTitle, layout: link.layout } : undefined);
+    const set = link.layout ? { tab: link.tabTitle, layout: link.layout } : undefined;
+    // Opening the workbook is the slow part: tables read the same way from one download share the opening.
+    const way = set ? `${set.tab.trim().toLowerCase()}\n${JSON.stringify(set.layout)}` : 'plain';
+    let opening = shared?.opened.get(way);
+    if (!opening) {
+      opening = readExcelSheets(bytes, set);
+      shared?.opened.set(way, opening);
+    }
+    const tabs = await opening;
     const same = (name: string) => name.trim().toLowerCase() === link.tabTitle.trim().toLowerCase();
     const data = tabs.find((tab) => tab.name === link.tabTitle) ?? tabs.find((tab) => same(tab.name));
     if (!data) {
@@ -304,12 +320,12 @@ export class Google {
   }
 
   /**
-   * Reads several tables, each Google Sheet downloaded once however many of its tabs are wanted (a MAC whose tables all sit
-   * in one sheet is one download, not one per table). A table that can't be read doesn't stop the others.
+   * Reads several tables, each Google Sheet downloaded and opened once however many of its tabs are wanted (a MAC whose tables
+   * all sit in one sheet is one download, not one per table). A table that can't be read doesn't stop the others.
    */
   async syncMany(sheetIds: number[], onProgress?: (done: number, total: number) => void): Promise<Map<number, SyncOutcome | Error>> {
     const results = new Map<number, SyncOutcome | Error>();
-    const downloads = new Map<string, Promise<ArrayBuffer>>();
+    const downloads = new Map<string, SharedDownload>();
     for (const sheetId of sheetIds) {
       const link = this.linkOf(sheetId);
       if (!link) {
@@ -322,12 +338,13 @@ export class Google {
       }
       this.syncing.update((set) => new Set(set).add(sheetId));
       try {
-        let bytes = downloads.get(link.spreadsheetId);
-        if (!bytes) {
-          bytes = this.api.googleDownload(link.spreadsheetId);
-          downloads.set(link.spreadsheetId, bytes);
+        let shared = downloads.get(link.spreadsheetId);
+        if (!shared) {
+          shared = { bytes: this.api.googleDownload(link.spreadsheetId), opened: new Map() };
+          downloads.set(link.spreadsheetId, shared);
         }
-        results.set(sheetId, await this.guard(async () => this.read(link, await bytes)));
+        const download = shared;
+        results.set(sheetId, await this.guard(async () => this.read(link, download)));
       } catch (error) {
         results.set(sheetId, error instanceof Error ? error : new Error(errorText(error)));
       } finally {

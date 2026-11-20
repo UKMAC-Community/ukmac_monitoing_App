@@ -1,4 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
 
 import { errorText } from './api';
 import { Toasts } from './toast';
@@ -17,6 +18,52 @@ export type UpdateEvent =
   | { event: 'Progress'; data: { chunkLength: number } }
   | { event: 'Finished' };
 
+/** What the app says about a UI-only update (src-tauri/src/services/ui_update.rs). */
+export interface UiLook {
+  /** The version of the screens the window has now. */
+  running: string;
+  /** A newer package of screens that can go in without a restart. */
+  available: { version: string; notes: string } | null;
+  /** The newest release changes more than the screens: only the normal update will do. */
+  needsRestart: boolean;
+}
+
+/** The calls of a UI-only update: new screens for the open window, with no restart. */
+export interface UiBackend {
+  look(): Promise<UiLook>;
+  /** Download, check and keep the newest package of screens. */
+  install(): Promise<string>;
+  /** Give the window the kept screens (then `reload`). */
+  apply(): Promise<string>;
+  /** The screens of this version started. */
+  booted(version: string): Promise<void>;
+  /** The version of the screens running now (the one served with them). */
+  servedVersion(): Promise<string | null>;
+  reload(): void;
+}
+
+const tauriUi: UiBackend = {
+  look: async () => (await import('@tauri-apps/api/core')).invoke<UiLook>('ui_update_look'),
+  install: async () => (await import('@tauri-apps/api/core')).invoke<string>('ui_update_install'),
+  apply: async () => (await import('@tauri-apps/api/core')).invoke<string>('ui_update_apply'),
+  booted: async (version) => (await import('@tauri-apps/api/core')).invoke<void>('ui_booted', { version }),
+  servedVersion: async () => {
+    const response = await fetch('/ukmac-ui.json', { cache: 'no-store' });
+    const found = (await response.json()) as { version?: string };
+    return found.version ?? null;
+  },
+  reload: () => window.location.reload(),
+};
+
+/** `a` is a higher version than `b` (3 numbers; anything else never is). */
+export function isNewerVersion(a: string, b: string): boolean {
+  const parse = (text: string) => text.trim().replace(/^v/, '').split(/[.+-]/).slice(0, 3).map(Number);
+  const [x, y] = [parse(a), parse(b)];
+  if (x.length < 3 || y.length < 3 || [...x, ...y].some(Number.isNaN)) return false;
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
+}
+
 /** The three calls the plugins make, so a test (or the browser) can stand in for them. */
 export interface UpdaterBackend {
   version(): Promise<string>;
@@ -27,6 +74,8 @@ export interface UpdaterBackend {
    * was). Not so on Windows, whose installer closes the app. Left out: no.
    */
   installsQuietly?(): boolean;
+  /** UI-only updates. Left out: none (the browser, most tests). */
+  ui?: UiBackend;
 }
 
 /** The real thing: the Tauri updater and process plugins, loaded only when asked for. */
@@ -35,6 +84,7 @@ export const tauriUpdater: UpdaterBackend = {
   check: async () => (await import('@tauri-apps/plugin-updater')).check(),
   relaunch: async () => (await import('@tauri-apps/plugin-process')).relaunch(),
   installsQuietly: () => /Mac/i.test(navigator.userAgent),
+  ui: tauriUi,
 };
 
 export type UpdateState = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'installed' | 'ready' | 'error';
@@ -47,6 +97,7 @@ export type UpdateState = 'idle' | 'checking' | 'current' | 'available' | 'downl
 @Injectable({ providedIn: 'root' })
 export class AppUpdater {
   private readonly toasts = inject(Toasts);
+  private readonly router = inject(Router);
   /** Replaced by tests. */
   backend: UpdaterBackend = tauriUpdater;
 
@@ -67,11 +118,79 @@ export class AppUpdater {
   readonly busy = computed(() => this.state() === 'checking' || this.state() === 'downloading' || this.state() === 'installed');
   /** A new version is waiting: what the "Update" buttons around the app show. */
   readonly offered = computed(() => this.update() !== null);
+  /** The version of the screens the window has now (it can be newer than the app itself after a UI-only update). */
+  readonly screens = signal<string | null>(null);
+  /** A newer package of screens is kept and waits to be shown: it is loaded at the next page change, or by a click. */
+  readonly screensReady = signal<string | null>(null);
   /** Set by the shell: true while something is being written to the database (an edit, a Google read), so a restart never cuts it off. */
   writing: () => boolean = () => false;
   private started = false;
   /** The version a message was already shown for, so a later look does not repeat it. */
   private told: string | null = null;
+
+  /**
+   * The screens say they started, so the app keeps using them (a package that does not say so within seconds is dropped and the
+   * screens inside the app are used again). Called as the app starts.
+   */
+  async confirmBoot() {
+    const ui = this.backend.ui;
+    if (!ui) return;
+    try {
+      const version = await ui.servedVersion();
+      if (version) {
+        this.screens.set(version);
+        await ui.booted(version);
+      }
+    } catch {
+      // Not the app (the browser), or the screens carry no version: nothing to confirm.
+    }
+  }
+
+  /**
+   * UI-only updates: when the newest release changes only the screens, put them in the open app without a restart. The package is
+   * downloaded and checked by itself; it is shown at the next page change (a reload takes a second), or when asked.
+   */
+  private async lookUi() {
+    const ui = this.backend.ui;
+    if (!ui) return;
+    try {
+      const look = await ui.look();
+      this.screens.set(look.running);
+      if (!look.available || this.screensReady() === look.available.version) return;
+      const version = await ui.install();
+      this.screensReady.set(version);
+      this.toasts.show(`A new look (version ${version}) is ready. It shows at your next page change.`, 'info', { label: 'Show now', run: () => void this.showScreens() }, 12000);
+      this.showOnNextPage();
+    } catch {
+      // No network, nothing published, or not the app: the normal update still works, and the next look tries again.
+    }
+  }
+
+  private waiting = false;
+  private showOnNextPage() {
+    if (this.waiting) return;
+    this.waiting = true;
+    const done = this.router.events.subscribe((event) => {
+      if (event instanceof NavigationEnd && this.screensReady()) {
+        done.unsubscribe();
+        this.waiting = false;
+        void this.showScreens();
+      }
+    });
+  }
+
+  /** Load the kept screens into the window (waits, a few seconds at most, for an edit being saved) and reload it: the app itself keeps running. */
+  async showScreens() {
+    const ui = this.backend.ui;
+    if (!ui || !this.screensReady()) return;
+    try {
+      await this.untilQuiet();
+      await ui.apply();
+      ui.reload();
+    } catch (error) {
+      this.error.set(friendly(errorText(error)));
+    }
+  }
 
   /** The running version, shown on the settings page. */
   async loadVersion() {
@@ -149,8 +268,12 @@ export class AppUpdater {
     this.state.set('checking');
     this.error.set(null);
     try {
-      const found = await this.backend.check();
+      await this.lookUi();
+      let found = await this.backend.check();
       this.lastChecked.set(new Date());
+      // A release whose screens are already here (a UI-only update) is nothing more to install.
+      const have = this.screensReady() ?? this.screens();
+      if (found && have && !isNewerVersion(found.version, have)) found = null;
       // The version already put in place is not offered again while this copy of the app is still the old one.
       if (found && found.version === this.installedVersion()) {
         this.update.set(null);

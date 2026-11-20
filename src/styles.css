@@ -6,6 +6,8 @@
 @import './styles/ukmac/components.css';
 @import './styles/ukmac/shell.css';
 @import './styles/ukmac/motion.css';
+/* The Soft theme: only under [data-style='soft'] (Settings → Theme). */
+@import './styles/soft.css';
 
 /* Tailwind's preflight, which the system's classes are drawn on (it isn't used here otherwise). */
 @layer base {
@@ -321,6 +323,12 @@ label.form-group {
 .data-table td.num,
 .data-table td.cell-num {
   font-variant-numeric: tabular-nums;
+}
+
+/* Every table's rows alternate white and light gray (the tables with their own stripe, the sheet's, say so with is-zebra). */
+:root { --row-stripe: color-mix(in srgb, var(--text) 5%, transparent); }
+.data-table:not(.is-zebra) tbody tr:nth-child(even) td {
+  background-image: linear-gradient(var(--row-stripe), var(--row-stripe));
 }
 
 /* ------------------------------------------------------------- the sheet */

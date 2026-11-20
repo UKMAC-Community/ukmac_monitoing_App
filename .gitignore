@@ -42,3 +42,7 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Written by scripts/ui-manifest.mjs on every build
+/public/ukmac-ui.json
+/src-tauri/native-fingerprint.txt

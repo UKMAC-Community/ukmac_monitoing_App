@@ -1,14 +1,22 @@
 import { effect, Injectable, signal } from '@angular/core';
 
+/** The two looks: 'classic' is the system's frosted glass (what everyone has had); 'soft' is the raised grey panels (styles/soft.css, by `data-style`). */
+export type ThemeStyle = 'classic' | 'soft';
 export type ThemeAccent = 'blue' | 'teal' | 'peach' | 'sage' | 'lavender';
 export type RowHeight = 'compact' | 'default' | 'comfortable';
 export type ColumnSpacing = 'narrow' | 'normal' | 'wide';
 
 export interface ThemePreferences {
+  style: ThemeStyle;
   accent: ThemeAccent;
   rowHeight: RowHeight;
   columnSpacing: ColumnSpacing;
 }
+
+export const STYLES: { value: ThemeStyle; label: string; about: string }[] = [
+  { value: 'classic', label: 'Classic', about: 'Frosted glass over a soft glow: the look the app has always had.' },
+  { value: 'soft', label: 'Soft', about: 'Raised grey panels, a dark icon rail, black buttons.' },
+];
 
 /** Each accent's colour for its swatch (the full palettes, light and dark, are in styles/ukmac/tokens.css, picked by `data-accent`). */
 export const ACCENTS: { value: ThemeAccent; label: string; swatch: string }[] = [
@@ -35,13 +43,14 @@ export const COLUMN_SPACINGS: { value: ColumnSpacing; label: string }[] = [
 export const CELL_PADDING: Record<ColumnSpacing, string> = { narrow: '10px', normal: '16px', wide: '24px' };
 
 export const THEME_KEY = 'ukmac.theme.v2';
-export const THEME_DEFAULTS: ThemePreferences = { accent: 'blue', rowHeight: 'default', columnSpacing: 'normal' };
+export const THEME_DEFAULTS: ThemePreferences = { style: 'classic', accent: 'blue', rowHeight: 'default', columnSpacing: 'normal' };
 
 /** Anything not one of the known choices (a damaged or older value) reads as the default. */
 export function readTheme(raw: string | null): ThemePreferences {
   try {
     const saved = JSON.parse(raw ?? '') as Partial<ThemePreferences>;
     return {
+      style: STYLES.some((item) => item.value === saved?.style) ? saved.style! : THEME_DEFAULTS.style,
       accent: ACCENTS.some((item) => item.value === saved?.accent) ? saved.accent! : THEME_DEFAULTS.accent,
       rowHeight: ROW_HEIGHTS.some((item) => item.value === saved?.rowHeight) ? saved.rowHeight! : THEME_DEFAULTS.rowHeight,
       columnSpacing: COLUMN_SPACINGS.some((item) => item.value === saved?.columnSpacing) ? saved.columnSpacing! : THEME_DEFAULTS.columnSpacing,
@@ -52,12 +61,13 @@ export function readTheme(raw: string | null): ThemePreferences {
 }
 
 /**
- * How the app looks, as the person chose it in Settings → Theme, as the system's settings do: the accent colour
+ * How the app looks, as the person chose it in Settings → Theme, as the system's settings do: the look (Classic or Soft), the accent colour
  * and how tall and how wide a table's rows and cells are. Kept on this computer; applied to the page as
- * `data-accent` and `data-density` on <html> and `--cell-px` (styles/ukmac/tokens.css and components.css do the rest).
+ * `data-style`, `data-accent` and `data-density` on <html> and `--cell-px` (styles/ukmac/tokens.css and components.css do the rest).
  */
 @Injectable({ providedIn: 'root' })
 export class Theme {
+  readonly style = signal<ThemeStyle>(THEME_DEFAULTS.style);
   readonly accent = signal<ThemeAccent>(THEME_DEFAULTS.accent);
   readonly rowHeight = signal<RowHeight>(THEME_DEFAULTS.rowHeight);
   readonly columnSpacing = signal<ColumnSpacing>(THEME_DEFAULTS.columnSpacing);
@@ -70,11 +80,13 @@ export class Theme {
       /* the defaults */
     }
     const prefs = readTheme(saved);
+    this.style.set(prefs.style);
     this.accent.set(prefs.accent);
     this.rowHeight.set(prefs.rowHeight);
     this.columnSpacing.set(prefs.columnSpacing);
     effect(() => {
       const root = document.documentElement;
+      root.dataset['style'] = this.style();
       root.dataset['accent'] = this.accent();
       root.dataset['density'] = this.rowHeight();
       root.style.setProperty('--cell-px', CELL_PADDING[this.columnSpacing()]);
@@ -83,13 +95,14 @@ export class Theme {
 
   /** Changes one or more choices, and keeps them. */
   update(patch: Partial<ThemePreferences>) {
+    if (patch.style) this.style.set(patch.style);
     if (patch.accent) this.accent.set(patch.accent);
     if (patch.rowHeight) this.rowHeight.set(patch.rowHeight);
     if (patch.columnSpacing) this.columnSpacing.set(patch.columnSpacing);
     try {
       localStorage.setItem(
         THEME_KEY,
-        JSON.stringify({ accent: this.accent(), rowHeight: this.rowHeight(), columnSpacing: this.columnSpacing() }),
+        JSON.stringify({ style: this.style(), accent: this.accent(), rowHeight: this.rowHeight(), columnSpacing: this.columnSpacing() }),
       );
     } catch {
       /* kept for this run only */

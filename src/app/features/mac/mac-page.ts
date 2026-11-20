@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
 import { Icon } from '@shared/ui/icon';
@@ -11,12 +11,12 @@ import { ChiliDashboardVersions } from '@features/dashboard/chili-dashboard-vers
 import { ChiliKpiEditor } from '@features/dashboard/chili-kpi-editor';
 import { ChiliKpiStore } from '@features/dashboard/chili-kpi-store';
 import { ChiliVersionStore, importMessage } from '@features/dashboard/chili-version-store';
-import { GoogleImportDialog } from '@features/google/google-import-dialog';
+import { MacAttention } from './mac-attention';
 import { MacDialog } from './mac-dialog';
-import { PlotJourney } from './plot-journey';
+import { JOURNEY_WIDE, JOURNEY_WIDTH, PlotJourney } from './plot-journey';
 import { Api, errorText } from '@core/api';
 import { MacList } from '@core/mac-list';
-import type { Mac, SheetWithRows } from '@core/models';
+import type { Mac } from '@core/models';
 import { Toasts } from '@core/toast';
 import { WorkbookStore } from '@core/workbook-store';
 import { buildPowerBiWorkbook } from '@shared/excel/powerbi-export';
@@ -33,16 +33,15 @@ const HEADING_ICONS: Record<string, string> = {
   Operational: 'wallet',
 };
 
-const PROGRESS_KEY = 'ukmac.map-progress';
 
 /** A MAC: where it is, and its tables under their headings. */
 @Component({
   selector: 'app-mac-page',
-  imports: [RouterLink, Icon, MacDialog, ChiliDashboardExport, ChiliDashboardVersions, ChiliKpiEditor, MacMap3d, GoogleImportDialog, PlotJourney],
+  imports: [RouterLink, Icon, MacDialog, ChiliDashboardExport, ChiliDashboardVersions, ChiliKpiEditor, MacMap3d, PlotJourney, MacAttention],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.mac(); as mac) {
-      <div class="page">
+      <div class="page" #page [class.is-full]="full()">
         <header class="page-header">
           <a class="page-back-icon" routerLink="/" title="Back to UKMAC" aria-label="Back"><app-icon name="arrow-left" [size]="16" /></a>
           <div class="page-header-text">
@@ -58,7 +57,9 @@ const PROGRESS_KEY = 'ukmac.map-progress';
               <span class="chip crop"><app-icon name="sprout" [size]="13" /> Chili</span>
             </p>
           </div>
+          <!-- The chili tools, beside the title (they were at the foot of the page). -->
           <div class="page-actions">
+            <button type="button" class="btn btn-secondary" (click)="exportMac(mac)"><app-icon name="download" [size]="15" /> Export for Power BI</button>
             <button type="button" class="icon-btn" aria-label="More" [attr.aria-expanded]="menuAt() !== null" (click)="openMenu($event)">
               <app-icon name="more" />
             </button>
@@ -66,70 +67,42 @@ const PROGRESS_KEY = 'ukmac.map-progress';
         </header>
 
         @if (place(mac); as at) {
-          <section class="card map-card" aria-label="The farm and how far each plot has come">
+          <section class="card map-card" [class.is-full]="full()" aria-label="The farm and how far each plot has come">
             <app-mac-map-3d
               [latitude]="at.lat"
               [longitude]="at.lng"
               [name]="mac.macName"
               [shapes]="shapes()"
-              [farm]="progress()"
+              [farm]="true"
               [selected]="pickedPlot()"
               [card]="plotCard()"
-              [openable]="true"
-              (opened)="journeyOpen.set(true)"
+              [openable]="!journeyShown()"
+              (opened)="openJourney()"
+              [coverRight]="journeyCover()"
               [filters]="shows()"
               [filter]="show()"
               (filterChange)="setShow($any($event))"
               (picked)="pickPlot($event)"
               (cleared)="pickedPlot.set(null)"
             >
-            <!-- Over the map's top left: which farm and crop this is, and how far its plots have come (opens the key to the colours). -->
-            <button
-              type="button"
-              mapTop
-              class="farm-chip"
-              [attr.aria-expanded]="progressOpen()"
-              [title]="farm().total ? farm().planted + ' of ' + farm().total + ' plots planted, ' + farm().harvest + ' harvesting, ' + farm().rest + ' not planted yet. Click for the key to the colours.' : 'Click for the key to the colours.'"
-              (click)="progressOpen.set(!progressOpen())"
-            >
-              <span class="fc-icon"><app-icon name="sprout" [size]="16" /></span>
-              <span class="fc-text">
-                <strong>{{ mac.macName }} · Chili</strong>
-                <span class="fc-sub">
-                  @if (farm().total) {
-                    {{ farm().percent }}% planted · {{ farm().harvest }} harvesting
-                  } @else {
-                    No plots yet
-                  }
-                </span>
-              </span>
-            </button>
-            @if (progressOpen()) {
-            <div mapTop class="progress-key" role="group" aria-label="Progress on the plots">
-              <button
-                type="button"
-                class="pk-toggle"
-                role="switch"
-                [attr.aria-checked]="progress()"
-                [title]="progress() ? 'Showing how far each plot has come: switch off for the plain zone colours' : 'Show how far each plot has come: not planted, planting, harvest'"
-                (click)="setProgress(!progress())"
-              >
-                <i class="pk-track"><i class="pk-knob"></i></i> Progress
-              </button>
-              <!-- Always there, dimmed while the switch is off, so the pill keeps its size. -->
-              <span class="pk-legend" [class.is-off]="!progress()">
-                <span><i class="sw tilled"></i> Not planted yet</span>
-                <span><i class="sw sprout"></i> Planting</span>
-                <span><i class="sw ripe"></i> Harvest</span>
-              </span>
-              <button type="button" class="pk-close" title="Fold it away" aria-label="Fold the progress key away" (click)="progressOpen.set(false)"><app-icon name="x" [size]="12" /></button>
-            </div>
-            }
+            <!-- The picked plot's whole story, from planting to harvest, down the map's right side (its card's ⤢ opens it). Inside the
+                 map, so it is there too when the map is opened big, wider. -->
+            <app-plot-journey
+              [open]="journeyShown()"
+              [big]="mapBig() || full()"
+              [fillable]="!mapBig()"
+              [full]="full()"
+              (fullChange)="setFull($event)"
+              [cell]="pickedCell()"
+              [sheets]="store.sheets()"
+              (closed)="closeJourney()"
+            />
             </app-mac-map-3d>
-            <!-- The picked plot's whole story, from planting to harvest, down the map's right side (its card opens it). -->
-            <app-plot-journey [open]="journeyOpen() && !!pickedCell()" [cell]="pickedCell()" [sheets]="store.sheets()" (closed)="journeyOpen.set(false)" />
           </section>
         }
+
+        <!-- On the left how the tables read their Google Sheets and when each was last read; on the right what still needs filling in. -->
+        <app-mac-attention [sheets]="store.sheets()" [macId]="mac.macId" />
 
         <section class="card shortcuts" aria-labelledby="shortcuts-title">
           <h2 class="card-title" id="shortcuts-title">Shortcuts</h2>
@@ -154,12 +127,6 @@ const PROGRESS_KEY = 'ukmac.map-progress';
           </ul>
         </section>
 
-        <section class="tools" aria-label="Chili tools">
-          <span class="tools-label"><app-icon name="sprout" [size]="14" /> Chili</span>
-          <button type="button" class="pill" (click)="googleOpen.set(true)"><app-icon name="table" [size]="16" /> <span>Import from Google Sheets</span></button>
-          <a class="pill" routerLink="/settings"><app-icon name="chart" [size]="16" /> <span>Settings</span></a>
-          <button type="button" class="pill" (click)="exportMac(mac)"><app-icon name="download" [size]="16" /> <span>Export for Power BI</span></button>
-        </section>
       </div>
 
       @if (menuAt(); as at) {
@@ -185,35 +152,22 @@ const PROGRESS_KEY = 'ukmac.map-progress';
         <app-chili-dashboard-versions (closed)="versionsOpen.set(false)" />
       }
       <app-mac-dialog [open]="editing()" [mac]="mac" (closed)="editing.set(false)" (saved)="saved($event)" />
-      <app-google-import-dialog [open]="googleOpen()" (closed)="googleOpen.set(false)" (imported)="googleImported($event)" />
     }
   `,
   styles: `
-    .page-header { flex-wrap: nowrap; }
+    /* The tools stay on one line beside the title; in a narrow window they go under it, to the right. */
+    .page-header { flex-wrap: wrap; }
+    .page-actions { flex-wrap: nowrap; margin-left: auto; }
     .page-back-icon { margin-top: 2px; }
     .facts { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
     .facts span { display: inline-flex; align-items: center; gap: 4px; }
     .chip.crop { padding: 2px 9px; font-size: 0.75rem; color: var(--text); cursor: default; }
     .map-card { flex: none; height: clamp(440px, 62vh, 680px); padding: 0; overflow: hidden; margin: 14px 0 0; position: relative; }
+    /* The story's ⤢: the map and the story over the whole page (the menu and the top bar stay). */
+    .page.is-full { position: relative; overflow: hidden; }
+    .map-card.is-full { position: absolute; inset: 0; z-index: 20; height: auto; margin: 0; border-radius: 0; border: 0; }
     /* In its card, unless opened bigger (then it fills the window, as on the Zone Map). */
     .map-card app-mac-map-3d:not(.m3-expanded) { position: absolute; inset: 0; }
-    .progress-key { flex: none; display: flex; align-items: center; gap: 14px; height: 38px; box-sizing: border-box; padding: 0 14px 0 8px; background: rgba(255, 255, 255, 0.92); border-radius: 999px; font-size: 12px; font-weight: 500; }
-    .farm-chip { flex: none; display: inline-flex; align-items: center; gap: 10px; height: 44px; box-sizing: border-box; padding: 0 16px 0 6px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--text); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--shadow-card); }
-    .farm-chip:hover { background: #fff; }
-    .fc-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft, rgba(0, 102, 217, 0.1)); color: var(--accent); }
-    .fc-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.2; }
-    .fc-text strong { font-size: 13px; font-weight: 650; white-space: nowrap; }
-    .fc-sub { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
-    .progress-key .pk-legend { display: inline-flex; align-items: center; gap: 14px; transition: opacity 0.15s; }
-    .progress-key .pk-legend.is-off { opacity: 0.4; }
-    .progress-key .pk-close { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; }
-    .progress-key .pk-close:hover { background: var(--surface-hover, #f2f2f4); color: var(--text); }
-    .progress-key .pk-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 0 6px; border: 0; background: transparent; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; }
-    .progress-key .pk-track { position: relative; width: 28px; height: 16px; border-radius: 999px; background: #c7ccc8; transition: background 0.15s; }
-    .progress-key .pk-knob { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
-    .progress-key .pk-toggle[aria-checked='true'] .pk-track { background: var(--accent, #0a84ff); }
-    .progress-key .pk-toggle[aria-checked='true'] .pk-knob { transform: translateX(12px); }
-    .progress-key span { display: inline-flex; align-items: center; gap: 6px; }
     .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; }
     .sw.tilled { background: #a37650; border-color: #8a6040; }
     .sw.sprout { background: #7cc35f; border-color: #4f9e3f; }
@@ -234,8 +188,6 @@ const PROGRESS_KEY = 'ukmac.map-progress';
     .pill:hover { border-color: var(--accent); color: var(--accent); }
     .pill app-icon { color: var(--accent); }
     .pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 20px; border-top: var(--hairline) solid var(--border); }
-    .tools-label { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); }
     .none { padding: 12px 0 0; font-size: 0.875rem; }
   `,
 })
@@ -286,36 +238,9 @@ export class MacPage {
     return plotShapes(this.layout()).map((shape): MapShape => {
       const cell = cells.get(shape.id);
       if (!cell) return shape;
-      if (!this.progress()) return shape;
       return { ...shape, bed: cell.usage === 'water' ? 'water' : cell.usage !== 'normal' ? 'unused' : (plantStage(cell) ?? 'tilled') };
     });
   });
-  /** Whether the plots show how far they have come (beds and plants), or just their zone colours; kept on this Mac. */
-  /** The progress key is open (folded to a round button to begin with, so it never covers the map's credit). */
-  readonly progressOpen = signal(false);
-  /** How far the farm's plots in use have come: planted (growing or harvesting), harvesting, and the rest not planted yet. */
-  readonly farm = computed(() => {
-    const plots = this.allPlots().cells.filter((cell) => cell.usage === 'normal');
-    let harvest = 0;
-    let planting = 0;
-    for (const cell of plots) {
-      const stage = plantStage(cell);
-      if (stage === 'harvest') harvest++;
-      else if (stage === 'planting') planting++;
-    }
-    const total = plots.length;
-    const share = (n: number) => (total ? (n / total) * 100 : 0);
-    return { total, harvest, planting, planted: harvest + planting, rest: total - harvest - planting, percent: Math.round(share(harvest + planting)) };
-  });
-  readonly progress = signal(localStorage.getItem(PROGRESS_KEY) !== 'off');
-  setProgress(on: boolean) {
-    this.progress.set(on);
-    try {
-      localStorage.setItem(PROGRESS_KEY, on ? 'on' : 'off');
-    } catch {
-      /* kept for this run only */
-    }
-  }
   setShow(show: PlotShow) {
     this.show.set(show);
     // A plot picked that is not shown now is let go of.
@@ -336,12 +261,39 @@ export class MacPage {
   /** The plot picked, whatever the map shows now. */
   readonly pickedCell = computed(() => this.allPlots().cells.find((item) => item.id === this.pickedPlot()) ?? null);
   readonly journeyOpen = signal(false);
+  readonly journeyShown = computed(() => this.journeyOpen() && !!this.pickedCell());
+  private readonly map = viewChild(MacMap3d);
+  /** The map opened big (its Open): the satellite over the whole window, the story wider beside it. */
+  readonly mapBig = computed(() => this.map()?.expanded() ?? false);
+  /** The story's ⤢: the map and the story fill the page (beside the menu, under the top bar), until it is closed or let go. */
+  private readonly storyFull = signal(false);
+  readonly full = computed(() => this.storyFull() && this.journeyShown());
+  private readonly pageEl = viewChild<ElementRef<HTMLElement>>('page');
+  /** How much of the map's right side the story takes: the map keeps its buttons and the picked plot clear of it. */
+  readonly journeyCover = computed(() => (this.journeyShown() ? (this.mapBig() || this.full() ? JOURNEY_WIDE : JOURNEY_WIDTH) : 0));
 
+  /** The plot card's ⤢: the story down the map's right side, at the map's size. */
+  openJourney() {
+    this.storyFull.set(false);
+    this.journeyOpen.set(true);
+  }
+
+  closeJourney() {
+    this.journeyOpen.set(false);
+    this.storyFull.set(false);
+  }
+
+  setFull(on: boolean) {
+    // From the top of the page, which it then covers (and doesn't scroll) until it is let go.
+    if (on) this.pageEl()?.nativeElement.scrollTo({ top: 0 });
+    this.storyFull.set(on);
+  }
+
+  /** A plot clicked on the map: its card over it (its ⤢ opens the story); clicked again, let go. */
   pickPlot(id: string) {
     this.pickedPlot.set(this.pickedPlot() === id ? null : id);
   }
   readonly menuAt = signal<{ x: number; y: number } | null>(null);
-  readonly googleOpen = signal(false);
 
   openMenu(event: MouseEvent) {
     const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -355,13 +307,6 @@ export class MacPage {
 
   headingIcon(heading: string) {
     return HEADING_ICONS[heading] ?? 'table';
-  }
-
-  /** Tables made from a Google Sheet: the first is opened, to see its charts. */
-  googleImported(sheets: SheetWithRows[]) {
-    this.googleOpen.set(false);
-    const first = sheets[0];
-    if (first) void this.router.navigate(['/mac', first.macId, 'table', first.sheetId]);
   }
 
   saved(mac: Mac) {

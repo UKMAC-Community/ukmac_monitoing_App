@@ -10,7 +10,7 @@ import { AutoSync } from '@core/auto-sync';
 import { Google } from '@core/google/google';
 import type { DatabaseInfo, GoogleLink, GoogleStatus } from '@core/models';
 import { PowerBi } from '@core/powerbi';
-import { ACCENTS, COLUMN_SPACINGS, ROW_HEIGHTS, Theme } from '@core/theme';
+import { ACCENTS, COLUMN_SPACINGS, ROW_HEIGHTS, STYLES, Theme } from '@core/theme';
 import { Toasts } from '@core/toast';
 import { AppUpdater } from '@core/updater';
 import { baseName } from '@core/paths';
@@ -38,7 +38,21 @@ import { baseName } from '@core/paths';
               <span class="tile-icon"><app-icon name="sparkles" [size]="18" /></span>
               <div class="grow">
                 <h2 class="card-title">Look of the app</h2>
-                <p class="card-desc">Pick the colour and how roomy the tables are. It is kept on this computer and changes at once.</p>
+                <p class="card-desc">Pick the theme, the colour and how roomy the tables are. It is kept on this computer and changes at once.</p>
+              </div>
+            </div>
+            <div class="setting-row theme-row">
+              <div class="setting-text">
+                <span class="setting-title">Theme</span>
+                <span class="setting-desc">The whole look of the app.</span>
+              </div>
+              <div class="styles" role="group" aria-label="Theme">
+                @for (item of styles; track item.value) {
+                  <button type="button" class="style-tile" [attr.aria-pressed]="theme.style() === item.value" [attr.data-style-preview]="item.value" [title]="item.about" (click)="theme.update({ style: item.value })">
+                    <span class="style-art" aria-hidden="true"><i class="rail"></i><i class="panel"></i><i class="panel b"></i></span>
+                    <span class="style-name">{{ item.label }}</span>
+                  </button>
+                }
               </div>
             </div>
             <div class="setting-row theme-row">
@@ -399,7 +413,7 @@ import { baseName } from '@core/paths';
               <div class="grow">
                 <h2 class="card-title">Updates</h2>
                 <p class="card-desc">
-                  New versions download and install by themselves in the background. The app keeps running as it is and uses the new version the next time you open it; your tables stay as they are.
+                  When a new version changes only how the app looks, it is downloaded and shown at your next page change, with no restart. Other updates download and install by themselves in the background and are used the next time you open the app. Your tables stay as they are.
                 </p>
               </div>
             </div>
@@ -419,9 +433,14 @@ import { baseName } from '@core/paths';
                   }
                 </span>
                 <code class="path">{{ updater.version() ? 'UKMAC Monitoring ' + updater.version() : 'UKMAC Monitoring' }}</code>
+                @if (updater.screens() && updater.screens() !== updater.version()) {
+                  <span class="setting-desc">Screens: version {{ updater.screens() }} (updated without a restart)</span>
+                }
               </div>
               <div class="actions">
-                @if (updater.state() === 'ready') {
+                @if (updater.screensReady()) {
+                  <button type="button" class="btn btn-primary btn-sm" (click)="updater.showScreens()">Show the new look</button>
+                } @else if (updater.state() === 'ready') {
                   <button type="button" class="btn btn-secondary btn-sm" (click)="updater.restartNow()">Restart now</button>
                 } @else if (updater.state() === 'available' || updater.state() === 'downloading' || updater.state() === 'installed') {
                   <button type="button" class="btn btn-primary btn-sm" [disabled]="updater.busy()" (click)="updater.install()">
@@ -449,6 +468,17 @@ import { baseName } from '@core/paths';
   `,
   styles: `
     .theme-row { align-items: center; }
+    .styles { display: inline-flex; gap: 12px; }
+    .style-tile { display: flex; flex-direction: column; gap: 6px; padding: 6px; width: 112px; border: 2px solid transparent; border-radius: 16px; background: none; font: inherit; font-size: 0.8125rem; color: var(--text); cursor: pointer; }
+    .style-tile[aria-pressed='true'] { border-color: var(--accent); }
+    .style-art { position: relative; display: block; height: 62px; border-radius: 10px; overflow: hidden; border: var(--hairline) solid var(--border); background: #f1f2f6; }
+    .style-art i { position: absolute; display: block; }
+    .style-art .rail { left: 5px; top: 5px; bottom: 5px; width: 9px; border-radius: 5px; background: #cfd3dc; }
+    .style-art .panel { left: 20px; top: 6px; right: 6px; height: 22px; border-radius: 6px; background: #fff; box-shadow: 0 1px 3px rgba(20, 24, 40, 0.14); }
+    .style-art .panel.b { top: 33px; height: 22px; }
+    .style-tile[data-style-preview='soft'] .style-art { background: #e3e5e9; border-color: transparent; }
+    .style-tile[data-style-preview='soft'] .rail { background: #17181b; }
+    .style-tile[data-style-preview='soft'] .panel { background: #f1f2f4; border-radius: 9px; box-shadow: 0 3px 8px rgba(20, 24, 40, 0.16), inset 0 1px 0 #fff; }
     .swatches { display: inline-flex; gap: 10px; }
     .swatch { padding: 3px; border: 2px solid transparent; border-radius: 50%; background: none; cursor: pointer; display: inline-flex; }
     .swatch[aria-pressed='true'] { border-color: var(--accent); }
@@ -508,6 +538,7 @@ export class SettingsPage implements OnInit {
   readonly google = inject(Google);
   readonly autoSync = inject(AutoSync);
   readonly theme = inject(Theme);
+  readonly styles = STYLES;
   readonly accents = ACCENTS;
   readonly rowHeights = ROW_HEIGHTS;
   readonly columnSpacings = COLUMN_SPACINGS;

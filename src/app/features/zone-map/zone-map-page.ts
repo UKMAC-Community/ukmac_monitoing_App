@@ -8,9 +8,15 @@ import { GoogleLinkDialog } from '@features/google/google-link-dialog';
 import { Icon } from '@shared/ui/icon';
 import { MacMap3d, type PlotCard, type Reshaped } from '@shared/map/mac-map-3d';
 import type { MapShape } from '@shared/map/mac-map';
+import { paler } from '@shared/map/plot-stack';
 import { Modal } from '@shared/ui/modal';
-import { Api } from '@core/api';
+import { Api, errorText } from '@core/api';
 import { Google } from '@core/google/google';
+import { Toasts } from '@core/toast';
+import { baseName } from '@core/paths';
+import { safeFileName } from '@shared/excel/exceljs';
+import { buildPowerBiWorkbook } from '@shared/excel/powerbi-export';
+import { zoneMapPicture } from '@shared/map/zone-image';
 import { WorkbookStore } from '@core/workbook-store';
 import { formatDate } from '@shared/sheet/columns';
 import { formOf, formProblem, newPlotCells, newPlotForm, newPlotProblem, newShapeForm, outlineChanges, placeTakenBy, plotChanges, ReshapeHistory, startOutline, statusNameOf, type NewKind, type PlotForm } from './zone-edit';
@@ -22,9 +28,10 @@ export type ZoneMapView = 'farm' | 'satellite';
 /** The Show list over the map's left: its width, and what it last showed (kept between visits). */
 const LIST_WIDTH = 264;
 /** A plot left out of what the list picked: pale, flat. */
-const FADED = '#e6e9e6';
 const VIEW_KEY = 'ukmac.zone-map.show';
 const LIST_KEY = 'ukmac.zone-map.show-list';
+/** The name this MAC's Zone Map page is given (a key for each MAC). */
+const NAME_KEY = 'ukmac.zone-map.name.';
 function readSaved(key: string): string | null {
   try {
     return localStorage.getItem(key);
@@ -62,24 +69,17 @@ interface PaletteItem {
   template: `
     @if (store.mac(); as mac) {
       <header class="zm-head">
-        <a class="page-back-icon" [routerLink]="['/mac', mac.macId]" title="Back to the dashboard" aria-label="Back"><app-icon name="arrow-left" [size]="16" /></a>
-        <h1>Zone Map</h1>
-        <span class="badge neutral">{{ mac.macName }}</span>
-        <p class="zm-desc">Every plot at its place in its zone. Click a plot for its details, then edit it, or edit its shape on the satellite.</p>
+        <a class="page-back-icon" [routerLink]="['/mac', mac.macId]" [title]="'Back to ' + mac.macName" aria-label="Back"><app-icon name="arrow-left" [size]="16" /></a>
+        <div class="zm-title">
+          <h1>{{ pageName() }}</h1>
+          <span class="muted">· {{ mac.macName }}</span>
+          <button type="button" class="icon-btn is-quiet is-sm" title="Zone Map settings: its name" aria-label="Zone Map settings" (click)="openSettings()"><app-icon name="settings" [size]="15" /></button>
+        </div>
         <div class="zm-actions">
-        @if (!editing() && layout().cells.length && canEdit(mac)) {
-          <button type="button" class="btn btn-secondary btn-sm" title="Drag a plot's corners, move it whole, add a plot, greenhouse or other area: edited on the satellite, the Farm follows" (click)="startEdit()"><app-icon name="edit" [size]="14" /> Edit shapes</button>
-        }
-        @if (zonesSheet(); as zones) {
-          <button
-            type="button"
-            class="btn btn-secondary btn-sm zm-google"
-            [title]="googleLink() ? 'The plots are read from ' + googleLink()!.spreadsheetTitle + ' › ' + googleLink()!.tabTitle + '. Change the link' : 'Read the plots from a tab of the MAC\\'s Google Sheet'"
-            (click)="linkOpen.set(true)"
-          >
-            <app-icon name="table" [size]="14" /> {{ googleLink() ? 'Google Sheet · ' + google.ago(googleLink()!.lastSyncedAt) : 'Link Google Sheet' }}
+        @if (zonesSheet() && layout().cells.length) {
+          <button type="button" class="btn btn-secondary btn-sm" (click)="toggleExport($event)" [attr.aria-expanded]="exportMenu() !== null">
+            <app-icon name="file" [size]="14" /> Export <app-icon name="chevron-down" [size]="14" />
           </button>
-          <app-google-link-dialog [open]="linkOpen()" [sheet]="zones" (closed)="linkOpen.set(false)" />
         }
         </div>
       </header>
@@ -96,6 +96,7 @@ interface PaletteItem {
           </div>
         } @else {
           <section class="card layout-card">
+            @if (editing() || view() === 'farm' || selected()) {
             <div class="view-row">
               @if (editing()) {
                 <div class="edit-bar" role="group" aria-label="Edit the plot shapes">
@@ -111,14 +112,6 @@ interface PaletteItem {
                   <button type="button" class="btn btn-secondary btn-sm" (click)="cancelEdit()">Cancel</button>
                   <button type="button" class="btn btn-primary btn-sm" [disabled]="!changedCount()" (click)="saveEdit()"><app-icon name="check" [size]="13" /> Save{{ changedCount() ? ' · ' + changedCount() : '' }}</button>
                   }
-                </div>
-              } @else if (view() === 'satellite') {
-                <div class="legend">
-                  <span><i class="sw planted"></i> Planted (dark edge)</span>
-                  <span><i class="sw pale"></i> Not planted yet</span>
-                  <span><i class="sw unused"></i> Not in use ({{ kindsShort() }})</span>
-                  <span><i class="sw greenhouse"></i> Greenhouse</span>
-                  <span><i class="sw water"></i> Water</span>
                 </div>
               } @else if (view() === 'farm') {
                 <div class="legend">
@@ -140,17 +133,12 @@ interface PaletteItem {
                   <app-icon name="panel-left" [size]="13" /> {{ detailsOpen() ? 'Hide details' : (cell.usage === 'normal' ? cell.plot : cell.label) + ' details' }}
                 </button>
               }
-              @if (!editing()) {
-                <div class="segmented is-sm view-switch" role="group" aria-label="How to see the plots">
-                  <button type="button" class="segment" [attr.aria-pressed]="view() === 'satellite'" (click)="setView('satellite')"><app-icon name="map" [size]="13" /> Satellite</button>
-                  <button type="button" class="segment" [attr.aria-pressed]="view() === 'farm'" (click)="setView('farm')"><app-icon name="sprout" [size]="13" /> Farm</button>
-                </div>
-              }
             </div>
+            }
             <div class="layout-body" [class.is-editing]="editing()">
               @if (view() === 'farm') {
                 <div class="sat-box">
-                  <app-farm-3d [layout]="shown()" [selected]="selectedId()" [filters]="shows()" [filter]="show()" (filterChange)="setShow($any($event))" (picked)="pick($event)" (cleared)="selectedId.set(null)" />
+                  <app-farm-3d [layout]="shown()" [selected]="selectedId()" [filters]="shows()" [filter]="show()" (filterChange)="setShow($any($event))" (leave)="leaveFarm($event)" (picked)="pick($event)" (cleared)="selectedId.set(null)" />
                 </div>
               } @else if (hasMap(mac)) {
                 <div class="sat-box">
@@ -159,6 +147,9 @@ interface PaletteItem {
                     [longitude]="place(mac)!.lng"
                     [shapes]="shapes()"
                     [farm]="false"
+                    [farmButton]="!editing()"
+                    (farmPicked)="setView('farm')"
+                    [startTilted]="tiltBack()"
                     [selected]="selectedId()"
                     [filters]="editing() ? [] : shows()"
                     [filter]="show()"
@@ -376,36 +367,62 @@ interface PaletteItem {
         </app-modal>
       }
     }
+
+    @if (zonesSheet(); as zones) {
+      <app-google-link-dialog [open]="linkOpen()" [sheet]="zones" (closed)="linkOpen.set(false)" />
+    }
+
+    <app-modal [open]="settingsOpen()" title="Zone Map settings" subtitle="What this page is called" (closed)="settingsOpen.set(false)">
+      <form class="form-stack" (submit)="$event.preventDefault(); saveName()">
+        <label class="form-group">
+          <span class="form-label">Name</span>
+          <input class="input-field" [value]="nameDraft()" (input)="nameDraft.set($any($event.target).value)" placeholder="Zone Map" />
+          <small class="form-hint">Shown at the top of this page. Leave it empty to call it Zone Map again.</small>
+        </label>
+      </form>
+      <div footer>
+        <button type="button" class="btn btn-plain" (click)="settingsOpen.set(false)">Cancel</button>
+        <button type="button" class="btn btn-primary" (click)="saveName()">Save</button>
+      </div>
+    </app-modal>
+
+    @if (exportMenu(); as menu) {
+      <div class="menu-scrim" (mousedown)="exportMenu.set(null)"></div>
+      <div class="menu-panel floating" [style.left.px]="menu.x" [style.top.px]="menu.y">
+        <button type="button" class="menu-item" (click)="exportMenu.set(null); exportZones()">
+          <app-icon name="file" />
+          <span class="menu-item-text">Zone map to Excel<span class="menu-item-sub">The Zones table, and a sheet with the map as it is drawn here</span></span>
+        </button>
+      </div>
+    }
   `,
   styles: `
     :host { --cell-w: 52px; --cell-h: 40px; }
-    .zm-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 20px; background: var(--surface-solid); border-bottom: var(--hairline) solid var(--border); }
-    .zm-head h1 { font-size: 1rem; font-weight: 600; white-space: nowrap; }
+    /* A bar of its own with room around it, then the map in a rounded frame under it, a margin on each side. */
+    .zm-head { flex: none; display: flex; align-items: center; gap: 12px; margin: 4px 20px 14px; padding: 10px 16px; background: var(--surface-solid); border: var(--hairline) solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }
+    .zm-head h1 { font-size: 1rem; font-weight: 600; line-height: 1.25; white-space: nowrap; }
+    .zm-title { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+    .zm-title .muted { font-size: 0.9375rem; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Edit shapes and the Google Sheet link, together at the header's right. */
     .zm-actions { flex: none; margin-left: auto; display: flex; align-items: center; gap: 8px; }
     .zm-actions .btn { white-space: nowrap; }
-    .zm-desc { min-width: 0; margin: 0; font-size: 0.8125rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* The page fits the window: compact tiles, then the map card takes what is left and a free band stays under it. */
     /* The map takes the whole page: no box around it. */
-    .page { padding: 0; gap: 0; overflow: hidden; }
+    .page { padding: 0 20px 20px; gap: 0; overflow: hidden; }
     /* What is behind a tile (the kinds of plot not in use, what "not planted yet" means) shows only while it is pointed at or focused, over the page, so the tiles never change size. */
     /* So the pointer can travel from the tile to what it shows without leaving both. */
-    .layout-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; backdrop-filter: none; }
+    .layout-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin: 0; padding: 0; border: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); background: transparent; backdrop-filter: none; }
     .layout-body { flex: 1; min-height: 0; }
     .empty { flex: none; margin: 20px; padding: 18px 20px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
     .view-row { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 20px; min-height: 28px; background: var(--surface-solid); border-bottom: var(--hairline) solid var(--border); }
-    .view-switch { margin-left: auto; }
     .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.8125rem; color: var(--text-muted); }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; }
-    .sw.planted { background: linear-gradient(90deg, #7BF542, #BF4E33, #FFF04D, #5B86E0); border: 2px solid #5b4a2a; }
     .sw.tilled { background: #a37650; border-color: #8a6040; }
     .sw.sprout { background: #7cc35f; border-color: #4f9e3f; }
     .sw.ripe { background: linear-gradient(90deg, #4f9e3f 50%, #e5432f 50%); border-color: #4f9e3f; }
-    .sw.pale { background: linear-gradient(90deg, #7BF542, #BF4E33, #FFF04D, #5B86E0); border-color: #c9c9c9; }
     .sw.unused { background: #f7f8f7; border-color: #d7dbd8; }
     .sw.water { background: #dbeafe; border-color: #60a5fa; }
-    .sw.greenhouse { background: #c9ecdc; border-color: #2f9e77; }
     .sat-box { flex: 1; min-width: 0; position: relative; min-height: 420px; overflow: hidden; }
     .sat-box app-mac-map-3d:not(.m3-expanded), .sat-box app-farm-3d { position: absolute; inset: 0; }
     /* The Show list down the map's left, as the QA/QC map's list of checks: a row for each thing, the picked one lit, its colours and its plots with no data under it. */
@@ -480,9 +497,6 @@ interface PaletteItem {
     .details-head h3 { flex: 1; }
     .details-x { flex: none; }
     .details-toggle { flex: none; margin-left: auto; white-space: nowrap; }
-    .view-row .view-switch { flex: none; flex-wrap: nowrap; }
-    /* The details button sits just before the switch, both at the row's end. */
-    .details-toggle + .view-switch { margin-left: -8px; }
     .details-toggle[aria-pressed='true'] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); box-shadow: none; }
     .details h3 { font-size: 1.0625rem; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
     .edit-bar { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -502,6 +516,12 @@ export class ZoneMapPage {
   readonly view = signal<ZoneMapView>('satellite');
   setView(view: ZoneMapView) {
     this.view.set(view);
+  }
+  /** How the satellite map opens when coming back from the Farm: from above, or in 3D. */
+  readonly tiltBack = signal(true);
+  leaveFarm(tilted: boolean) {
+    this.tiltBack.set(tilted);
+    this.view.set('satellite');
   }
   /** Where the satellite looks: the MAC's own place, else the middle of its plots (a MAC opened from a file has no place of its own). */
   place(mac: { latitude: number | null; longitude: number | null }) {
@@ -542,7 +562,60 @@ export class ZoneMapPage {
   }
 
   readonly google = inject(Google);
+  /** What the page is called: the name given in its settings, else Zone Map. */
+  private readonly nameVersion = signal(0);
+  readonly pageName = computed(() => {
+    this.nameVersion();
+    const mac = this.store.mac();
+    return (mac && readSaved(NAME_KEY + mac.macId)?.trim()) || 'Zone Map';
+  });
+  readonly settingsOpen = signal(false);
+  readonly nameDraft = signal('');
+
+  openSettings() {
+    this.nameDraft.set(this.pageName() === 'Zone Map' ? '' : this.pageName());
+    this.settingsOpen.set(true);
+  }
+
+  saveName() {
+    const mac = this.store.mac();
+    if (mac) save(NAME_KEY + mac.macId, this.nameDraft().trim());
+    this.nameVersion.update((n) => n + 1);
+    this.settingsOpen.set(false);
+  }
+  private readonly toasts = inject(Toasts);
+  /** The Export menu, where it opens (null: closed). */
+  readonly exportMenu = signal<{ x: number; y: number } | null>(null);
+
+  toggleExport(event: MouseEvent) {
+    if (this.exportMenu()) return this.exportMenu.set(null);
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.exportMenu.set({ x: Math.min(box.right - 280, window.innerWidth - 300), y: box.bottom + 6 });
+  }
+
+  /** The Zones table to Excel, with the map as this page draws it on a sheet of its own (as the Zones table's own Export does). */
+  async exportZones() {
+    const sheet = this.zonesSheet();
+    const book = this.store.workbook();
+    if (!sheet || !book) return;
+    const path = await this.api.pickSavePath(`${safeFileName(sheet.title)} - ${safeFileName(book.mac.macCode)}.xlsx`);
+    if (!path) return;
+    try {
+      await this.api.writeFile(path, await buildPowerBiWorkbook([{ mac: book.mac, sheets: [sheet] }], { single: true, picture: zoneMapPicture(sheet) ?? undefined }));
+      this.toasts.show(`Saved ${baseName(path)}`);
+    } catch (error) {
+      this.toasts.error(errorText(error));
+    }
+  }
   readonly linkOpen = signal(false);
+  // The top bar's pencil (its Google Sheet chip): the link's dialog (only a request made after this page opened counts).
+  private seenLinkRequest = this.google.editLinkRequest();
+  private readonly linkAsk = effect(() => {
+    const asked = this.google.editLinkRequest();
+    if (asked === this.seenLinkRequest) return;
+    this.seenLinkRequest = asked;
+    if (untracked(() => this.zonesSheet())) this.linkOpen.set(true);
+  });
   /** The Google Sheet the Zones table is read from, when it is. */
   readonly googleLink = computed(() => {
     const sheet = this.zonesSheet();
@@ -574,10 +647,10 @@ export class ZoneMapPage {
       const view = this.plotView();
       if (!view || cell.usage !== 'normal' || this.editing()) return base;
       const say = sayOf(view, cell.plot);
-      // A legend line or a zone picked in the list: those plots stand up in their colours, the rest lie pale under them.
+      // A legend line or a zone picked in the list: those plots stand up in their colours, the rest lie under them in the same colours, faded.
       const focus = this.focus();
       const picked = !focus || (focus.zone != null ? cell.section === focus.zone : (say?.colour ?? NO_DATA) === focus.colour);
-      if (!picked) return { ...base, fill: FADED, label: cell.plot };
+      if (!picked) return { ...base, fill: paler(say?.colour ?? NO_DATA), label: cell.plot };
       return {
         ...base,
         lift: !!focus,

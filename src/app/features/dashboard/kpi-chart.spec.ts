@@ -283,7 +283,7 @@ describe('KpiChart: drawn in, as the web charts are', () => {
   });
 });
 
-describe('KpiChart: a pie with the names inside', () => {
+describe('KpiChart: a pie drawn as a donut with its labels round it', () => {
   beforeAll(() => {
     (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
       observe() {}
@@ -305,27 +305,36 @@ describe('KpiChart: a pie with the names inside', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('writes each zone and its amount inside its slice, with no lines out to the side', () => {
+  it('gives each zone a rounded ring segment, and says its share, name and amount beside it on a dotted line', () => {
     const el = pie(zones);
-    const inside = [...el.querySelectorAll('.pie-inside')];
-    expect(inside.length).toBe(9);
-    expect(inside.map((label) => label.querySelector('.pie-in-name')!.textContent!.trim())).toEqual(zones.map((zone) => `Zone ${zone.label}`));
-    expect(inside[8].querySelector('.pie-in-value')!.textContent!.trim()).toBe('28,500');
-    expect(el.querySelectorAll('polyline').length).toBe(0);
-    // Each label is inside the pie.
-    const svg = el.querySelector('svg.pie')!;
-    const [cx, cy] = [Number(svg.getAttribute('width')) / 2, Number(svg.getAttribute('height')) / 2];
-    for (const name of el.querySelectorAll('.pie-in-name')) {
-      expect(Math.hypot(Number(name.getAttribute('x')) - cx, Number(name.getAttribute('y')) - cy)).toBeLessThan(cy);
-    }
+    expect(el.querySelectorAll('path.slice').length).toBe(9);
+    expect(el.querySelectorAll('.ring-leader').length).toBe(9);
+    expect([...el.querySelectorAll('.ring-name')].map((name) => name.textContent!.trim())).toEqual(zones.map((zone) => `Zone ${zone.label}`));
+    expect([...el.querySelectorAll('.ring-pct')].map((pct) => pct.textContent!.trim())).toEqual(['13%', '7%', '13%', '7%', '13%', '9%', '13%', '8%', '19%']);
+    expect([...el.querySelectorAll('.ring-amount')].at(-1)!.textContent!.trim()).toBe('28,500');
   });
 
-  it('puts a slice too thin for its name outside, on a line to it', () => {
-    // A chart in half a row (as Plants by zone number is): the pie leaves room at the sides for the name outside.
-    const el = pie([...zones, { label: '10', key: '10', value: 400 }], 540);
-    expect(el.querySelectorAll('.pie-inside').length).toBe(9);
-    expect([...el.querySelectorAll('.pie-name')].map((name) => name.textContent!.trim())).toEqual(['Zone 10']);
-    expect(el.querySelectorAll('polyline').length).toBe(1);
+  it('writes what it adds up to in the hole', () => {
+    const el = pie(zones);
+    expect(el.querySelector('.donut-total')!.textContent!.trim()).toBe('150,868');
+  });
+
+  it('keeps the labels of a side apart and inside the chart, even for many slices', () => {
+    const many = [...zones, { label: '10', key: '10', value: 400 }, { label: '11', key: '11', value: 300 }];
+    const el = pie(many, 540);
+    const svg = el.querySelector('svg.pie')!;
+    const [width, height] = [Number(svg.getAttribute('width')), Number(svg.getAttribute('height'))];
+    const names = [...el.querySelectorAll('.ring-pct')].map((pct) => ({ x: Number(pct.getAttribute('x')), y: Number(pct.getAttribute('y')) }));
+    for (const spot of names) {
+      expect(spot.x).toBeGreaterThan(0);
+      expect(spot.x).toBeLessThan(width);
+      expect(spot.y).toBeGreaterThan(0);
+      expect(spot.y).toBeLessThan(height);
+    }
+    for (const side of [names.filter((spot) => spot.x > width / 2), names.filter((spot) => spot.x <= width / 2)]) {
+      const ys = side.map((spot) => spot.y).sort((a, b) => a - b);
+      ys.slice(1).forEach((y, index) => expect(y - ys[index]).toBeGreaterThanOrEqual(53));
+    }
   });
 });
 
@@ -442,11 +451,11 @@ describe('KpiChart: the mark under the pointer', () => {
 
   it('the names over the other slices step back while one is pointed at, and come back after', () => {
     const { fixture, el } = chartOf('pie');
-    expect(el.querySelectorAll('.pie-inside').length).toBe(4);
+    expect(el.querySelectorAll('svg.pie g.late').length).toBe(4);
     expect(el.querySelectorAll('.recede').length).toBe(0);
     el.querySelectorAll('path.slice')[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
     fixture.detectChanges();
-    const receded = [...el.querySelectorAll('.pie-inside')].map((label) => label.classList.contains('recede'));
+    const receded = [...el.querySelectorAll('svg.pie g.late')].map((label) => label.classList.contains('recede'));
     expect(receded).toEqual([true, false, true, true]);
     el.querySelectorAll('path.slice')[1].dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
     fixture.detectChanges();

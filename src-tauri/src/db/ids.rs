@@ -4,6 +4,9 @@
 //! the row that had it is deleted (the last number given is kept in `settings`, beside the table's own highest);
 //! it is never typed and never changed (an edit to it is dropped); and rows that have none yet (a table that has
 //! just gained the column, or was saved before it) are numbered in the order they are shown.
+//!
+//! A table whose rows are all taken out and put back (a Google re-read, an import that replaces the table) starts
+//! again at 1: the same rows come back in the same order, so they get the same numbers each time.
 
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Map, Value};
@@ -61,6 +64,64 @@ fn remember(conn: &Connection, sheet_id: i64, last: i64) -> rusqlite::Result<()>
         params![counter_key(sheet_id), last.to_string()],
     )?;
     Ok(())
+}
+
+/// The table's rows have all been taken out, to be put back: the next row is number 1 again.
+pub fn restart(conn: &Connection, sheet_id: i64) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM settings WHERE key = ?1", [counter_key(sheet_id)])?;
+    Ok(())
+}
+
+/// Set once the tables read from Google have been numbered 1, 2, 3… (before, each re-read gave new numbers).
+const RENUMBERED_KEY: &str = "ids.renumbered";
+
+/// Once, after the update that brought `restart`: each table read from Google is numbered 1, 2, 3… in the order it
+/// is shown (its numbers went up by its row count at every re-read). A tab that has its own ID column keeps its numbers.
+/// It never keeps the app from opening: what fails is rolled back and tried at the next start.
+pub fn renumber_read_tables(conn: &mut Connection) -> rusqlite::Result<()> {
+    let done: Option<String> = conn
+        .query_row("SELECT value FROM settings WHERE key = ?1", [RENUMBERED_KEY], |row| row.get(0))
+        .optional()?;
+    if done.is_some() {
+        return Ok(());
+    }
+    let tx = conn.transaction()?;
+    let links: Vec<(i64, String)> = tx
+        .prepare("SELECT sheet_id, header_map FROM google_links WHERE origin IS NULL")?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    for (sheet_id, header_map) in links {
+        let Some(key) = auto_key(&tx, sheet_id)? else {
+            continue;
+        };
+        let read_from_tab = serde_json::from_str::<Map<String, Value>>(&header_map)
+            .unwrap_or_default()
+            .values()
+            .any(|value| value.as_str() == Some(key.as_str()));
+        if read_from_tab {
+            continue;
+        }
+        let rows: Vec<(i64, String)> = tx
+            .prepare("SELECT row_id, data FROM sheet_rows WHERE sheet_id = ?1 ORDER BY position, row_id")?
+            .query_map([sheet_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<_, _>>()?;
+        let count = rows.len() as i64;
+        for (index, (row_id, data)) in rows.into_iter().enumerate() {
+            let mut cells: Map<String, Value> = serde_json::from_str(&data).unwrap_or_default();
+            let number = (index + 1).to_string();
+            if cells.get(&key).and_then(Value::as_str) == Some(number.as_str()) {
+                continue;
+            }
+            cells.insert(key.clone(), Value::String(number));
+            tx.execute(
+                "UPDATE sheet_rows SET data = ?2 WHERE row_id = ?1",
+                params![row_id, serde_json::to_string(&cells).unwrap_or(data)],
+            )?;
+        }
+        remember(&tx, sheet_id, count)?;
+    }
+    tx.execute("INSERT INTO settings (key, value) VALUES (?1, '1')", [RENUMBERED_KEY])?;
+    tx.commit()
 }
 
 /// Numbers the rows about to be added that have no ID (a row that comes with one, from a saved file, keeps it).
@@ -221,6 +282,88 @@ mod tests {
         assert!(!rows[0].contains_key("c1"));
         fill_missing(&conn, sheet).unwrap();
         assert_eq!(ids(&conn, sheet), [("".into(), "B1".into())]);
+    }
+
+    #[test]
+    fn a_table_whose_rows_are_all_put_back_is_numbered_from_1_again() {
+        let conn = memory();
+        let sheet = table(&conn, &["B1", "B2", "B3"]);
+        fill_missing(&conn, sheet).unwrap();
+        // Read again from Google: the rows are taken out and the same rows come back.
+        for _ in 0..3 {
+            conn.execute("DELETE FROM sheet_rows WHERE sheet_id = ?1", [sheet]).unwrap();
+            restart(&conn, sheet).unwrap();
+            let mut rows = vec![row("B1"), row("B2"), row("B3")];
+            assign(&conn, sheet, &mut rows).unwrap();
+            assert_eq!(rows.iter().map(|row| row["c1"].as_str().unwrap()).collect::<Vec<_>>(), ["1", "2", "3"]);
+        }
+    }
+
+    /// A table read from Google (Batch, sheet 1) whose IDs had climbed; one whose tab has its own ID column; one the app writes.
+    fn read_tables(conn: &Connection) -> (i64, i64, i64) {
+        let batch = table(conn, &[]);
+        let columns: String = conn.query_row("SELECT columns FROM sheets WHERE sheet_id = ?1", [batch], |row| row.get(0)).unwrap();
+        let mut sheets = vec![batch];
+        for title in ["Own IDs", "Written"] {
+            conn.execute("INSERT INTO sheets (mac_id, title, columns, next_key) VALUES (1, ?1, ?2, 3)", params![title, columns]).unwrap();
+            sheets.push(conn.last_insert_rowid());
+        }
+        for &sheet in &sheets {
+            for (index, (id, name)) in [("777", "B1"), ("778", "B2"), ("779", "B3")].iter().enumerate() {
+                conn.execute(
+                    "INSERT INTO sheet_rows (sheet_id, position, data) VALUES (?1, ?2, ?3)",
+                    params![sheet, index as f64 + 1.0, json!({ "c1": id, "c2": name }).to_string()],
+                )
+                .unwrap();
+            }
+            remember(conn, sheet, 779).unwrap();
+        }
+        let link = |sheet: i64, map: &str, origin: Option<&str>| {
+            conn.execute(
+                "INSERT INTO google_links (sheet_id, spreadsheet_id, spreadsheet_title, tab_title, header_map, origin)
+                 VALUES (?1, '1AbC', 'Farm', 'Tab', ?2, ?3)",
+                params![sheet, map, origin],
+            )
+            .unwrap();
+        };
+        link(sheets[0], r#"{"Batch":"c2"}"#, None);
+        link(sheets[1], r#"{"ID":"c1","Batch":"c2"}"#, None);
+        link(sheets[2], r#"{"Batch":"c2"}"#, Some("app"));
+        (sheets[0], sheets[1], sheets[2])
+    }
+
+    #[test]
+    fn tables_read_from_google_are_numbered_from_1_once() {
+        let mut conn = memory();
+        let (batch, own, written) = read_tables(&conn);
+        // As a database saved before this update.
+        conn.execute("DELETE FROM settings WHERE key = ?1", [RENUMBERED_KEY]).unwrap();
+
+        renumber_read_tables(&mut conn).unwrap();
+
+        let numbers = |conn: &Connection, sheet| ids(conn, sheet).into_iter().map(|(id, _)| id).collect::<Vec<_>>();
+        assert_eq!(numbers(&conn, batch), ["1", "2", "3"]);
+        assert_eq!(ids(&conn, batch)[0].1, "B1");
+        let mut next = vec![row("B4")];
+        assign(&conn, batch, &mut next).unwrap();
+        assert_eq!(next[0]["c1"], "4");
+        // The tab's own IDs, and the table the app writes, keep theirs.
+        assert_eq!(numbers(&conn, own), ["777", "778", "779"]);
+        assert_eq!(numbers(&conn, written), ["777", "778", "779"]);
+
+        // Only once.
+        conn.execute("UPDATE sheet_rows SET data = json_set(data, '$.c1', '50') WHERE sheet_id = ?1", [batch]).unwrap();
+        renumber_read_tables(&mut conn).unwrap();
+        assert_eq!(numbers(&conn, batch), ["50", "50", "50"]);
+    }
+
+    #[test]
+    fn a_new_database_numbers_nothing_afresh_and_opens_again() {
+        let path = std::env::temp_dir().join(format!("ukmac-ids-{}.db", uuid::Uuid::new_v4()));
+        drop(crate::db::open(&path).unwrap());
+        let conn = crate::db::open(&path).unwrap();
+        let done: String = conn.query_row("SELECT value FROM settings WHERE key = ?1", [RENUMBERED_KEY], |row| row.get(0)).unwrap();
+        assert_eq!(done, "1");
     }
 
     #[test]

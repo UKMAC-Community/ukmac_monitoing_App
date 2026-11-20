@@ -620,10 +620,11 @@ fn zone_record_columns() -> Vec<Column> {
         required(link("Zone plot", ZONE_SOURCE)),
         required(date("Record date")),
         number("Day number"),
-        number("Plant count"),
-        date("Replant date"),
-        number("Replant count"),
-        number("Dead plant"),
+        // Over their columns as the farm sheet's header has them (its two-line header), the words only.
+        in_group(number("Plant count"), "Total chili plants planted"),
+        in_group(date("Replant date"), "Replanting plants"),
+        in_group(number("Replant count"), "Replanting plants"),
+        in_group(number("Dead plant"), "Plant dead after planting"),
         // The status is the last thing said about the record, just before its note.
         text("Status"),
         text("Note"),

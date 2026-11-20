@@ -45,7 +45,7 @@ export class App implements OnInit {
   private readonly updater = inject(AppUpdater);
   readonly shell = inject(Shell);
   /** Applies the accent colour and table sizing the person chose in Settings (it works on creation). */
-  private readonly theme = inject(Theme);
+  readonly theme = inject(Theme);
   private readonly router = inject(Router);
 
   /** The name this computer has, for the sidebar's foot (empty until it is read, or when it can't be). */
@@ -193,10 +193,23 @@ export class App implements OnInit {
   /** The Google Sheet the open table reads (not while its dashboard is being edited). */
   readonly tableLink = computed(() => {
     const url = this.url();
+    const zones = this.zoneMapZones();
+    if (zones) return this.google.linkOf(zones.sheetId);
     const match = /^\/mac\/\d+\/table\/(\d+)/.exec(url);
     if (!match || /[?&]view=dashboard\b/.test(url)) return null;
     return this.google.linkOf(Number(match[1]));
   });
+
+  /** The Zones table, while the Zone Map is open: the map is read from it, so its Google Sheet link and Columns show in the top bar there. */
+  readonly zoneMapZones = computed(() => (/^\/mac\/\d+\/zone-map/.test(this.url()) ? (this.store.sheets().find((sheet) => sheet.templateKey === 'zones') ?? null) : null));
+
+  /** The top bar's Columns: on a table, its own connections; on the Zone Map, those of the Zones table (its page opens on them). */
+  columns() {
+    const zones = this.zoneMapZones();
+    if (!zones) return this.google.connectionsRequest.update((n) => n + 1);
+    this.google.pendingConnections.set(zones.sheetId);
+    void this.router.navigate(['/mac', zones.macId, 'table', zones.sheetId]);
+  }
 
   /** A table's page is open (its rows or its sheet, not its dashboard): the top bar shows its Columns button. */
   readonly onTable = computed(() => {
@@ -238,6 +251,7 @@ export class App implements OnInit {
     void this.google.init().then(() => this.autoSync.init());
     // A restart for an update waits while an edit is being saved or a Google sheet is being read.
     this.updater.writing = () => this.store.saving() > 0 || this.google.syncing().size > 0;
+    void this.updater.confirmBoot();
     void this.updater.checkOnStart();
   }
 

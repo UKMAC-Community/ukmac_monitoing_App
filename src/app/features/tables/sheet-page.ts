@@ -118,6 +118,20 @@ export class SheetPage {
   }
 
   readonly search = signal('');
+  /** The page is still at the top (the map on screen): the button down to what is under it shows. */
+  readonly atTop = signal(true);
+  onPageScroll(event: Event) {
+    const page = event.currentTarget as HTMLElement;
+    this.atTop.set(page.scrollTop < page.clientHeight * 0.3);
+  }
+  goDown(event: Event) {
+    const page = (event.currentTarget as HTMLElement).closest<HTMLElement>('.page-scroll');
+    const target = page?.querySelector('app-qa-qc-zone-status');
+    if (!page || !target) return;
+    // A little of what is above it stays in view, so it reads as the next part of the page.
+    const top = page.scrollTop + target.getBoundingClientRect().top - page.getBoundingClientRect().top - 12;
+    glideTo(page, top);
+  }
   readonly sort = signal<{ key: string; dir: 1 | -1 } | null>(null);
 
   // Dialogs.
@@ -235,6 +249,16 @@ export class SheetPage {
       if (asked === seenConnectionsRequest) return;
       seenConnectionsRequest = asked;
       if (untracked(() => this.sheet() && this.mode() !== 'dashboard')) void this.seeConnections();
+    });
+    // Asked for from the Zone Map's Columns button: this table opens on how the Google Sheet's columns fill its own.
+    effect(() => {
+      const asked = this.google.pendingConnections();
+      const sheet = this.sheet();
+      if (asked === null || !sheet || sheet.sheetId !== asked) return;
+      untracked(() => {
+        this.google.pendingConnections.set(null);
+        if (this.mode() !== 'dashboard') void this.seeConnections();
+      });
     });
     // The sidebar stays open on the table's page; it folds only for the spreadsheet, as the system's sheet view does.
     const shell = inject(Shell);
@@ -800,3 +824,33 @@ export class SheetPage {
 }
 
 const NO_KEYS: ReadonlySet<string> = new Set();
+
+/**
+ * Scrolls a box to a place with an even ease in and out, as long as the distance asks (the browser's own smooth scroll is short and
+ * abrupt over a long way). A wheel, a touch or a key stops it at once; a Mac set to reduce motion jumps.
+ */
+export function glideTo(box: HTMLElement, top: number) {
+  const from = box.scrollTop;
+  const distance = Math.max(0, Math.min(top, box.scrollHeight - box.clientHeight)) - from;
+  if (!distance) return;
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    box.scrollTop = from + distance;
+    return;
+  }
+  const duration = Math.min(1100, 450 + Math.abs(distance) * 0.45);
+  const start = performance.now();
+  let frame = 0;
+  const stop = () => {
+    cancelAnimationFrame(frame);
+    for (const gesture of ['wheel', 'touchstart', 'keydown', 'mousedown']) box.removeEventListener(gesture, stop);
+  };
+  for (const gesture of ['wheel', 'touchstart', 'keydown', 'mousedown']) box.addEventListener(gesture, stop, { passive: true });
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    box.scrollTop = from + distance * eased;
+    if (t < 1) frame = requestAnimationFrame(step);
+    else stop();
+  };
+  frame = requestAnimationFrame(step);
+}
