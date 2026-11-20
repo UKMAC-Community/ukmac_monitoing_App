@@ -11,6 +11,8 @@ import { type Rag, runRag } from './assistant-rag';
 interface Step {
   title: string;
   detail: string;
+  /** How it was called: a function and its arguments. */
+  call?: string;
   /** The result, line by line. A long one is folded away. */
   lines?: string[];
   state: 'ok' | 'warn';
@@ -20,7 +22,7 @@ interface Step {
 export function stepsOf(turn: Turn): Step[] {
   const { rag } = turn;
   const steps: Step[] = [{ title: 'Understood the question', detail: rag.understood.length ? rag.understood.join(' · ') : 'No table, day or plot recognised', state: 'ok' }];
-  for (const query of rag.queries) steps.push({ title: query.title, detail: query.sql, lines: query.lines, state: query.warn ? 'warn' : 'ok' });
+  for (const query of rag.queries) steps.push({ title: query.title, detail: query.sql, call: query.call, lines: query.lines, state: query.warn ? 'warn' : 'ok' });
   if (rag.records > 0) {
     steps.push({
       title: 'Checked how the records relate',
@@ -29,7 +31,7 @@ export function stepsOf(turn: Turn): Step[] {
       state: rag.notes.length ? 'warn' : 'ok',
     });
   }
-  if (turn.seconds !== null) steps.push({ title: 'Asked the assistant', detail: `Put the results into words in ${turn.seconds.toFixed(1)} s, on this Mac`, state: 'ok' });
+  if (turn.seconds !== null) steps.push({ title: 'Asked the assistant', detail: `Put the results into words in ${turn.seconds.toFixed(1)} s, on this Mac`, call: 'assistant.answer(results, records, question)', state: 'ok' });
   return steps;
 }
 
@@ -73,7 +75,7 @@ export function stepsOf(turn: Turn): Step[] {
             <div class="msg bot">
               <span class="avatar"><app-icon name="sparkles" [size]="15" /></span>
               <div class="bot-body">
-                <details class="steps" [open]="turn.rag.notes.length > 0">
+                <details class="steps" [open]="$last || turn.rag.notes.length > 0">
                   <summary>
                     <app-icon name="chevron-right" [size]="13" class="chev" />
                     Ran {{ steps(turn).length }} quer{{ steps(turn).length === 1 ? 'y' : 'ies' }}
@@ -87,6 +89,9 @@ export function stepsOf(turn: Turn): Step[] {
                         <span class="dot"></span>
                         <div class="step">
                           <b>{{ step.title }}</b>
+                          @if (step.call) {
+                            <code class="call"><span class="fn">ƒ</span> {{ step.call }}</code>
+                          }
                           <span class="detail">{{ step.detail }}</span>
                           @if (step.lines && step.lines.length <= 4) {
                             <ul [class.warn]="step.state === 'warn'">
@@ -111,6 +116,17 @@ export function stepsOf(turn: Turn): Step[] {
                   </ol>
                 </details>
                 <p class="said">{{ turn.answer }}</p>
+                @if (turn.rag.sources.length) {
+                  <div class="refs">
+                    <span class="refs-label">Sources</span>
+                    @for (source of turn.rag.sources; track source.sheetId; let n = $index) {
+                      <a class="ref" [routerLink]="['/mac', macId(), 'table', source.sheetId]" [title]="'Open ' + source.table + ': ' + source.columns.join(', ')">
+                        <span class="ref-n">{{ n + 1 }}</span>
+                        <span class="ref-text"><b>{{ source.table }}</b><small>{{ source.columns.length ? source.columns.join(', ') + ' · ' : '' }}{{ source.rows }} record{{ source.rows === 1 ? '' : 's' }}</small></span>
+                      </a>
+                    }
+                  </div>
+                }
               </div>
             </div>
           }
@@ -122,11 +138,11 @@ export function stepsOf(turn: Turn): Step[] {
                 <ol class="live">
                   <li><span class="dot done"></span><div class="step"><b>Understood the question</b><span class="detail">{{ asking.rag.understood.length ? asking.rag.understood.join(' · ') : 'No table, day or plot recognised' }}</span></div></li>
                   @for (query of asking.rag.queries; track query.title) {
-                    <li><span class="dot done"></span><div class="step"><b>{{ query.title }}</b><span class="detail">{{ query.lines[0] }}</span></div></li>
+                    <li><span class="dot done"></span><div class="step"><b>{{ query.title }}</b><code class="call"><span class="fn">ƒ</span> {{ query.call }}</code><span class="detail">{{ query.lines[0] }}</span></div></li>
                   }
                   <li>
                     <span class="dot spin"></span>
-                    <div class="step"><b>Asking the assistant…</b><span class="detail">The first question of a session loads the model: a few seconds.</span></div>
+                    <div class="step"><b>Asking the assistant…</b><code class="call"><span class="fn">ƒ</span> assistant.answer(results, records, question)</code><span class="detail">The first question of a session loads the model: a few seconds.</span></div>
                   </li>
                 </ol>
               </div>
@@ -195,6 +211,16 @@ export function stepsOf(turn: Turn): Step[] {
     .step { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 0.8125rem; }
     .step b { font-weight: 600; }
     .detail { color: var(--text-muted); line-height: 1.45; }
+    .call { display: block; margin: 3px 0; padding: 5px 9px; border-radius: 8px; background: var(--fill); font: 0.75rem/1.45 var(--mono); color: var(--text); overflow-wrap: anywhere; }
+    .call .fn { color: var(--accent); font-weight: 700; margin-right: 4px; }
+    .refs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; }
+    .refs-label { font-family: var(--mono); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+    .ref { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 5px 12px 5px 6px; border: var(--hairline) solid var(--border); border-radius: 999px; background: var(--surface-solid); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); color: var(--text); text-decoration: none; }
+    .ref:hover { border-color: var(--accent); }
+    .ref-n { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 0.6875rem; font-weight: 700; }
+    .ref-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+    .ref-text b { font-size: 0.75rem; font-weight: 600; }
+    .ref-text small { font-size: 0.6875rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .step ul { margin: 4px 0 0; padding-left: 16px; color: var(--text); line-height: 1.5; }
     .step ul.warn { color: var(--warning); }
     .records summary { cursor: pointer; font-size: 0.75rem; color: var(--accent); margin-top: 2px; }
@@ -284,11 +310,23 @@ export class AssistantAsk {
     }
     this.pending.set({ question, rag });
     const began = performance.now();
-    const text = await this.assistant.ask(this.macId(), rag.context, question);
+    const text = await this.assistant.ask(this.macId(), withHistory(this.turns(), rag.context), question);
     this.pending.set(null);
     if (text) this.assistant.addTurn(this.macId(), { question, answer: text, rag, seconds: (performance.now() - began) / 1000 });
     else this.question.set(question);
   }
+}
+
+/** How many earlier exchanges the model is reminded of, and how much of each answer. */
+const HISTORY_TURNS = 2;
+const HISTORY_CHARS = 300;
+
+/** The query results the model reads, with the last exchanges before them, so a follow-up ("tell me in detail") is answered as part of the conversation. */
+export function withHistory(turns: readonly Turn[], context: string): string {
+  const recent = turns.slice(-HISTORY_TURNS);
+  if (!recent.length) return context;
+  const said = recent.map((turn) => `Q: ${turn.question}\nA: ${turn.answer.length > HISTORY_CHARS ? `${turn.answer.slice(0, HISTORY_CHARS)}…` : turn.answer}`).join('\n');
+  return `THE CONVERSATION SO FAR (the question below may follow on from it):\n${said}\n\n${context}`;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

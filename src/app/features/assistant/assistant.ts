@@ -29,7 +29,12 @@ function slim(chats: Chat[]): Chat[] {
 function loadChats(): Chat[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(CHATS_KEY) ?? '[]') as Chat[];
-    return Array.isArray(parsed) ? parsed.filter((chat) => chat && typeof chat.id === 'string' && Array.isArray(chat.turns)) : [];
+    // Chats kept by an earlier version lack the calls and sources of their queries.
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((chat) => chat && typeof chat.id === 'string' && Array.isArray(chat.turns))
+          .map((chat) => ({ ...chat, turns: chat.turns.map((turn) => ({ ...turn, rag: { ...turn.rag, sources: turn.rag.sources ?? [], queries: turn.rag.queries.map((query) => ({ ...query, call: query.call ?? '', sources: query.sources ?? [] })) } })) }))
+      : [];
   } catch {
     return [];
   }

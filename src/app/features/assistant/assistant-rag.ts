@@ -11,8 +11,20 @@ import { addDays, buildRecords, daysAsked, parseDates } from './assistant-contex
  * words. Each query is kept with its result so the person can see what was run.
  */
 
+/** A table a query read, the columns it used, and how many of its records it looked at: the reference of an answer. */
+export interface Source {
+  sheetId: number;
+  table: string;
+  columns: string[];
+  rows: number;
+}
+
 export interface Query {
   title: string;
+  /** How the query was called, as a function call with its arguments: `count(table: "Zones", count: "Plot", group_by: "Zone")`. */
+  call: string;
+  /** The tables it read. */
+  sources: Source[];
   /** The query, written as plain steps: "Zones: count Plot, grouped by Zone". */
   sql: string;
   /** The result, one line each. */
@@ -24,6 +36,8 @@ export interface Query {
 
 /** What a follow-up question may take from the one before it. */
 export interface Carry {
+  /** The question as it was understood (a follow-up's own words after the ones it follows), for the next follow-up. */
+  question?: string;
   sheet: string | null;
   filters: string[];
   kinds: string[];
@@ -35,6 +49,8 @@ export interface Rag {
   queries: Query[];
   /** What the assistant reads: the query results, then matching records. */
   context: string;
+  /** Every table the queries read, with the columns used: the answer's references. */
+  sources: Source[];
   /** What the app noticed does not fit in the records it found. */
   notes: string[];
   /** Records handed over (not counting query results). */
@@ -70,6 +86,15 @@ const words = (text: string): string[] => text.toLowerCase().replace(/[^\p{L}\p{
 const tokens = (text: string): string[] => words(text).map(stem);
 const meaningful = (list: string[]): string[] => list.filter((word) => !STOP.has(word) && word.length > 1);
 const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const callOf = (name: string, args: (string | null | undefined | false)[]): string => `${name}(${args.filter(Boolean).join(', ')})`;
+const quote = (text: string) => `"${text.replace(/"/g, "'")}"`;
+const sourceOf = (table: Table, columns: (string | undefined)[], rows: number): Source => ({
+  sheetId: table.sheet.sheetId,
+  table: table.sheet.title,
+  columns: [...new Set(columns.filter((name): name is string => !!name))],
+  rows,
+});
 
 const number = (value: number): string => (Number.isInteger(value) ? value.toLocaleString('en-US') : value.toLocaleString('en-US', { maximumFractionDigits: 2 }));
 
@@ -135,7 +160,7 @@ function intentsOf(text: string): Kind[] {
   if (/\b(total|sum|altogether|how much|in all|overall)\b/.test(text)) kinds.push('sum');
   if (/\b(most|highest|largest|biggest|maximum|max|best|top|greatest|longest)\b/.test(text)) kinds.push('max');
   if (/\b(least|lowest|smallest|minimum|min|worst|fewest|shortest)\b/.test(text)) kinds.push('min');
-  if (/\b(list|which|show|name|what are|who)\b/.test(text)) kinds.push('list');
+  if (/\b(list|which|show|name|what are|who|tell me what|in detail|more detail|details?|breakdown|break it down|elaborate|each)\b/.test(text)) kinds.push('list');
   if (/\b(what happened|what was done|what did|activity|activities|timeline|history|going on)\b/.test(text)) kinds.push('happened');
   return kinds;
 }
@@ -258,7 +283,32 @@ interface Plan {
 
 // ------------------------------------------------------------------ the whole thing
 
+/** A question that only makes sense after the one before it: "tell me in detail", "what zone plot there", "and for November?". */
+const FOLLOWS = /^(and|what about|how about|same for|only|also|then)\b|\b(in detail|more detail|details?|elaborate|explain|breakdown|break it down|more|there|them|those|these|that|it)\b/;
+/** A follow-up this long has its own subject: it is read on its own. */
+const FOLLOW_WORDS = 12;
+/** What a follow-up keeps of the questions before it. */
+const FOLLOW_KEEP = 320;
+
+/**
+ * Answers a question from the tables. A follow-up ("tell me in detail", "what plots there") is read together with the question it
+ * follows, so it keeps its table, its zone or plot and its days, as a person would mean it; the model is told what it follows.
+ */
 export function runRag(question: string, sheets: readonly SheetWithRows[], today = todayIso(), before: Carry | null = null): Rag {
+  const follows = !!before?.question && words(question).length <= FOLLOW_WORDS && FOLLOWS.test(question.toLowerCase());
+  if (!follows) return runOnce(question, sheets, today, before);
+  // One that names a table, a zone or a plot, or days, of its own changes the subject: it only takes the table and what was asked from before.
+  const alone = runOnce(question, sheets, today, null);
+  if (alone.understood.some((line) => /^(Table|Only|Days):/.test(line))) return runOnce(question, sheets, today, before);
+  const joined = `${before!.question}. ${question}`.slice(-FOLLOW_KEEP);
+  const rag = runOnce(joined, sheets, today, null);
+  // Asking for more detail on something that was only counted: list what was counted.
+  rag.understood.unshift(`Following on from: ${before!.question}`);
+  rag.carry = { ...rag.carry, question: joined };
+  return rag;
+}
+
+function runOnce(question: string, sheets: readonly SheetWithRows[], today = todayIso(), before: Carry | null = null): Rag {
   const text = question.toLowerCase();
   const formulas = new WorkbookFormulas([...sheets], today);
   const tables = sheets.map((sheet) => tableOf(sheet, formulas));
@@ -321,6 +371,8 @@ export function runRag(question: string, sheets: readonly SheetWithRows[], today
     const found = checkEverything(tables, today);
     queries.push({
       title: 'Checked every table for records that do not fit',
+      call: callOf('check_tables', ['rules: ["dated before the plot was planted", "no plot", "dated in the future", "number far from the rest"]']),
+      sources: tables.filter((item) => found.some((line) => line.startsWith(`${item.sheet.title}:`))).map((item) => sourceOf(item, [item.plot?.name, item.date?.name], item.sheet.rows.length)),
       sql: 'Each record: is it dated before its plot was planted, has no plot, is dated in the future, or has a number far from the rest of its column?',
       lines: found.length ? found : ["Nothing that doesn't fit."],
       rows: found.length,
@@ -337,6 +389,8 @@ export function runRag(question: string, sheets: readonly SheetWithRows[], today
       .sort((a, b) => b.count - a.count);
     queries.push({
       title: `Looked for empty cells in ${table.sheet.title}`,
+      call: callOf('empty_cells', [`table: ${quote(table.sheet.title)}`]),
+      sources: [sourceOf(table, empty.slice(0, 12).map((item) => item.col.name), table.sheet.rows.length)],
       sql: `${table.sheet.title}: for each column, how many of its ${number(table.sheet.rows.length)} records have nothing entered`,
       lines: empty.length ? empty.slice(0, 12).map((item) => `${item.col.name}: ${number(item.count)} of ${number(table!.sheet.rows.length)} empty`) : ['Every cell is filled in.'],
       rows: empty.length,
@@ -359,6 +413,11 @@ export function runRag(question: string, sheets: readonly SheetWithRows[], today
       notes.push(...lookup.notes);
       queries.push({
         title: 'Searched every table for the day or plot',
+        call: callOf('find_records', [plan.spans.length > 0 && `day: ${quote(plan.spans.map((span) => span.label).join(', '))}`, plotNamed(question, tables) && `plot: ${quote(lookup.looked.filter((item) => item.startsWith('plot ')).map((item) => item.slice(5)).join(', '))}`, 'group_by: "plot"']),
+        sources: lookup.tables.flatMap((item) => {
+          const hit = tables.find((candidate) => candidate.sheet.title === item.name);
+          return hit ? [sourceOf(hit, [hit.plot?.name, hit.date?.name], item.count)] : [];
+        }),
         sql: `Every table: records ${lookup.looked.join(' and ')}, by plot`,
         lines: lookup.records ? lookup.text.split('\n').filter((line) => line.trim() !== '') : ['No record in any table matches.'],
         rows: lookup.records,
@@ -378,7 +437,7 @@ export function runRag(question: string, sheets: readonly SheetWithRows[], today
       const values = rows.map((row) => asNumber(table.value(row, col))).filter((value): value is number => value !== null);
       if (values.length) lines.push(`${col.name}: total ${number(values.reduce((a, b) => a + b, 0))}, average ${number(values.reduce((a, b) => a + b, 0) / values.length)} (${number(values.length)} records)`);
     }
-    queries.push({ title: `Summary of ${table.sheet.title}`, sql: `${table.sheet.title}: how many records, the days they cover, each number column's total and average`, lines, rows: rows.length });
+    queries.push({ title: `Summary of ${table.sheet.title}`, call: callOf('summarize', [`table: ${quote(table.sheet.title)}`]), sources: [sourceOf(table, [table.date?.name, ...table.cols.filter((item) => item.kind === 'measure').slice(0, 6).map((item) => item.name)], rows.length)], sql: `${table.sheet.title}: how many records, the days they cover, each number column's total and average`, lines, rows: rows.length });
   }
 
   // Nothing above fits: look for the records that share the most words with the question.
@@ -387,10 +446,12 @@ export function runRag(question: string, sheets: readonly SheetWithRows[], today
     if (hits.length) {
       records = hits.length;
       recordsText = hits.map((hit) => `- ${hit}`).join('\n');
-      queries.push({ title: 'Searched the records for the words of the question', sql: 'Every table: the records that share the most words with the question', lines: hits, rows: hits.length });
+      queries.push({ title: 'Searched the records for the words of the question', call: callOf('search_records', [`text: ${quote(question)}`, 'limit: 10']), sources: tables.filter((item) => hits.some((hit) => hit.startsWith(`${item.sheet.title} — `))).map((item) => sourceOf(item, [], hits.filter((hit) => hit.startsWith(`${item.sheet.title} — `)).length)), sql: 'Every table: the records that share the most words with the question', lines: hits, rows: hits.length });
     } else {
       queries.push({
         title: 'Listed the tables',
+        call: 'list_tables()',
+        sources: [],
         sql: 'Every table: how many records, and the days they cover',
         lines: tables.map((item) => `${item.sheet.title}: ${number(item.sheet.rows.length)} record${item.sheet.rows.length === 1 ? '' : 's'}`),
         rows: 0,
@@ -418,12 +479,23 @@ export function runRag(question: string, sheets: readonly SheetWithRows[], today
     understood,
     queries,
     context: parts.join('\n'),
+    sources: mergeSources(queries.flatMap((query) => query.sources)),
     notes: [...new Set(notes)],
     records,
     found,
     direct,
-    carry: { sheet: table?.sheet.title ?? before?.sheet ?? null, filters: filters.map((filter) => `${filter.col.name} ${filter.value}`), kinds },
+    carry: { question, sheet: table?.sheet.title ?? before?.sheet ?? null, filters: filters.map((filter) => `${filter.col.name} ${filter.value}`), kinds },
   };
+}
+
+/** The same table read by several queries is one reference: its columns together, the most records looked at. */
+function mergeSources(list: Source[]): Source[] {
+  const merged = new Map<number, Source>();
+  for (const source of list) {
+    const have = merged.get(source.sheetId);
+    merged.set(source.sheetId, have ? { ...have, columns: [...new Set([...have.columns, ...source.columns])], rows: Math.max(have.rows, source.rows) } : { ...source });
+  }
+  return [...merged.values()];
 }
 
 function plotNamed(question: string, tables: Table[]): boolean {
@@ -452,7 +524,7 @@ function runMeasure(table: Table, ctx: Ctx, question: string, text: string, kind
   const whereText = where.length ? ` where ${where.join(' and ')}` : '';
 
   // The column to group by: one the question names with "per", "by", "each" or "in the" (the zone), other than what is counted or added up.
-  const noun = /(?:how many|number of|count of|list|which|show|name|what are)\s+(?:the\s+)?([\p{L}\p{N}\s-]+?)(?:\s+(?:in|on|at|are|is|do|does|did|have|has|were|was|per|by|for|of|from|across|each|there)\b|$|\?)/u.exec(text)?.[1] ?? '';
+  const noun = /(?:how many|number of|count of|list|which|show|name|what are|tell me what)\s+(?:the\s+)?([\p{L}\p{N}\s-]+?)(?:\s+(?:in|on|at|are|is|do|does|did|have|has|were|was|per|by|for|of|from|across|each|there)\b|$|\?)/u.exec(text)?.[1] ?? '';
   const nounWords = tokens(noun).filter((word) => !STOP.has(word));
   // The column counted or listed: the longest name made of the noun's words, the later in the noun the better ("zone plot" is about plots).
   const counted = nounWords.length
@@ -475,11 +547,29 @@ function runMeasure(table: Table, ctx: Ctx, question: string, text: string, kind
   const group = groupWanted ? groupCandidates[0] ?? null : null;
   const grouper = group ? groupOf(table, ctx, group.col, group.owner) : null;
 
+  const fnName = useMeasure ? (kinds.includes('average') ? 'average' : (kinds.includes('max') || kinds.includes('min')) && !group && !kinds.includes('sum') ? (kinds.includes('max') ? 'max' : 'min') : 'sum') : 'count';
+  const wherePairs = [...plan.filters.map((filter) => `${filter.col.name}: ${quote(filter.value)}`), ...plan.spans.map((span) => `${table.date?.name ?? 'date'}: ${quote(span.label)}`)];
+  const meta = {
+    call: callOf(fnName, [
+      `table: ${quote(table.sheet.title)}`,
+      useMeasure ? `column: ${quote(useMeasure.name)}` : counted ? `count: ${quote(counted.name)}` : null,
+      !useMeasure && counted ? 'distinct: true' : null,
+      group ? `group_by: ${quote(group.col.name)}` : null,
+      wherePairs.length ? `where: { ${wherePairs.join(', ')} }` : null,
+    ]),
+    sources: [
+      sourceOf(table, [useMeasure?.name ?? counted?.name, group?.owner === table ? group.col.name : undefined, ...plan.filters.filter((filter) => filter.table === table).map((filter) => filter.col.name), plan.spans.length ? table.date?.name : undefined], rows.length),
+      ...[...new Set([...(group && group.owner !== table ? [group.owner] : []), ...plan.filters.filter((filter) => filter.table !== table).map((filter) => filter.table)])].map((owner) =>
+        sourceOf(owner, [owner.plot?.name, group?.owner === owner ? group.col.name : undefined, ...plan.filters.filter((filter) => filter.table === owner).map((filter) => filter.col.name)], owner.sheet.rows.length),
+      ),
+    ],
+  };
+
   if (useMeasure) {
     const verb = !wantsMeasure ? 'total' : kinds.includes('average') ? 'average' : kinds.includes('max') && !group && !kinds.includes('sum') ? 'highest' : kinds.includes('min') && !group && !kinds.includes('sum') ? 'lowest' : 'total';
     const values = rows.map((row) => ({ row, value: asNumber(table.value(row, useMeasure)) })).filter((item): item is { row: Row; value: number } => item.value !== null);
     const sql = `${table.sheet.title}: ${verb} of ${useMeasure.name}${whereText}${group ? `, grouped by ${group.col.name}` : ''}`;
-    if (!values.length) return { title: `${cap(verb)} of ${useMeasure.name}`, sql, lines: [`No ${useMeasure.name} entered${whereText ? ` for this selection` : ''}.`], rows: 0 };
+    if (!values.length) return { ...meta, title: `${cap(verb)} of ${useMeasure.name}`, sql, lines: [`No ${useMeasure.name} entered${whereText ? ` for this selection` : ''}.`], rows: 0 };
     understood.push(`Measure: ${useMeasure.name}`);
     if (grouper) {
       understood.push(`Grouped by ${group!.col.name}`);
@@ -498,16 +588,16 @@ function runMeasure(table: Table, ctx: Ctx, question: string, text: string, kind
       if (entries.length > top) lines.push(`(+${entries.length - top} more groups)`);
       const grand = verb === 'average' ? values.reduce((sum, item) => sum + item.value, 0) / values.length : values.reduce((sum, item) => sum + item.value, 0);
       lines.push(`${verb === 'average' ? 'Average over all' : 'All together'}: ${number(grand)}`);
-      return { title: `${cap(verb)} of ${useMeasure.name} by ${group!.col.name}`, sql, lines, rows: values.length };
+      return { ...meta, title: `${cap(verb)} of ${useMeasure.name} by ${group!.col.name}`, sql, lines, rows: values.length };
     }
     if (kinds.includes('max') || kinds.includes('min')) {
       const order = kinds.includes('min') ? 1 : -1;
       const label = (row: Row) => [table.plot ? table.value(row, table.plot) : '', table.date ? formatDate(String(row.data[table.date.column.key] ?? '').slice(0, 10)) : ''].filter(Boolean).join(' · ') || `row ${row.rowId}`;
       const top = [...values].sort((a, b) => order * (a.value - b.value)).slice(0, 5);
-      return { title: `${kinds.includes('min') ? 'Lowest' : 'Highest'} ${useMeasure.name}`, sql: `${sql}, five records`, lines: top.map((item) => `${label(item.row)}: ${number(item.value)}`), rows: values.length };
+      return { ...meta, title: `${kinds.includes('min') ? 'Lowest' : 'Highest'} ${useMeasure.name}`, sql: `${sql}, five records`, lines: top.map((item) => `${label(item.row)}: ${number(item.value)}`), rows: values.length };
     }
     const result = verb === 'average' ? values.reduce((sum, item) => sum + item.value, 0) / values.length : values.reduce((sum, item) => sum + item.value, 0);
-    return { title: `${cap(verb)} of ${useMeasure.name}`, sql, lines: [`${number(result)} (from ${number(values.length)} record${values.length === 1 ? '' : 's'})`], rows: values.length };
+    return { ...meta, title: `${cap(verb)} of ${useMeasure.name}`, sql, lines: [`${number(result)} (from ${number(values.length)} record${values.length === 1 ? '' : 's'})`], rows: values.length };
   }
 
   // A count: the records, or the different values of the column that is counted ("plots"), by group when asked.
@@ -531,7 +621,7 @@ function runMeasure(table: Table, ctx: Ctx, question: string, text: string, kind
     const values = [...new Set(rows.map((row) => table.value(row, countCol)).filter(Boolean))];
     lines.push(`${countCol.name}: ${values.slice(0, 40).join(', ')}${values.length > 40 ? ` (+${values.length - 40} more)` : ''}`);
   }
-  return { title: `Count of ${noun1} in ${table.sheet.title}`, sql, lines, rows: rows.length };
+  return { ...meta, title: `Count of ${noun1} in ${table.sheet.title}`, sql, lines, rows: rows.length };
 }
 
 const cap = (text: string) => text[0].toUpperCase() + text.slice(1);

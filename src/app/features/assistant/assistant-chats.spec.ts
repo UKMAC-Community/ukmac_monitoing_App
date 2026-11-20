@@ -6,7 +6,7 @@ const turn = (question: string): Turn => ({
   question,
   answer: 'An answer',
   seconds: 1,
-  rag: { understood: [], queries: [{ title: 'Count', sql: 'sql', lines: Array.from({ length: 80 }, (_, index) => `line ${index}`), rows: 80 }], context: 'a lot of text', notes: [], records: 0, found: true, direct: null, carry: { sheet: null, filters: [], kinds: [] } },
+  rag: { understood: [], sources: [], queries: [{ title: 'Count', call: 'count()', sources: [], sql: 'sql', lines: Array.from({ length: 80 }, (_, index) => `line ${index}`), rows: 80 }], context: 'a lot of text', notes: [], records: 0, found: true, direct: null, carry: { sheet: null, filters: [], kinds: [] } },
 });
 
 describe('the chat history', () => {

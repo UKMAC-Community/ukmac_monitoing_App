@@ -55,7 +55,7 @@ const progress = makeSheet(
   'zone-records',
 );
 const sheets = [zones, planting, harvest, progress];
-const ask = (question: string, before = null as null | { sheet: string | null; filters: string[]; kinds: string[] }) => runRag(question, sheets, TODAY, before);
+const ask = (question: string, before = null as null | { question?: string; sheet: string | null; filters: string[]; kinds: string[] }) => runRag(question, sheets, TODAY, before);
 
 describe('counting', () => {
   it('"how many zone plot in the zone" counts the plots, zone by zone (what went wrong with a day lookup before)', () => {
@@ -111,6 +111,30 @@ describe('totals, averages and the most', () => {
   });
 });
 
+describe('how a query was called, and what it read', () => {
+  it('a count says its call and the table and columns it read', () => {
+    const rag = ask('how many zone plot in the zone');
+    expect(rag.queries[0].call).toBe('count(table: "Zones", count: "Plot", distinct: true, group_by: "Zone")');
+    expect(rag.sources).toEqual([{ sheetId: 1, table: 'Zones', columns: ['Plot', 'Zone'], rows: 6 }]);
+  });
+  it('a total names the column, the grouping and the filters, and a group from another table is read too', () => {
+    const rag = ask('total harvest yield by zone in November');
+    expect(rag.queries[0].call).toBe('sum(table: "Harvest", column: "Harvest yield", group_by: "Zone", where: { Date harvest: "November" })');
+    expect(rag.sources.map((source) => source.table)).toEqual(['Harvest', 'Zones']);
+    expect(rag.sources[0].columns).toEqual(['Harvest yield', 'Date harvest']);
+  });
+  it('what happened reads every table with records of the day', () => {
+    const rag = ask('what happened on 2 Nov');
+    expect(rag.queries[0].call).toBe('find_records(day: "02/11/2026", group_by: "plot")');
+    expect(rag.sources.map((source) => source.table)).toEqual(['Harvest']);
+  });
+  it('the problems check names the tables it found something in', () => {
+    const rag = ask('does anything not fit?');
+    expect(rag.queries[0].call).toContain('check_tables(');
+    expect(rag.sources.map((source) => source.table)).toContain('Harvest');
+  });
+});
+
 describe('what happened, and what does not fit', () => {
   it('a day brings that day from every table, by plot', () => {
     const rag = ask('what happened on 2 Nov');
@@ -145,5 +169,28 @@ describe('a question the queries cannot take', () => {
     const next = ask('and what about that in zone B', first.carry);
     expect(next.queries[0].lines[0]).toBe('2 records in total');
     expect(next.understood.join(' ')).toContain('Carried over');
+  });
+  it('"tell me in detail" after a count lists what was counted, in the same table and zone', () => {
+    const first = ask('how many zone plot in zone A');
+    const next = ask('tell me in detail', first.carry);
+    expect(next.found).toBe(true);
+    expect(next.direct).toBeNull();
+    expect(next.understood[0]).toContain('Following on from: how many zone plot in zone A');
+    expect(next.context).toContain('A1');
+  });
+  it('keeps up through a whole conversation, as asked on the Zones table', () => {
+    const one = ask('How many zone in this');
+    const two = ask('how many zone plot', one.carry);
+    const three = ask('tell me what zone plot there', two.carry);
+    const four = ask('tell me in detail', three.carry);
+    for (const rag of [one, two, three, four]) expect(rag.direct).toBeNull();
+    expect(three.queries[0].lines.join(' ')).toContain('A1');
+    expect(four.understood[0]).toContain('Following on from');
+    expect(four.context).toContain('A1');
+  });
+  it('a question with its own subject is not tied to the one before', () => {
+    const first = ask('how many plots in zone A');
+    const next = ask('total harvest yield in November, for every zone', first.carry);
+    expect(next.understood.join(' ')).not.toContain('Following on');
   });
 });
